@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/bcbio__bcbio-nextgen-3737"
+description = "return submodules to readthedocs config"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "bcbio-nextgen",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "bcbio/bcbio-nextgen"
+ref = "ae4f841bbdbdf2b36593f3c7ab2966b206a21c50"
+reference = "https://github.com/bcbio/bcbio-nextgen/pull/3737"
+source_access = "auto"
+built_at = "2026-11-12T05:36:00.676787+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a177709b3cb79d7ad2c9c545076b6c5c6a1643f790d2d7d30c946b5797e98714"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-12-23T03:37:16Z"
+diff_format = "unified"
+context_files = [
+    ".readthedocs.yml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.762764+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:7c3e724aa5bc4b249df8baccf04aae8241eac523ecefd06c19b3ae4b15fc756c"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

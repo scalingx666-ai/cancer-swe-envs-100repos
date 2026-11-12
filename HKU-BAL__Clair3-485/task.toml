@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/HKU-BAL__Clair3-485"
+description = "Restore the variant-matrix output for full-alignment training (issue #484)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "Clair3",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "HKU-BAL/Clair3"
+ref = "ca47c1f3e004524ab466857b59df280c8b8cd7ce"
+reference = "https://github.com/HKU-BAL/Clair3/pull/485"
+source_access = "auto"
+built_at = "2026-11-12T05:37:09.196017+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e6b37d19ae1bd52dba22bb9de4651b1416f799017f916375820ede6da6ec0615"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-29T10:39:31Z"
+diff_format = "unified"
+context_files = [
+    "preprocess/CreateTensorFullAlignmentFromCffi.py",
+    "preprocess/CreateTensorFullAlignmentFromCffiWithDwell.py",
+    "src/clair3_full_alignment_dwell.c",
+    "src/clair3_full_alignment_dwell.h",
+    "src/fa_test.c",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 182
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.744417+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:87efd1ee89742a2f2985dafe64a3c010a1d9b2eed135222721a826b070dd3e7e"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

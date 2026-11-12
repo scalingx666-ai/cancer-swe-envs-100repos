@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/etal__cnvkit-1180"
+description = "Document CRAM input and test CRAM/BAM coverage equivalence"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "cnvkit",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "etal/cnvkit"
+ref = "b4509b4f4582571590cf400b04ad965662a3d121"
+reference = "https://github.com/etal/cnvkit/pull/1180"
+source_access = "auto"
+built_at = "2026-11-12T05:36:33.827345+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:63b355bcc07dc52d18964ef12e560712f5d88f1edc6864fc67e5400179405ef5"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-13T16:48:26Z"
+diff_format = "unified"
+context_files = [
+    "cnvlib/commands.py",
+    "doc/pipeline.rst",
+    "test/test_preprocessing.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 217
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.787093+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:aa11e974b909928389c15e263c95a2c979b91eb6caf855bf49fc6cdcf63399b5"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/lh3__bwa-359"
+description = "Add ARM Neon and scalar implementations of SIMD functions"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bwa",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lh3/bwa"
+ref = "b56db225480b9f6242b7d2b22b46b61d6ba48e73"
+reference = "https://github.com/lh3/bwa/pull/359"
+source_access = "auto"
+built_at = "2026-11-12T05:35:39.709564+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:00a1b453b2cc1233d04b9bf8b076f41ca74bfafe4baec7547e41f072083465d9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-08-31T13:50:31Z"
+diff_format = "unified"
+context_files = [
+    "Makefile",
+    "ksw.c",
+    "neon_sse.h",
+    "scalar_sse.h",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 200
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.801613+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:2342b147d0e0a4fd724f8988564e8e3d31ac3f0c85d31f4a1749c1d28d635db8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

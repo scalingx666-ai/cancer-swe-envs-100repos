@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/suhrig__arriba-191"
+description = "feat: keep exons while converting"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "arriba",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "suhrig/arriba"
+ref = "1de5d6ff223fb419e8d44cae63d966d1bdf1534e"
+reference = "https://github.com/suhrig/arriba/pull/191"
+source_access = "auto"
+built_at = "2026-11-12T04:20:36.523196+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:3d3e428255c6171ff7fe24e3e180b64341c594a6819a78e9e77c485f934072ac"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-09-12T22:14:48Z"
+diff_format = "unified"
+context_files = [
+    "scripts/convert_fusions_to_vcf.sh",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.835750+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:55cf84990667a62f22f103d3f45fb06db1644a9a3fb1ebc8f71aa3126e55d003"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

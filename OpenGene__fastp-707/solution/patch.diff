@@ -1,0 +1,35 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 9e5b015c..07248508 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -434,7 +434,9 @@ int main(int argc, char* argv[]){
+ 
+     time_t t1 = time(NULL);
+ 
+-    bool supportEvaluation = !opt.inputFromSTDIN && opt.in1!="/dev/stdin";
++    bool supportEvaluation = !opt.inputFromSTDIN && opt.in1!="/dev/stdin"
++                             && is_regular_file(opt.in1)
++                             && (opt.in2.empty() || is_regular_file(opt.in2));
+ 
+     Evaluator eva(&opt);
+     if(supportEvaluation) {
+diff --git a/src/util.h b/src/util.h
+index 62f582b9..0797559f 100644
+--- a/src/util.h
++++ b/src/util.h
+@@ -182,6 +182,15 @@ inline bool is_directory(const  string& path)
+     return isdir;
+ }
+ 
++// check if a path is a regular file (seekable), not a pipe/FIFO/device
++inline bool is_regular_file(const  string& path)
++{
++    struct stat status;
++    if( stat( path.c_str(), &status ) != 0 )
++        return false;
++    return S_ISREG( status.st_mode );
++}
++
+ inline void check_file_valid(const  string& s) {
+     if(!file_exists(s)){
+         cerr << "ERROR: file '" << s << "' doesn't exist, quit now" << endl;

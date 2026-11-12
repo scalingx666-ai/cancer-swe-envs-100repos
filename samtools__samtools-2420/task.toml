@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__samtools-2420"
+description = "Protect against memory allocation wrap-around in ampliconstats."
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "samtools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/samtools"
+ref = "43c2c035501d7f673f9775f801f8dfb10f9f9276"
+reference = "https://github.com/samtools/samtools/pull/2420"
+source_access = "auto"
+built_at = "2026-11-12T05:35:34.727707+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:39bbc22558487e8754c7a15d90be34ae41bc84a081fb744d38fc7012068d2148"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-03T16:59:30Z"
+diff_format = "unified"
+context_files = [
+    "amplicon_stats.c",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 24
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.828997+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:16c7dd9a3f137702ac2f13f672e8a706bea7d68b5d7760b7fe32c0525f544807"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

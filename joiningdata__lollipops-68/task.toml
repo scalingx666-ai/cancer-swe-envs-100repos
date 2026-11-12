@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/joiningdata__lollipops-68"
+description = "Fix various issues related to database changes"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lollipops",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "joiningdata/lollipops"
+ref = "fa1c5e35072faae86b05d2a2aaf4077f657ef647"
+reference = "https://github.com/joiningdata/lollipops/pull/68"
+source_access = "auto"
+built_at = "2026-11-12T05:38:11.551059+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6adef13da482dd8106f87b8b464a6e57d41831304e348772aa9829f4e8b8ce16"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-02-17T04:39:18Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "data/http.go",
+    "data/pfam.go",
+    "data/uniprot.go",
+    "main.go",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 158
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.797419+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ea0b5b5b7c75e4fdf649134cf04d9d4c790f154e3eb1297fd3f8d382b5b1acd2"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

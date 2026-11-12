@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/lh3__bwa-391"
+description = "Fix RNEXT output in xa2multi.pl"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "bwa",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lh3/bwa"
+ref = "139f68fc4c3747813783a488aef2adc86626b01b"
+reference = "https://github.com/lh3/bwa/pull/391"
+source_access = "auto"
+built_at = "2026-11-12T05:35:34.067343+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:cfe6dbb8c825ac561792f4d39fe0f28757b1f3eff3c5764fecfc1f91e0dbd71e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-21T20:13:25Z"
+diff_format = "unified"
+context_files = [
+    "xa2multi.pl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.802421+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:51c83667294aa1d920383ecfbcfd6aba92a81925451d60d7f244f707da8339d7"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

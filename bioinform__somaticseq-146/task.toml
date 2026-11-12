@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/bioinform__somaticseq-146"
+description = "Use CIGARS instead of aligned_bases for extra read info"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "somaticseq",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "bioinform/somaticseq"
+ref = "e6d4159ae386ac311c84b4894cdb43d7c5e68e60"
+reference = "https://github.com/bioinform/somaticseq/pull/146"
+source_access = "auto"
+built_at = "2026-11-12T05:37:59.129182+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7b10a99261dc110dfb67d3e3714bb191481046de4f19e5e8f08b3e53d3f8be95"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-04-13T21:29:31Z"
+diff_format = "unified"
+context_files = [
+    "somaticseq/genomic_file_parsers/read_info_extractor.py",
+    "tests/unit/genomic_file_parsers/test_read_info_extractor.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 431
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.764300+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6bf7a65181514712521974e3984abbebf4a5528d7f5ad75fc46518804e2e6ba8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

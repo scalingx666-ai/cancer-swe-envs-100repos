@@ -1,0 +1,33 @@
+diff --git a/README.md b/README.md
+index d4bf4b1..f62bb28 100644
+--- a/README.md
++++ b/README.md
+@@ -186,6 +186,8 @@ Note that for large cohorts, by default, `somalier relate` will subset to intere
+ balloon the size of the output. By default, pairs that are expected to be unrelated and have a relatedness <= 0.05.
+ If you wish to force all samples to be reported, then set the environment variable `SOMALIER_REPORT_ALL_PAIRS` to any non-empty
+ value, e.g. `export SOMALIER_REPORT_ALL_PAIRS=1`
++The pairs kept beyond those are a random subset, drawn anew on each run. To draw the same subset every time, set
++the environment variable `SOMALIER_SEED` to an integer, e.g. `export SOMALIER_SEED=42`
+ 
+ ### somalier contamination
+ 
+diff --git a/src/somalierpkg/relate.nim b/src/somalierpkg/relate.nim
+index 5169615..f2e4b88 100644
+--- a/src/somalierpkg/relate.nim
++++ b/src/somalierpkg/relate.nim
+@@ -1093,7 +1093,14 @@ proc update_with_lists(files: var seq[string]) =
+ proc rel_main*() =
+   ## need to track samples names from bams first, then vcfs since
+   ## thats the order for the alts array.
+-  randomize()
++  let seed = getEnv("SOMALIER_SEED")
++  if seed == "":
++    randomize()
++  else:
++    try:
++      randomize(parseBiggestInt(seed))
++    except ValueError:
++      quit &"[somalier] SOMALIER_SEED must be an integer, got: {seed}"
+   var argv = commandLineParams()
+   if argv[0] == "relate": argv = argv[1..argv.high]
+ 

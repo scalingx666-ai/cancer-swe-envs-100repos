@@ -1,0 +1,31 @@
+diff --git a/src/somalierpkg/common.nim b/src/somalierpkg/common.nim
+index 03e6acd..b9a9467 100644
+--- a/src/somalierpkg/common.nim
++++ b/src/somalierpkg/common.nim
+@@ -25,8 +25,11 @@ proc update_with_glob*(files: var seq[string]) =
+     if files[i] == "++":
+       toadd.add(files[i])
+       continue
++    let nbefore = toadd.len
+     for w in files[i].walkFiles:
+       toadd.add(w)
++    if toadd.len == nbefore:
++      quit &"[somalier] no file found matching: {files[i]}"
+ 
+   if files.len > 10:
+     files = toadd & files[10..files.high]
+diff --git a/tests/functional-tests.sh b/tests/functional-tests.sh
+index 7afb380..b804048 100644
+--- a/tests/functional-tests.sh
++++ b/tests/functional-tests.sh
+@@ -67,6 +67,10 @@ assert_equal "1" $(head -n 1 test_prefix_A/out.samples.tsv | grep -c "contaminat
+ run check_relate_without_sites_warning $exe relate -o test_prefix_A/no_sites test_prefix_A/*.somalier
+ assert_exit_code 0
+ assert_in_stderr "WARNING: no --sites given to relate; hom-ref and hom-alt counts will not be correct"
++
++run check_relate_missing_file $exe relate -o test_prefix_A/missing test_prefix_A/*.somalier test_prefix_A/does_not_exist.somalier
++assert_exit_code 1
++assert_in_stderr "no file found matching: test_prefix_A/does_not_exist.somalier"
+ rm -rf test_prefix_A test_prefix_B
+ 
+ 

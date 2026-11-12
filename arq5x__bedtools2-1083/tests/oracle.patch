@@ -1,0 +1,119 @@
+diff --git a/src/utils/NewChromsweep/NewChromsweep.cpp b/src/utils/NewChromsweep/NewChromsweep.cpp
+index bb3df6122..ebfac8cb0 100644
+--- a/src/utils/NewChromsweep/NewChromsweep.cpp
++++ b/src/utils/NewChromsweep/NewChromsweep.cpp
+@@ -368,7 +368,7 @@ void NewChromSweep::testChromOrder(const Record *rec)
+ 
+ 
+     if (verifyChromOrderMismatch(chrom, prevChrom, fileIdx)) {
+-        fprintf(stderr, "ERROR: chromomsome sort ordering for file %s is inconsistent with other files. Record was:\n", _context->getInputFileName(fileIdx).c_str());
++        fprintf(stderr, "ERROR: chromosome sort ordering for file %s is inconsistent with other files. Record was:\n", _context->getInputFileName(fileIdx).c_str());
+         rec->print(stderr, true);
+         exit(1);
+     }
+diff --git a/test/closest/sortAndNaming/test-sort-and-naming.sh b/test/closest/sortAndNaming/test-sort-and-naming.sh
+index 7db6aafad..593808305 100644
+--- a/test/closest/sortAndNaming/test-sort-and-naming.sh
++++ b/test/closest/sortAndNaming/test-sort-and-naming.sh
+@@ -26,7 +26,7 @@ check()
+ ############################################################
+ echo -e "    closest.t01...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file sq1.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file sq1.bed is inconsistent with other files. Record was:
+ chr12	10	20" > exp
+ $BT closest -a sq1.bed -b sdb1.bed 2>&1 > /dev/null | cat - > obs
+ check obs exp
+@@ -153,7 +153,7 @@ rm exp obs
+ ############################################################
+ echo -e "    closest.t10...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_all.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_all.bed is inconsistent with other files. Record was:
+ chr10	10	20" > exp
+ $BT closest -a alpha_all.bed -b num_all.bed 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -215,7 +215,7 @@ rm exp obs
+ ############################################################
+ echo -e "    closest.t15...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
+ chr11	10	20" > exp
+ $BT closest -a alpha_missing.bed -b num_missing.bed 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -227,7 +227,7 @@ rm exp obs
+ ############################################################
+ echo -e "    closest.t16...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_all.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_all.bed is inconsistent with other files. Record was:
+ chr10	10	20" > exp
+ $BT closest -a num_all.bed -b alpha_all.bed 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -290,7 +290,7 @@ rm exp obs
+ ############################################################
+ echo -e "    closest.21...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
+ chr11	10	20" > exp
+ $BT closest -a num_missing.bed -b alpha_missing.bed 2>&1 > /dev/null | cat - > obs
+ check exp obs
+diff --git a/test/intersect/sortAndNaming/exp1 b/test/intersect/sortAndNaming/exp1
+index 643636716..0600a7e72 100644
+--- a/test/intersect/sortAndNaming/exp1
++++ b/test/intersect/sortAndNaming/exp1
+@@ -1,2 +1,2 @@
+-ERROR: chromomsome sort ordering for file sdb1.bed is inconsistent with other files. Record was:
++ERROR: chromosome sort ordering for file sdb1.bed is inconsistent with other files. Record was:
+ chr2	10	20
+diff --git a/test/intersect/sortAndNaming/test-sort-and-naming.sh b/test/intersect/sortAndNaming/test-sort-and-naming.sh
+index cfc3082da..a57f89a1e 100644
+--- a/test/intersect/sortAndNaming/test-sort-and-naming.sh
++++ b/test/intersect/sortAndNaming/test-sort-and-naming.sh
+@@ -26,7 +26,7 @@ check()
+ ############################################################
+ echo -e "    intersect.t01...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file sq1.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file sq1.bed is inconsistent with other files. Record was:
+ chr12	10	20" > exp
+ $BT intersect -a sq1.bed -b sdb1.bed -sorted 2>&1 > /dev/null | cat - > obs
+ check obs exp
+@@ -150,7 +150,7 @@ rm exp obs
+ ############################################################
+ echo -e "    intersect.t10...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_all.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_all.bed is inconsistent with other files. Record was:
+ chr10	10	20" > exp
+ $BT intersect -a alpha_all.bed -b num_all.bed -sorted 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -211,7 +211,7 @@ rm exp obs
+ ############################################################
+ echo -e "    intersect.t15...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
+ chr11	10	20" > exp
+ $BT intersect -a alpha_missing.bed -b num_missing.bed -sorted 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -223,7 +223,7 @@ rm exp obs
+ ############################################################
+ echo -e "    intersect.t16...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_all.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_all.bed is inconsistent with other files. Record was:
+ chr10	10	20" > exp
+ $BT intersect -a num_all.bed -b alpha_all.bed -sorted 2>&1 > /dev/null | cat - > obs
+ check exp obs
+@@ -286,7 +286,7 @@ rm exp obs
+ ############################################################
+ echo -e "    intersect.21...\c"
+ echo \
+-"ERROR: chromomsome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
++"ERROR: chromosome sort ordering for file num_missing.bed is inconsistent with other files. Record was:
+ chr11	10	20" > exp
+ $BT intersect -a num_missing.bed -b alpha_missing.bed -sorted 2>&1 > /dev/null | cat - > obs
+ check exp obs

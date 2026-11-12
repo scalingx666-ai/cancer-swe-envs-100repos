@@ -1,0 +1,378 @@
+diff --git a/Dockerfiles/somaticseq.base-1.6.dockerfile b/Dockerfiles/somaticseq.base-1.7.dockerfile
+similarity index 61%
+rename from Dockerfiles/somaticseq.base-1.6.dockerfile
+rename to Dockerfiles/somaticseq.base-1.7.dockerfile
+index b237bb8b..8c62bffe 100644
+--- a/Dockerfiles/somaticseq.base-1.6.dockerfile
++++ b/Dockerfiles/somaticseq.base-1.7.dockerfile
+@@ -1,7 +1,7 @@
+-FROM ubuntu:24.04
++FROM ubuntu:24.10
+ 
+ RUN export DEBIAN_FRONTEND=noninteractive && \
+     apt update && \
+-    apt -y install r-base python3 python3-pip bedtools git wget default-jre && \
++    apt -y install r-base python3 python3-pip git wget default-jre bedtools && \
+     apt-get clean
+ RUN R -e "install.packages('ada', repos = 'http://cran.rstudio.com/')"
+diff --git a/pyproject.toml b/pyproject.toml
+index 6d5ad035..8289a121 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -21,13 +21,14 @@ maintainers = [
+ ]
+ description = "SomaticSeq: An ensemble approach to accurately detect somatic mutations using SomaticSeq"
+ readme = "README.md"
+-requires-python = ">=3.11"
++requires-python = ">=3.11.0"
+ license = {text = "BSD-2-Clause"}
+ dependencies = [
+     "pysam",
+     "numpy",
+     "scipy",
+     "pandas",
++    "pybedtools>=0.12.0",
+     "xgboost>=1.4",
+     "pydantic>=2.0.0,<3.0",
+ ]
+diff --git a/setup.py b/setup.py
+index 25878374..3bd47f4c 100755
+--- a/setup.py
++++ b/setup.py
+@@ -56,13 +56,14 @@ def _replace_src(match: re.Match) -> str:
+     packages=find_packages(),
+     package_data={"": ["*.R"]},
+     python_requires=">=3.11.0",
+-    setup_requires=["setuptools>=42"],
++    setup_requires=["setuptools"],
+     install_requires=[  # pyproject.toml overrides them
+         "pysam",
+         "numpy",
+         "scipy",
+         "pandas",
+         "xgboost>=1.4",
++        "pybedtools>=0.12.0",
+         "pydantic>=2.0.0,<3.0",
+     ],
+     scripts=[
+diff --git a/somaticseq/_version.py b/somaticseq/_version.py
+index 06d87287..44d48047 100644
+--- a/somaticseq/_version.py
++++ b/somaticseq/_version.py
+@@ -1,2 +1,2 @@
+-__version__ = "3.10.0"
++__version__ = "3.11.0"
+ vcf_header = f"##SomaticSeq=v{__version__}"
+diff --git a/somaticseq/genomic_file_parsers/genomic_file_handlers.py b/somaticseq/genomic_file_parsers/genomic_file_handlers.py
+index 0207db6c..efba1869 100644
+--- a/somaticseq/genomic_file_parsers/genomic_file_handlers.py
++++ b/somaticseq/genomic_file_parsers/genomic_file_handlers.py
+@@ -34,51 +34,6 @@
+ nan = float("nan")
+ inf = float("inf")
+ 
+-AA_3to1 = {
+-    "Ala": "A",
+-    "Arg": "R",
+-    "Asn": "N",
+-    "Asp": "D",
+-    "Cys": "C",
+-    "Glu": "E",
+-    "Gln": "Q",
+-    "Gly": "G",
+-    "His": "H",
+-    "Ile": "I",
+-    "Leu": "L",
+-    "Lys": "K",
+-    "Met": "M",
+-    "Phe": "F",
+-    "Pro": "P",
+-    "Ser": "S",
+-    "Thr": "T",
+-    "Trp": "W",
+-    "Tyr": "Y",
+-    "Val": "V",
+-}
+-AA_1to3 = {
+-    "A": "Ala",
+-    "R": "Arg",
+-    "N": "Asn",
+-    "D": "Asp",
+-    "C": "Cys",
+-    "E": "Glu",
+-    "Q": "Gln",
+-    "G": "Gly",
+-    "H": "His",
+-    "I": "Ile",
+-    "L": "Leu",
+-    "K": "Lys",
+-    "M": "Met",
+-    "F": "Phe",
+-    "P": "Pro",
+-    "S": "Ser",
+-    "T": "Thr",
+-    "W": "Trp",
+-    "Y": "Tyr",
+-    "V": "Val",
+-}
+-
+ 
+ class VCFVariantRecord(BaseModel):
+     chromosome: str | None = None
+@@ -680,3 +635,17 @@ def catchup_one_line_at_a_time(coordinate_i, line_j, filehandle_j, CHROMOSOMES):
+         reporter = (-1, line_j_next)
+ 
+     return reporter
++
++
++def uniq(input_file: str, output_file: str) -> None:
++    """
++    Mimicks the "cat input_file | uniq > output_file" function
++    """
++    with open(input_file) as infile, open(output_file, "w") as outfile:
++        # Initialize a variable to store the previous line
++        previous_line = None
++        for current_line in infile:
++            # Write the current line if it's different from the previous line
++            if current_line != previous_line:
++                outfile.write(current_line)
++                previous_line = current_line  # Update the previous line
+diff --git a/somaticseq/vcf_modifier/bed_util.py b/somaticseq/vcf_modifier/bed_util.py
+index 6549a5b3..53bb23fd 100644
+--- a/somaticseq/vcf_modifier/bed_util.py
++++ b/somaticseq/vcf_modifier/bed_util.py
+@@ -1,7 +1,8 @@
+ import os
+ import re
+-import subprocess
+-import uuid
++import tempfile
++
++from pybedtools import BedTool
+ 
+ import somaticseq.genomic_file_parsers.genomic_file_handlers as genome
+ 
+@@ -23,7 +24,6 @@ def remove_vcf_illegal_lines(invcf, outvcf):
+ 
+         while line_i:
+             vcf_i = genome.VCFVariantRecord.from_vcf_line(line_i)
+-
+             if re.match(r"<\w+>", vcf_i.altbase) and (not vcf_i.get_info_value("END")):
+                 hasIllegalLine = True
+                 break
+@@ -39,7 +39,6 @@ def remove_vcf_illegal_lines(invcf, outvcf):
+ 
+             while line_i:
+                 vcf_i = genome.VCFVariantRecord.from_vcf_line(line_i)
+-
+                 if not (
+                     re.match(r"<\w+>", vcf_i.altbase)
+                     and (not vcf_i.get_info_value("END"))
+@@ -54,89 +53,66 @@ def remove_vcf_illegal_lines(invcf, outvcf):
+         return hasIllegalLine
+ 
+ 
+-def bed_include(infile, inclusion_region, outfile):
++def bed_include(infile: str, inclusion_region: str | None, outfile: str) -> str:
+     assert infile != outfile
+-
+-    if inclusion_region:
+-        cmd_line = "bedtools intersect -header -a {} -b {} | uniq > {}".format(
+-            infile, inclusion_region, outfile
+-        )
+-        subprocess.check_call(cmd_line, shell=True)
+-
+-    else:
+-        outfile = None
+-
++    if not inclusion_region:
++        return infile
++
++    # Load the BED files
++    a = BedTool(infile)
++    b = BedTool(inclusion_region)
++
++    # Perform the intersection with header
++    intersected = a.intersect(b, header=True)
++    _, temp_file = tempfile.mkstemp(text=True)
++    out = intersected.saveas(temp_file)
++    genome.uniq(out.fn, outfile)
++    os.remove(out.fn)
+     return outfile
+ 
+ 
+-def bed_exclude(infile, exclusion_region, outfile):
++def bed_exclude(infile: str, exclusion_region: str | None, outfile: str) -> str:
+     assert infile != outfile
+-
+-    if exclusion_region:
+-        cmd_line = "bedtools intersect -header -a {} -b {} -v | uniq > {}".format(
+-            infile, exclusion_region, outfile
+-        )
+-        subprocess.check_call(cmd_line, shell=True)
+-
+-    else:
+-        outfile = None
+-
++    if not exclusion_region:
++        return infile
++
++    # Load the BED files
++    a = BedTool(infile)
++    b = BedTool(exclusion_region)
++
++    # Perform the intersection with header. 'v' is exclude
++    excluded = a.intersect(b, v=True, header=True)
++    _, temp_file = tempfile.mkstemp(text=True)
++    out = excluded.saveas(temp_file)
++    genome.uniq(out.fn, outfile)
++    os.remove(out.fn)
+     return outfile
+ 
+ 
+-def bed_intersector(infile, outfile, inclusion_region=None, exclusion_region=None):
++def bed_intersector(
++    infile: str,
++    outfile: str,
++    inclusion_region: str | None = None,
++    exclusion_region: str | None = None,
++) -> str:
+     assert infile != outfile
+-    from shutil import copyfile
+ 
+     # Get the input file name minus the extention, and also get the extension
+-    infile_noext = re.sub(r"\.\w+$", "", infile)
+-    file_ext = re.search(r"\.\w+$", infile).group()
++    infile_noext, file_ext = os.path.splitext(infile)
+ 
+-    temp_files = []
+-
+-    if inclusion_region:
+-        included_temp_file = infile_noext + uuid.uuid4().hex + file_ext
+-
+-        cmd_line = "bedtools intersect -header -a {} -b {} | uniq > {}".format(
+-            infile, inclusion_region, included_temp_file
+-        )
+-        subprocess.check_call(cmd_line, shell=True)
+-
+-        infile = included_temp_file
+-        temp_files.append(included_temp_file)
+-
+-    if exclusion_region:
+-        cmd_line = "bedtools intersect -header -a {} -b {} -v | uniq > {}".format(
+-            infile, exclusion_region, outfile
+-        )
+-        subprocess.check_call(cmd_line, shell=True)
+-
+-    if inclusion_region and not exclusion_region:
+-        copyfile(included_temp_file, outfile)
+-
+-    elif not (inclusion_region or exclusion_region):
+-        if infile.endswith(".gz"):
+-            cmd_line = f"gunzip -c {infile} > {outfile}"
+-            subprocess.check_call(cmd_line, shell=True)
+-
+-        else:
+-            copyfile(infile, outfile)
+-
+-    for file_i in temp_files:
+-        os.remove(file_i)
+-
+-    return outfile
++    _, intermediate_file = tempfile.mkstemp(text=True)
++    included = bed_include(infile, inclusion_region, intermediate_file)
++    included_then_exclude = bed_exclude(included, exclusion_region, outfile)
++    return included_then_exclude
+ 
+ 
+ def bed_sort_and_merge(infile: str, outfile: str, fai: str) -> None:
+-    cmd_line = (
+-        f"bedtools sort -faidx {fai} -header -i {infile} | "
+-        f"bedtools merge -i stdin > {outfile}"
+-    )
+-    subprocess.check_call(cmd_line, shell=True)
++    sorted_bed = BedTool(infile).sort(faidx=fai, header=True)
++    merged_bed = sorted_bed.merge()
++    merged_bed.saveas(outfile)
+ 
+ 
+-def vcfsorter(ref: str, vcfin: str, vcfout: str):
++def vcfsorter(ref: str, vcfin: str, vcfout: str) -> None:
+     """
+     Uses bedtools sort and then make sure there is no duplicate line.
+ 
+@@ -149,5 +125,8 @@ def vcfsorter(ref: str, vcfin: str, vcfout: str):
+         Exit code for bedtools sort.
+     """
+     fai = ref + ".fai"
+-    cmd_line = f"bedtools sort -faidx {fai} -header -i {vcfin} | uniq > {vcfout}"
+-    subprocess.check_call(cmd_line, shell=True)
++    _, intermediate_file = tempfile.mkstemp(text=True)
++    sorted_bed = BedTool(vcfin).sort(faidx=fai, header=True)
++    intermediate_bed = sorted_bed.saveas(intermediate_file)
++    genome.uniq(intermediate_bed.fn, vcfout)
++    os.remove(intermediate_bed.fn)
+diff --git a/tests/unit/vcf_modifier/test_bed_utils.py b/tests/unit/vcf_modifier/test_bed_utils.py
+new file mode 100644
+index 00000000..47074ec6
+--- /dev/null
++++ b/tests/unit/vcf_modifier/test_bed_utils.py
+@@ -0,0 +1,58 @@
++import pytest
++from _pytest.tmpdir import TempPathFactory
++
++import somaticseq.vcf_modifier.bed_util as bed_util
++
++
++@pytest.fixture
++def dummy_vcf(tmp_path_factory: TempPathFactory) -> str:
++    temp_file_name = str(tmp_path_factory.mktemp("vcf") / "dummy.vcf")
++    with open(temp_file_name, "w") as f:
++        f.write("##fileformat=VCFv4.1\n")
++        f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
++        for pos in range(1, 100):
++            line = f"chr1\t{pos}\tid_{pos}\tG\tT\t.\t.\t.\n"
++            f.write(line)
++    return temp_file_name
++
++
++@pytest.fixture
++def inclusion_bed(tmp_path_factory: TempPathFactory) -> str:
++    temp_file_name = str(tmp_path_factory.mktemp("bed") / "inclusion.bed")
++    with open(temp_file_name, "w") as f:
++        f.write("chr1\t20\t40\n")
++        f.write("chr1\t60\t80\n")
++    return temp_file_name
++
++
++@pytest.fixture
++def exclusion_bed(tmp_path_factory: TempPathFactory) -> str:
++    temp_file_name = str(tmp_path_factory.mktemp("bed") / "exclusion.bed")
++    with open(temp_file_name, "w") as f:
++        f.write("chr1\t30\t70\n")
++    return temp_file_name
++
++
++def test_bed_intersector(
++    dummy_vcf: str,
++    inclusion_bed: str,
++    exclusion_bed: str,
++    tmp_path_factory: TempPathFactory,
++) -> None:
++    outdir = tmp_path_factory.mktemp("test")
++    out_vcf = str(outdir / "x.vcf")
++    result = bed_util.bed_intersector(dummy_vcf, out_vcf, inclusion_bed, exclusion_bed)
++    positions = []
++    with open(result) as f:
++        line = f.readline()
++        while line:
++            if line.startswith("#"):
++                line = f.readline()
++                continue
++            item = line.split("\t")
++            assert item[0] == "chr1"
++            positions.append(int(item[1]))
++            line = f.readline()
++
++    assert result == out_vcf
++    assert positions == list(range(21, 31)) + list(range(71, 81))

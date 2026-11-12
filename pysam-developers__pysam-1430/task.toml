@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/pysam-developers__pysam-1430"
+description = "Fix faidx output capture and improve pysam's use of -o for redirection"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "pysam",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "pysam-developers/pysam"
+ref = "93a9bf139f85f3ab620008deb7c7f69f0de57877"
+reference = "https://github.com/pysam-developers/pysam/pull/1430"
+source_access = "auto"
+built_at = "2026-11-12T05:36:03.393865+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:592f1b21f4c7c190ab2804f77fae1b1e701a06247e5df603f0d0daa0aa420baa"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-03T11:14:12Z"
+diff_format = "unified"
+context_files = [
+    "devtools/import.py",
+    "pysam/libcutils.pyx",
+    "samtools/faidx.c.pysam.c",
+    "tests/samtools_test.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 57
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.824371+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:2d6051306ddac2e9de5235524cf220d57df1d43ef648c3986dc08f3798d2d2c1"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

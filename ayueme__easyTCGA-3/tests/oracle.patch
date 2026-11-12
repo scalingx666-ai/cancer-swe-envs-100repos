@@ -1,0 +1,26 @@
+diff --git a/R/getmrnaexpr.R b/R/getmrnaexpr.R
+index 1170325..03a51be 100644
+--- a/R/getmrnaexpr.R
++++ b/R/getmrnaexpr.R
+@@ -85,7 +85,7 @@ getmrnaexpr <- function(project) {
+     project = project,
+     data.category = "Transcriptome Profiling",
+     data.type = "Gene Expression Quantification",
+-    workflow.type = "STAR - count"
++    workflow.type = "STAR - Counts"
+   )
+   message("\n=> Downloading begins. \n")
+   TCGAbiolinks::GDCdownload(query, files.per.chunk = 100)
+diff --git a/README.md b/README.md
+index 03fb73f..1e85f92 100644
+--- a/README.md
++++ b/README.md
+@@ -20,7 +20,7 @@
+ 
+ ```R
+ # 安装bioconductor上面的R包
+-# 首先要改镜像，下面是北大的镜像，有时会有问题，可更改其他镜像试试（自己百度下喽~）
++# 首先要改镜像，下面是清华的镜像，有时会有问题，可更改其他镜像试试（自己百度下喽~）
+ options(BioC_mirror="https://mirrors.tuna.tsinghua.edu.cn/bioconductor")
+ if(!require("BiocManager")) install.packages("BiocManager")
+ if(!require("TCGAbiolinks")) BiocManager::install("TCGAbiolinks")

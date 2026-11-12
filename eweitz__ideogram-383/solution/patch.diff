@@ -1,0 +1,204 @@
+diff --git a/examples/vanilla/gene-leads.html b/examples/vanilla/gene-leads.html
+index 0e74d9a9..f9828142 100644
+--- a/examples/vanilla/gene-leads.html
++++ b/examples/vanilla/gene-leads.html
+@@ -207,6 +207,13 @@ <h1>Gene Leads<small>Enrich your gene search</small></h1>
+       }
+     }
+ 
++    async function onWillShowAnnotTooltip(annot) {
++      if (annot.then) {
++        return await annot
++      }
++      return annot
++    }
++
+     /** Ideogram has no 3rd party analytics, but lets you easily hook in your own */
+     function reportFoundGenes() {
+       console.log(this.relatedGenesAnalytics)
+@@ -246,7 +253,8 @@ <h1>Gene Leads<small>Enrich your gene search</small></h1>
+       onLoad: plotGeneFromUrl,
+       onPlotFoundGenes: reportFoundGenes,
+       onHoverLegend: reportLegendMetrics,
+-      onClickAnnot
++      onClickAnnot,
++      onWillShowAnnotTooltip
+     }
+ 
+     const annotsInList = 'all';
+diff --git a/src/js/ideogram.js b/src/js/ideogram.js
+index 2afc1368..50db97ad 100644
+--- a/src/js/ideogram.js
++++ b/src/js/ideogram.js
+@@ -70,7 +70,8 @@ import {
+ 
+ import {
+   drawPathway as _drawPathway,
+-  getPathwayGenes as _getPathwayGenes
++  getPathwayGenes as _getPathwayGenes,
++  getPathwayAnnotations
+ } from './kit/pathway-viewer.js';
+ 
+ import {
+@@ -359,7 +360,11 @@ export default class Ideogram {
+    * @param {String} outerSelector DOM selector of container, e.g. "#my-diagram"
+    * @param {Object} dimensions Height and width of pathway diagram
+    * @param {Boolean} showClose Whether to show close button
+-   * @param {Function} geneNodeHoverFn Function to call upon hovering diagram node
++   * @param {Function} geneNodeHoverFn Function to call upon hovering gene
++   * @param {Function} pathwayNodeClickFn Function to call upon clicking pathway
++   * @param {Boolean} showDescription Whether to display pathway description
++   * @param {Boolean} showOntologies Whether to display ontology annotations
++   * @param {Boolean} showDefaultTooltips Whether to display default tooltips
+   */
+   static drawPathway(
+     pwId, sourceGene, destGene,
+@@ -367,7 +372,10 @@ export default class Ideogram {
+     dimensions={height: 440, width: 900},
+     showClose=true,
+     geneNodeHoverFn=undefined,
+-    pathwayNodeClickFn=undefined
++    pathwayNodeClickFn=undefined,
++    showDescription=true,
++    showOntologies=true,
++    showDefaultTooltips=true
+   ) {
+     _drawPathway(
+       pwId, sourceGene, destGene,
+@@ -375,7 +383,10 @@ export default class Ideogram {
+       dimensions=dimensions,
+       showClose=showClose,
+       geneNodeHoverFn=geneNodeHoverFn,
+-      pathwayNodeClickFn=pathwayNodeClickFn
++      pathwayNodeClickFn=pathwayNodeClickFn,
++      showDescription=showDescription,
++      showOntologies=showOntologies,
++      showDefaultTooltips=showDefaultTooltips
+     );
+   }
+ 
+@@ -400,4 +411,8 @@ export default class Ideogram {
+   static getPathwayGenes() {
+     return _getPathwayGenes();
+   }
++
++  static getPathwayOntologies(pathwayJson, selectedOntology) {
++    return getPathwayAnnotations(pathwayJson, selectedOntology);
++  }
+ }
+diff --git a/src/js/kit/pathway-viewer.js b/src/js/kit/pathway-viewer.js
+index 37f72731..d0240e8c 100644
+--- a/src/js/kit/pathway-viewer.js
++++ b/src/js/kit/pathway-viewer.js
+@@ -227,7 +227,7 @@ function parsePwAnnotations(entitiesById, keys, ontology) {
+   return pwAnnotations;
+ }
+ 
+-function getPathwayAnnotations(pathwayJson) {
++export function getPathwayAnnotations(pathwayJson, selectedOntology) {
+   const entitiesById = pathwayJson.entitiesById;
+   const keys = Object.keys(entitiesById).filter(k => k.startsWith('http://identifiers.org'));
+   const sentenceCases = {
+@@ -238,12 +238,19 @@ function getPathwayAnnotations(pathwayJson) {
+     'Disease'
+     // 'Pathway Ontology' // maybe later
+   ];
+-  const pathwayAnnotationsList = ontologies.map(ontology => {
++  let selectedOntologies = ontologies;
++  if (selectedOntology) {
++    selectedOntologies = [ontologies.find(
++      ontology => ontology.toLowerCase() === selectedOntology.toLowerCase()
++    )];
++  }
++  const pathwayAnnotationsList = selectedOntologies.map(ontology => {
+     const pwAnnotations = parsePwAnnotations(entitiesById, keys, ontology);
+     const links = pwAnnotations.map(pwa => {
+       const id = pwa.xrefIdentifier.replace(':', '_');
+       const url = `https://purl.obolibrary.org/obo/${id}`;
+-      return `<a href="${url}" target="_blank">${pwa.term}</a>`;
++      const cls = 'class="_ideoPathwayOntologyLink"';
++      return `<a href="${url}" target="_blank" ${cls}>${pwa.term}</a>`;
+     }).join(', ');
+ 
+     const refinedOntology = sentenceCases[ontology] ?? ontology;
+@@ -281,9 +288,10 @@ export function getPathwayGenes() {
+ }
+ 
+ 
+-function addFooter(pathwayJson, pathwayContainer) {
++function addFooter(pathwayJson, pathwayContainer, showOntologies) {
+   const description = getDescription(pathwayJson);
+-  const pathwayAnnotations = getPathwayAnnotations(pathwayJson);
++  const pathwayAnnotations =
++    showOntologies ? getPathwayAnnotations(pathwayJson) : '';
+   const footer =
+     `<br/>` +
+     `<div class="_ideoPathwayFooter">` +
+@@ -302,6 +310,9 @@ export async function drawPathway(
+   showClose=true,
+   geneNodeHoverFn,
+   pathwayNodeClickFn,
++  showDescription,
++  showOntologies,
++  showDefaultTooltips,
+   retryAttempt=0
+ ) {
+   const pvjsScript = document.querySelector(`script[src="${PVJS_URL}"]`);
+@@ -324,6 +335,7 @@ export async function drawPathway(
+           pwId, sourceGene, destGene,
+           outerSelector, dimensions, showClose,
+           geneNodeHoverFn, pathwayNodeClickFn,
++          showDescription,
+           retryAttempt++
+         );
+       }, 250);
+@@ -390,7 +402,9 @@ export async function drawPathway(
+   const pathwayViewer = new Pvjs(pvjsContainer, pvjsProps);
+   addHeader(pwId, pathwayJson, pathwayContainer, showClose);
+ 
+-  addFooter(pathwayJson, pathwayContainer);
++  if (showDescription) {
++    addFooter(pathwayJson, pathwayContainer, showOntologies);
++  }
+ 
+   // zoomToEntity(sourceEntityId);
+ 
+@@ -414,10 +428,15 @@ export async function drawPathway(
+       }
+     });
+ 
+-    geneNode.setAttribute(`data-tippy-content`, tooltipContent);
++    if (showDefaultTooltips) {
++      geneNode.setAttribute(`data-tippy-content`, tooltipContent);
++    }
+   });
+-  const tippyConfig = getTippyConfig();
+-  tippy('g.GeneProduct[data-tippy-content]', tippyConfig);
++  if (showDefaultTooltips) {
++    const tippyConfig = getTippyConfig();
++    tippyConfig.trigger = 'mouseenter';
++    tippy('g.GeneProduct[data-tippy-content]', tippyConfig);
++  }
+ 
+   // Add click handler to pathway nodes in this pathway diagram
+   if (pathwayNodeClickFn) {
+@@ -433,11 +452,15 @@ export async function drawPathway(
+         pathwayNodeClickFn(event, pathwayId);
+       });
+ 
+-      // Indicate this new pathway can be rendered on click
+-      const tooltipContent = 'Click to show pathway';
+-      pathwayNode.setAttribute('data-tippy-content', tooltipContent);
++      if (showDefaultTooltips) {
++        // Indicate this new pathway can be rendered on click
++        const tooltipContent = 'Click to show pathway';
++        pathwayNode.setAttribute('data-tippy-content', tooltipContent);
++      }
+     });
+ 
+-    tippy('g.Pathway[data-tippy-content]', tippyConfig);
++    if (showDefaultTooltips) {
++      tippy('g.Pathway[data-tippy-content]', tippyConfig);
++    }
+   }
+ }

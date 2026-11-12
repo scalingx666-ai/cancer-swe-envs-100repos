@@ -1,0 +1,253 @@
+diff --git a/docs/mixed-antigen-design.md b/docs/mixed-antigen-design.md
+index 84293501..0c0c435b 100644
+--- a/docs/mixed-antigen-design.md
++++ b/docs/mixed-antigen-design.md
+@@ -53,8 +53,8 @@ biological ratio. For example:
+ ```sh
+ vaxrank --input-epitopes mixed/native.tsv \
+   --max-windows-per-antigen-source 3 --antigen-allocation balanced \
+-  --min-antigens-per-type mutation=5 --max-antigens-per-type CTA=8 \
+-  --max-antigens-per-type viral=4 --output-dir mixed-balanced
++  --min-mutation-antigens 5 --max-cta-antigens 8 \
++  --max-viral-antigens 4 --output-dir mixed-balanced
+ ```
+ 
+ The limits count distinct antigen sequences across the vaccine, including all
+@@ -62,6 +62,9 @@ mRNA constructs. Shared products count once under their first ranked source
+ type. Remaining capacity goes to eligible types with space; unmet goals are
+ reported. No goal admits a held-out candidate. `--antigen-allocation ranked`
+ uses the existing order after serving explicit representation goals.
++Both modes enforce the same maxima; the mode determines how the remaining
++slots are filled. See [type limits and selection order](vaccine-designs.md#distinct-sequences-and-source-mappings)
++for all per-type flags and a worked comparison.
+ 
+ For separate panels instead, filter the saved pool and cap each panel:
+ 
+diff --git a/docs/vaccine-designs.md b/docs/vaccine-designs.md
+index 399a2240..764afe13 100644
+--- a/docs/vaccine-designs.md
++++ b/docs/vaccine-designs.md
+@@ -58,15 +58,51 @@ biological windows all reach assembly without raising `candidates-per-slot`.
+ Available sequence/prediction context limits the windows that can be selected;
+ a previously truncated input cannot recover omitted regions.
+ 
+-Fresh designs use `--antigen-allocation balanced` to rotate among least
+-represented eligible antigen types after sequence deduplication. Set `ranked`
+-to preserve score/allele-coverage order. Use `--min-antigens-per-type mutation=5`
+-for a representation goal and `--max-antigens-per-type CTA=8` for a hard cap;
+-repeat either option for other types. Counts are per unique antigen sequence,
+-across the whole vaccine, including mRNA antigen slots. A shared sequence counts
+-once under its first ranked source type and retains all other sources. Unused
+-capacity passes to other eligible types. Goals cannot override admission or
+-capacity; actual counts and unmet goals appear in reports and saved decisions.
++Set goals and caps with a separate flag for each antigen type:
++
++| Type | Minimum goal | Maximum cap |
++|---|---|---|
++| Mutation | `--min-mutation-antigens N` | `--max-mutation-antigens N` |
++| Fusion | `--min-fusion-antigens N` | `--max-fusion-antigens N` |
++| SV | `--min-sv-antigens N` | `--max-sv-antigens N` |
++| CTA | `--min-cta-antigens N` | `--max-cta-antigens N` |
++| ERV | `--min-erv-antigens N` | `--max-erv-antigens N` |
++| Splice | `--min-splice-antigens N` | `--max-splice-antigens N` |
++| Viral | `--min-viral-antigens N` | `--max-viral-antigens N` |
++| Isoform | `--min-isoform-antigens N` | `--max-isoform-antigens N` |
++
++Counts are **unique antigen sequences across the whole vaccine**, including
++all mRNA constructs. They count selected source windows in long-antigen mode
++and individual epitopes in minimal-epitope mode. A shared sequence counts once
++under its first ranked source type and retains all other sources. These are
++category totals, distinct from `--max-windows-per-antigen-source`, which caps
++the number of windows taken from each source protein/event.
++
++Minimums default to zero and are goals subject to eligibility and capacity;
++maximums default to no type-specific cap and are hard limits. A maximum of zero
++excludes that type from the vaccine. Actual counts and unmet goals appear in
++reports and saved decisions. A CLI limit overrides only that type's configured
++value; other YAML limits remain in effect.
++
++`--antigen-allocation` chooses **which eligible sequences fill the available
++slots within those limits**. Both modes serve minimum goals first and enforce
++every maximum. `balanced` (the default for fresh designs) then favors the least
++represented eligible type, using the existing score/allele-coverage order for
++ties and within each type. `ranked` uses that existing order directly after
++serving the goals. Neither mode changes scores or eligibility. Unused capacity
++passes to other eligible types that have room under their caps.
++
++For example, suppose ten slots are available, all CTA candidates rank ahead
++of mutations, mutations rank ahead of viral candidates, and each type has
++enough eligible candidates. With `--min-cta-antigens 2 --max-cta-antigens 4`:
++
++| Mode | CTA | Mutation | Viral |
++|---|---:|---:|---:|
++| `ranked` | 4 | 6 | 0 |
++| `balanced` | 4 | 3 | 3 |
++
++The same limits admit different designs because they do not uniquely specify
++the final category counts. The mode supplies the remaining selection rule.
+ 
+ Equivalent Python/YAML settings are `VaccineConfig.max_windows_per_antigen_source`
+ and `VaccineConfig.antigen_allocation`; both construct option classes also accept
+diff --git a/notes/design/source-windows-and-allocation.md b/notes/design/source-windows-and-allocation.md
+index 58a158ac..a39437f6 100644
+--- a/notes/design/source-windows-and-allocation.md
++++ b/notes/design/source-windows-and-allocation.md
+@@ -68,3 +68,20 @@ Scoring interaction fixed with this work: window utility previously omitted
+ captured MS increments (#828). It now preserves the existing maximum increment
+ per peptide sequence alongside the unique peptide/allele prediction terms. An
+ intact duplicate copy preserves that increment during cleavage assessment.
++
++## Explicit per-type CLI limits
++
++Replace the CLI's `TYPE=COUNT` limits with `--min-<type>-antigens COUNT` and
++`--max-<type>-antigens COUNT` for every supported antigen kind, using lowercase
++flag names. Counts remain unique emitted antigen sequences across the whole
++vaccine: source windows for long-antigen designs, individual ligands for
++minimal-epitope designs. Do not call these per-source window limits; the separate
++`--max-windows-per-antigen-source` controls that quantity.
++
++Keep the API/YAML maps and saved effective settings unchanged. CLI overrides
++replace only the specified type's value. Explain selection mode separately:
++both modes first serve minimum goals and enforce maxima; `balanced` then favors
++the least represented eligible type, while `ranked` follows the existing
++score/allele-coverage order. Neither mode changes eligibility or scores.
++Verify all named flags, partial YAML overrides, invalid bounds, and both
++modalities through the mixed-design CLI/report/replay smoke.
+diff --git a/tests/test_source_windows_allocation.py b/tests/test_source_windows_allocation.py
+index 84f292f8..af59cc81 100644
+--- a/tests/test_source_windows_allocation.py
++++ b/tests/test_source_windows_allocation.py
+@@ -169,7 +169,7 @@ def build(policy):
+ def test_cli_yaml_api_equivalence_and_frozen_default(tmp_path):
+     parser = external_input_arg_parser()
+     args = parser.parse_args(['--max-windows-per-antigen-source', '4', '--antigen-allocation', 'ranked',
+-                              '--min-antigens-per-type', 'mutation=2', '--max-antigens-per-type', 'CTA=3'])
++                              '--min-mutation-antigens', '2', '--max-cta-antigens', '3'])
+     cli = vaccine_config_from_args(args)
+     path = tmp_path / 'allocation.yaml'
+     path.write_text('''vaccine_peptides:
+@@ -194,6 +194,41 @@ def test_cli_yaml_api_equivalence_and_frozen_default(tmp_path):
+         AntigenAllocation(max_per_kind={'not_a_type': 1})
+ 
+ 
++def test_named_type_limits_cover_every_kind_and_override_only_named_yaml_values(tmp_path):
++    parser = external_input_arg_parser()
++    kinds = {'cta': 'CTA', 'erv': 'ERV', 'sv': 'SV', 'mutation': 'mutation',
++             'fusion': 'fusion', 'splice': 'splice', 'viral': 'viral', 'isoform': 'isoform'}
++    options = []
++    for flag in kinds:
++        options += ['--min-%s-antigens' % flag, '1', '--max-%s-antigens' % flag, '3']
++    policy = vaccine_config_from_args(parser.parse_args(options)).antigen_allocation
++    assert policy == {'mode': 'balanced', 'min_per_kind': dict.fromkeys(kinds.values(), 1),
++                      'max_per_kind': dict.fromkeys(kinds.values(), 3)}
++
++    path = tmp_path / 'limits.yaml'
++    path.write_text('''vaccine_peptides:
++  antigen_allocation:
++    mode: ranked
++    min_per_kind: {CTA: 2, mutation: 1}
++    max_per_kind: {CTA: 8, viral: 4}
++''')
++    args = parser.parse_args(['--config', str(path), '--min-cta-antigens', '0',
++                              '--max-viral-antigens', '0', '--max-mutation-antigens', '5'])
++    expected = {'mode': 'ranked', 'min_per_kind': {'CTA': 0, 'mutation': 1},
++                'max_per_kind': {'CTA': 8, 'viral': 0, 'mutation': 5}}
++    assert vaccine_config_from_args(args).antigen_allocation == expected
++    assert _peptide_construct_options(args).antigen_allocation == expected
++
++
++@pytest.mark.parametrize('options, message', [
++    (['--min-cta-antigens', '-1'], 'nonnegative integers'),
++    (['--min-cta-antigens', '3', '--max-cta-antigens', '2'], 'minimum exceeds maximum'),
++])
++def test_named_type_limits_reject_invalid_bounds(options, message):
++    with pytest.raises(ValueError, match=message):
++        vaccine_config_from_args(external_input_arg_parser().parse_args(options))
++
++
+ def test_oversubscribed_goals_report_capacity_and_zero_cap_excludes_kind():
+     ranked = [typed_candidate(0, 'CTA', 'SIINFEKLA'), typed_candidate(1, 'CTA', 'GILGFVFTL'),
+               typed_candidate(2, 'mutation', 'NLVPMVATV'), typed_candidate(3, 'mutation', 'GLLGATCMF')]
+@@ -248,7 +283,7 @@ def test_mixed_cli_report_and_native_replay(tmp_path, monkeypatch):
+         '--peptide-max-constructs', '5', '--mrna-max-constructs', '1',
+         '--mrna-antigens-per-construct', '5', '--mrna-no-optimize-linkers',
+         '--config-text', 'epitopes.score_expr=1 / affinity.value',
+-        '--min-antigens-per-type', 'mutation=1'])
++        '--min-mutation-antigens', '1'])
+     saved = EpitopeDataset.load(out / 'candidate_predictions.tsv')
+     for modality, record in saved.selection['construct_assembly'].items():
+         graph = from_native_json(record['source_graph'], dict)
+diff --git a/vaxrank/cli/vaccine_config_args.py b/vaxrank/cli/vaccine_config_args.py
+index 0abfc06e..93ce3fa9 100644
+--- a/vaxrank/cli/vaccine_config_args.py
++++ b/vaxrank/cli/vaccine_config_args.py
+@@ -22,6 +22,7 @@
+ from ..manufacturability_config import ManufacturabilityConfig
+ from ..vaccine_config import VaccineConfig
+ from ..vaccine_config import LENS_ANTIGEN_SOURCES
++from ..vaccine_antigen import ANTIGEN_KINDS
+ 
+ 
+ 
+@@ -33,16 +34,25 @@ def add_vaccine_peptide_args(arg_parser : argparse.ArgumentParser) -> None:
+         '--max-windows-per-antigen-source', type=int, default=None,
+         help='Maximum distinct non-overlapping windows per antigen source (default: 3). '
+              'Manufacturing alternatives do not consume additional windows.')
+-    vaccine_peptide_group.add_argument(
++    allocation_group = arg_parser.add_argument_group(
++        'Antigen type selection',
++        'Counts are unique antigen sequences across the whole vaccine after deduplication: '
++        'long windows or individual minimal epitopes. Minimums are representation goals; '
++        'maximums are hard limits.')
++    allocation_group.add_argument(
+         '--antigen-allocation', choices=('balanced', 'ranked'), default=None,
+-        help='Allocate unique antigen sequences across eligible antigen types: balanced '
+-             'rotates among least represented types; ranked keeps score/coverage order (default: balanced).')
+-    for bound, description in (('min', 'Requested minimum (a goal, not an admission override)'),
+-                               ('max', 'Maximum')):
+-        vaccine_peptide_group.add_argument(
+-            '--%s-antigens-per-type' % bound, action='append', default=None, metavar='TYPE=COUNT',
+-            help=description + ' unique antigen sequences per type. Repeat for multiple types; '
+-                 'e.g. mutation=10, CTA=5, viral=3 (each as a separate option).')
++        help='Selection order within the type limits: both modes first serve minimum goals; '
++             'balanced then favors the least represented eligible type, while ranked keeps '
++             'score/allele-coverage order (default: balanced). Scores are unchanged.')
++    for kind in sorted(ANTIGEN_KINDS, key=str.lower):
++        allocation_group.add_argument(
++            '--min-%s-antigens' % kind.lower(), type=int, default=None, metavar='COUNT',
++            help='Minimum requested %s antigen count (default: 0). A goal subject to eligibility '
++                 'and vaccine capacity; unmet goals are reported.' % kind)
++        allocation_group.add_argument(
++            '--max-%s-antigens' % kind.lower(), type=int, default=None, metavar='COUNT',
++            help='Maximum %s antigen count (default: no type-specific cap). '
++                 'Set to 0 to exclude this type from the vaccine.' % kind)
+     vaccine_peptide_group.add_argument(
+         "--vaccine-peptide-length",
+         default=None,
+@@ -179,12 +189,10 @@ def antigen_allocation_from_args(args, configured=None):
+     if getattr(args, 'antigen_allocation', None) is not None:
+         policy['mode'] = args.antigen_allocation
+     for bound in ('min', 'max'):
+-        for value in getattr(args, bound + '_antigens_per_type', None) or ():
+-            try:
+-                kind, count = value.split('=')
+-                policy[bound + '_per_kind'][kind] = int(count)
+-            except (ValueError, TypeError):
+-                raise ValueError('--%s-antigens-per-type expects TYPE=COUNT' % bound) from None
++        for kind in ANTIGEN_KINDS:
++            count = getattr(args, '%s_%s_antigens' % (bound, kind.lower()), None)
++            if count is not None:
++                policy[bound + '_per_kind'][kind] = count
+     return asdict(AntigenAllocation.resolve(policy))
+ 
+ 
+diff --git a/vaxrank/version.py b/vaxrank/version.py
+index d93720f5..e999470a 100644
+--- a/vaxrank/version.py
++++ b/vaxrank/version.py
+@@ -1,4 +1,4 @@
+-__version__ = "3.53.0"
++__version__ = "3.53.1"
+ 
+ 
+ def print_version():

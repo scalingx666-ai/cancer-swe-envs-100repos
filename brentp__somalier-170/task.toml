@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/brentp__somalier-170"
+description = "Error on input paths that match no file instead of silently dropping them"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "somalier",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "brentp/somalier"
+ref = "edf6c917d97ba19d23ec83ec89bda3d298921760"
+reference = "https://github.com/brentp/somalier/pull/170"
+source_access = "auto"
+built_at = "2026-11-12T05:37:23.723087+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0c5fa07beb3015b4750e6cc4d4f386e1c3218f114720d941ec1ba4cd3d55c5d9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-20T16:57:25Z"
+diff_format = "unified"
+context_files = [
+    "src/somalierpkg/common.nim",
+    "tests/functional-tests.sh",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 7
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.770199+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:3f3279a562d6c7c842f3a696963f315bd85223c1df42e6ebd51bd70ad0e76115"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,479 @@
+diff --git a/.github/workflows/ci.yaml b/.github/workflows/ci.yaml
+index 7b45dc96..85bccc90 100644
+--- a/.github/workflows/ci.yaml
++++ b/.github/workflows/ci.yaml
+@@ -38,6 +38,9 @@ jobs:
+           brew unlink xz || true  # Remove brewed liblzma as it is not multiarch
+ 
+       - name: Build (directly from checkout)
++        env:
++          # Test the DYNAMIC_NETWORK_LIBS code in one configuration
++          CIBUILDWHEEL: ${{ matrix.python-version == '3.14' }}
+         run:  python setup.py build
+ 
+       - name: Install test prerequisites
+diff --git a/htslib/hfile_libcurl.c b/htslib/hfile_libcurl.c
+index 7e76baec..ecb201d9 100644
+--- a/htslib/hfile_libcurl.c
++++ b/htslib/hfile_libcurl.c
+@@ -34,7 +34,6 @@ DEALINGS IN THE SOFTWARE.  */
+ #ifndef _WIN32
+ # include <sys/select.h>
+ #endif
+-#include <sys/stat.h>
+ #include <assert.h>
+ #include <time.h>
+ 
+@@ -47,7 +46,7 @@ DEALINGS IN THE SOFTWARE.  */
+ #include "htslib/kstring.h"
+ #include "htslib/khash.h"
+ 
+-#include <curl/curl.h>
++#include "../pysam/dynamic_curl.h"
+ 
+ // Number of seconds to take off auth_token expiry, to allow for clock skew
+ // and slow servers
+@@ -1404,19 +1403,6 @@ libcurl_open(const char *url, const char *modes, http_headers *headers)
+         if (env_curl_ca_bundle) {
+             err |= curl_easy_setopt(fp->easy, CURLOPT_CAINFO, env_curl_ca_bundle);
+         }
+-#if defined __linux__ && defined BUILDING_WHEEL
+-        else {
+-            // Linux wheels are (currently) built on AlmaLinux, so the libcurl.so bundled
+-            // into the wheel follows Alma/Red Hat/Fedora conventions for the location of
+-            // its certificate bundle. This fails when the wheel is used on a Debian/Ubuntu
+-            // platform with a different convention for this location. When not overridden
+-            // by $CURL_CA_BUNDLE, work around this by specifying the expected Debian bundle
+-            // location if the Red Hat one isn't present.
+-            struct stat st;
+-            if (stat("/etc/pki", &st) < 0 && errno == ENOENT)
+-                err |= curl_easy_setopt(fp->easy, CURLOPT_CAINFO, "/etc/ssl/certs/ca-certificates.crt");
+-        }
+-#endif
+     }
+     err |= curl_easy_setopt(fp->easy, CURLOPT_USERAGENT, curl.useragent.s);
+     if (curl.low_speed_limit > 0 && curl.low_speed_time > 0) {
+@@ -1718,7 +1704,7 @@ int PLUGIN_GLOBAL(hfile_plugin_init,_libcurl)(struct hFILE_plugin *self)
+     CURLSHcode errsh;
+ 
+     err = curl_global_init(CURL_GLOBAL_ALL);
+-    if (err != CURLE_OK) { errno = easy_errno(NULL, err); return -1; }
++    if (err != CURLE_OK) { errno = ENETDOWN; return -1; }
+ 
+     curl.share = curl_share_init();
+     if (curl.share == NULL) { curl_global_cleanup(); errno = EIO; return -1; }
+diff --git a/htslib/hfile_s3.c b/htslib/hfile_s3.c
+index 8254de1b..26927644 100644
+--- a/htslib/hfile_s3.c
++++ b/htslib/hfile_s3.c
+@@ -44,7 +44,7 @@ DEALINGS IN THE SOFTWARE.  */
+ #include "htslib/kstring.h"
+ #include "hts_time_funcs.h"
+ 
+-#include <curl/curl.h>
++#include "../pysam/dynamic_curl.h"
+ 
+ typedef struct s3_auth_data {
+     kstring_t id;
+@@ -108,6 +108,9 @@ typedef struct {
+ 
+ #include <CommonCrypto/CommonHMAC.h>
+ 
++#define dynamic_crypto_init()  0
++#define dynamic_crypto_cleanup()
++
+ #define DIGEST_BUFSIZ CC_SHA1_DIGEST_LENGTH
+ #define SHA256_DIGEST_BUFSIZE CC_SHA256_DIGEST_LENGTH
+ #define HASH_LENGTH_SHA256 (SHA256_DIGEST_BUFSIZE * 2) + 1
+@@ -133,8 +136,7 @@ static void s3_sign_sha256(const void *key, int key_len, const unsigned char *d,
+ 
+ #elif defined HAVE_HMAC
+ 
+-#include <openssl/hmac.h>
+-#include <openssl/sha.h>
++#include "../pysam/dynamic_openssl.h"
+ 
+ #define DIGEST_BUFSIZ EVP_MAX_MD_SIZE
+ #define SHA256_DIGEST_BUFSIZE SHA256_DIGEST_LENGTH
+@@ -2563,6 +2565,7 @@ static void s3_exit(void) {
+     free(curl.useragent.s);
+     curl.useragent.l = curl.useragent.m = 0; curl.useragent.s = NULL;
+     curl_global_cleanup();
++    dynamic_crypto_cleanup();
+ }
+ 
+ 
+@@ -2609,6 +2612,7 @@ int PLUGIN_GLOBAL(hfile_plugin_init,_s3)(struct hFILE_plugin *self) {
+     errsh  = curl_share_setopt(curl.share, CURLSHOPT_LOCKFUNC, share_lock);
+     errsh |= curl_share_setopt(curl.share, CURLSHOPT_UNLOCKFUNC, share_unlock);
+     errsh |= curl_share_setopt(curl.share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
++    errsh |= dynamic_crypto_init();
+ 
+     if (errsh != 0) {
+         curl_share_cleanup(curl.share);
+diff --git a/pysam/dynamic_curl.h b/pysam/dynamic_curl.h
+new file mode 100644
+index 00000000..1a1608b1
+--- /dev/null
++++ b/pysam/dynamic_curl.h
+@@ -0,0 +1,74 @@
++#ifndef DYNAMIC_CURL_H
++#define DYNAMIC_CURL_H
++
++#include <curl/curl.h>
++
++#ifdef DYNAMIC_NETWORK_LIBS
++
++struct dynamic_libcurl {
++    int opened;
++    void *libcurl;
++    void (*f_curl_easy_cleanup)(CURL *);
++    CURL *(*f_curl_easy_duphandle)(CURL *);
++    CURLcode (*f_curl_easy_getinfo)(CURL *, CURLINFO, ...);
++    CURL *(*f_curl_easy_init)();
++    CURLcode (*f_curl_easy_pause)(CURL *, int);
++    CURLcode (*f_curl_easy_perform)(CURL *);
++    void (*f_curl_easy_reset)(CURL *);
++    CURLcode (*f_curl_easy_setopt)(CURL *, CURLoption, ...);
++    const char *(*f_curl_easy_strerror)(CURLcode);
++    CURLMcode (*f_curl_multi_add_handle)(CURLM *, CURL *);
++    CURLMcode (*f_curl_multi_cleanup)(CURLM *);
++    CURLMcode (*f_curl_multi_fdset)(CURLM *, fd_set *, fd_set *, fd_set *, int *);
++    CURLMsg *(*f_curl_multi_info_read)(CURLM *, int *);
++    CURLM *(*f_curl_multi_init)();
++    CURLMcode (*f_curl_multi_perform)(CURLM *, int *);
++    CURLMcode (*f_curl_multi_remove_handle)(CURLM *, CURL *);
++    const char *(*f_curl_multi_strerror)(CURLMcode);
++    CURLMcode (*f_curl_multi_timeout)(CURLM *, long *);
++    CURLSHcode (*f_curl_share_cleanup)(CURLSH *);
++    CURLSH *(*f_curl_share_init)();
++    CURLSHcode (*f_curl_share_setopt)(CURLSH *, CURLSHoption, ...);
++    struct curl_slist *(*f_curl_slist_append)(struct curl_slist *, const char *);
++    void (*f_curl_slist_free_all)(struct curl_slist *);
++    curl_version_info_data *(*f_curl_version_info)(CURLversion);
++};
++
++extern struct dynamic_libcurl libcurl_table;
++
++#define curl_easy_cleanup        libcurl_table.f_curl_easy_cleanup
++#define curl_easy_duphandle      libcurl_table.f_curl_easy_duphandle
++#undef  curl_easy_getinfo
++#define curl_easy_getinfo        libcurl_table.f_curl_easy_getinfo
++#define curl_easy_init           libcurl_table.f_curl_easy_init
++#define curl_easy_pause          libcurl_table.f_curl_easy_pause
++#define curl_easy_perform        libcurl_table.f_curl_easy_perform
++#define curl_easy_reset          libcurl_table.f_curl_easy_reset
++#undef  curl_easy_setopt
++#define curl_easy_setopt         libcurl_table.f_curl_easy_setopt
++#define curl_easy_strerror       libcurl_table.f_curl_easy_strerror
++#define curl_multi_add_handle    libcurl_table.f_curl_multi_add_handle
++#define curl_multi_cleanup       libcurl_table.f_curl_multi_cleanup
++#define curl_multi_fdset         libcurl_table.f_curl_multi_fdset
++#define curl_multi_info_read     libcurl_table.f_curl_multi_info_read
++#define curl_multi_init          libcurl_table.f_curl_multi_init
++#define curl_multi_perform       libcurl_table.f_curl_multi_perform
++#define curl_multi_remove_handle libcurl_table.f_curl_multi_remove_handle
++#define curl_multi_strerror      libcurl_table.f_curl_multi_strerror
++#define curl_multi_timeout       libcurl_table.f_curl_multi_timeout
++#define curl_share_cleanup       libcurl_table.f_curl_share_cleanup
++#define curl_share_init          libcurl_table.f_curl_share_init
++#undef  curl_share_setopt
++#define curl_share_setopt        libcurl_table.f_curl_share_setopt
++#define curl_slist_append        libcurl_table.f_curl_slist_append
++#define curl_slist_free_all      libcurl_table.f_curl_slist_free_all
++#define curl_version_info        libcurl_table.f_curl_version_info
++
++CURLcode dynamic_curl_global_init(long flags);
++void dynamic_curl_global_cleanup();
++
++#define curl_global_init         dynamic_curl_global_init
++#define curl_global_cleanup      dynamic_curl_global_cleanup
++
++#endif
++#endif
+diff --git a/pysam/dynamic_libs.c b/pysam/dynamic_libs.c
+new file mode 100644
+index 00000000..3515c3cc
+--- /dev/null
++++ b/pysam/dynamic_libs.c
+@@ -0,0 +1,140 @@
++#include <dlfcn.h>
++
++#include "htslib/hts_log.h"
++
++#include "dynamic_curl.h"
++#include "dynamic_openssl.h"
++
++struct dynamic_libcurl libcurl_table = { 0, NULL };
++static const char *libcurl_soname = NULL;
++
++void dynamic_set_libcurl_soname(const char *soname) {
++    libcurl_soname = soname;
++}
++
++CURLcode dynamic_curl_global_init(long flags)
++{
++    if (libcurl_table.opened > 0) {
++        libcurl_table.opened++;
++        return CURLE_OK;
++    }
++
++    const char *tried_sonames;
++    void *libcurl;
++
++    if (libcurl_soname) {
++        tried_sonames = libcurl_soname;
++        libcurl = dlopen(libcurl_soname, RTLD_LAZY | RTLD_LOCAL);
++    }
++    else {
++        tried_sonames = "libcurl.so.4";
++        libcurl = dlopen("libcurl.so.4", RTLD_LAZY | RTLD_LOCAL);
++    }
++
++    if (libcurl == NULL) {
++        hts_log_error("Could not load %s: %s", tried_sonames, dlerror());
++        return CURLE_FAILED_INIT;
++    }
++
++    CURLcode (*f_curl_global_init)(long);
++    *(void **) &f_curl_global_init = dlsym(libcurl, "curl_global_init");
++    CURLcode ret = f_curl_global_init? f_curl_global_init(flags) : CURLE_FAILED_INIT;
++    if (ret != CURLE_OK) { dlclose(libcurl); return ret; }
++
++    libcurl_table.opened++;
++    libcurl_table.libcurl = libcurl;
++
++    *(void **) &libcurl_table.f_curl_easy_cleanup        = dlsym(libcurl, "curl_easy_cleanup");
++    *(void **) &libcurl_table.f_curl_easy_duphandle      = dlsym(libcurl, "curl_easy_duphandle");
++    *(void **) &libcurl_table.f_curl_easy_getinfo        = dlsym(libcurl, "curl_easy_getinfo");
++    *(void **) &libcurl_table.f_curl_easy_init           = dlsym(libcurl, "curl_easy_init");
++    *(void **) &libcurl_table.f_curl_easy_pause          = dlsym(libcurl, "curl_easy_pause");
++    *(void **) &libcurl_table.f_curl_easy_perform        = dlsym(libcurl, "curl_easy_perform");
++    *(void **) &libcurl_table.f_curl_easy_reset          = dlsym(libcurl, "curl_easy_reset");
++    *(void **) &libcurl_table.f_curl_easy_setopt         = dlsym(libcurl, "curl_easy_setopt");
++    *(void **) &libcurl_table.f_curl_easy_strerror       = dlsym(libcurl, "curl_easy_strerror");
++    *(void **) &libcurl_table.f_curl_multi_add_handle    = dlsym(libcurl, "curl_multi_add_handle");
++    *(void **) &libcurl_table.f_curl_multi_cleanup       = dlsym(libcurl, "curl_multi_cleanup");
++    *(void **) &libcurl_table.f_curl_multi_fdset         = dlsym(libcurl, "curl_multi_fdset");
++    *(void **) &libcurl_table.f_curl_multi_info_read     = dlsym(libcurl, "curl_multi_info_read");
++    *(void **) &libcurl_table.f_curl_multi_init          = dlsym(libcurl, "curl_multi_init");
++    *(void **) &libcurl_table.f_curl_multi_perform       = dlsym(libcurl, "curl_multi_perform");
++    *(void **) &libcurl_table.f_curl_multi_remove_handle = dlsym(libcurl, "curl_multi_remove_handle");
++    *(void **) &libcurl_table.f_curl_multi_strerror      = dlsym(libcurl, "curl_multi_strerror");
++    *(void **) &libcurl_table.f_curl_multi_timeout       = dlsym(libcurl, "curl_multi_timeout");
++    *(void **) &libcurl_table.f_curl_share_cleanup       = dlsym(libcurl, "curl_share_cleanup");
++    *(void **) &libcurl_table.f_curl_share_init          = dlsym(libcurl, "curl_share_init");
++    *(void **) &libcurl_table.f_curl_share_setopt        = dlsym(libcurl, "curl_share_setopt");
++    *(void **) &libcurl_table.f_curl_slist_append        = dlsym(libcurl, "curl_slist_append");
++    *(void **) &libcurl_table.f_curl_slist_free_all      = dlsym(libcurl, "curl_slist_free_all");
++    *(void **) &libcurl_table.f_curl_version_info        = dlsym(libcurl, "curl_version_info");
++
++    return CURLE_OK;
++}
++
++void dynamic_curl_global_cleanup()
++{
++    libcurl_table.opened--;
++    if (libcurl_table.opened > 0) return;
++
++    void (*f_curl_global_cleanup)();
++    *(void **) &f_curl_global_cleanup = dlsym(libcurl_table.libcurl, "curl_global_cleanup");
++    if (f_curl_global_cleanup) f_curl_global_cleanup();
++
++    dlclose(libcurl_table.libcurl);
++    libcurl_table.libcurl = NULL;
++}
++
++
++struct dynamic_libcrypto libcrypto_table = { 0, NULL };
++static const char *libcrypto_soname = NULL;
++
++void dynamic_set_libcrypto_soname(const char *soname) {
++    libcrypto_soname = soname;
++}
++
++int dynamic_crypto_init()
++{
++    if (libcrypto_table.opened > 0) {
++        libcrypto_table.opened++;
++        return 0;
++    }
++
++    const char *tried_sonames;
++    void *libcrypto;
++
++    if (libcrypto_soname) {
++        tried_sonames = libcrypto_soname;
++        libcrypto = dlopen(libcrypto_soname, RTLD_LAZY | RTLD_LOCAL);
++    }
++    else {
++        tried_sonames = "libcrypto.so.{4,3,1.1}";
++        libcrypto = dlopen("libcrypto.so.4", RTLD_LAZY | RTLD_LOCAL);
++        if (libcrypto == NULL) libcrypto = dlopen("libcrypto.so.3", RTLD_LAZY | RTLD_LOCAL);
++        if (libcrypto == NULL) libcrypto = dlopen("libcrypto.so.1.1", RTLD_LAZY | RTLD_LOCAL);
++    }
++
++    if (libcrypto == NULL) {
++        hts_log_error("Could not load %s: %s", tried_sonames, dlerror());
++        return -1;
++    }
++
++    libcrypto_table.opened++;
++    libcrypto_table.libcrypto = libcrypto;
++
++    *(void **) &libcrypto_table.f_EVP_sha1   = dlsym(libcrypto, "EVP_sha1");
++    *(void **) &libcrypto_table.f_EVP_sha256 = dlsym(libcrypto, "EVP_sha256");
++    *(void **) &libcrypto_table.f_HMAC       = dlsym(libcrypto, "HMAC");
++    *(void **) &libcrypto_table.f_SHA256     = dlsym(libcrypto, "SHA256");
++
++    return 0;
++}
++
++void dynamic_crypto_cleanup()
++{
++    libcrypto_table.opened--;
++    if (libcrypto_table.opened > 0) return;
++
++    dlclose(libcrypto_table.libcrypto);
++    libcrypto_table.libcrypto = NULL;
++}
+diff --git a/pysam/dynamic_openssl.h b/pysam/dynamic_openssl.h
+new file mode 100644
+index 00000000..271ce167
+--- /dev/null
++++ b/pysam/dynamic_openssl.h
+@@ -0,0 +1,34 @@
++#ifndef DYNAMIC_OPENSSL_H
++#define DYNAMIC_OPENSSL_H
++
++#include <openssl/hmac.h>
++#include <openssl/sha.h>
++
++#ifdef DYNAMIC_NETWORK_LIBS
++
++struct dynamic_libcrypto {
++    int opened;
++    void *libcrypto;
++    const EVP_MD *(*f_EVP_sha1)();
++    const EVP_MD *(*f_EVP_sha256)();
++    unsigned char *(*f_HMAC)(const EVP_MD *, const void *, int, const unsigned char *, size_t, unsigned char *, unsigned int *);
++    unsigned char *(*f_SHA256)(const unsigned char *, size_t, unsigned char *);
++};
++
++extern struct dynamic_libcrypto libcrypto_table;
++
++#define EVP_sha1   libcrypto_table.f_EVP_sha1
++#define EVP_sha256 libcrypto_table.f_EVP_sha256
++#define HMAC       libcrypto_table.f_HMAC
++#define SHA256     libcrypto_table.f_SHA256
++
++int dynamic_crypto_init();
++void dynamic_crypto_cleanup();
++
++#else
++
++#define dynamic_crypto_init()  0
++#define dynamic_crypto_cleanup()
++
++#endif
++#endif
+diff --git a/pysam/libchtslib.pyx b/pysam/libchtslib.pyx
+index 70bc9df4..71b2fa11 100644
+--- a/pysam/libchtslib.pyx
++++ b/pysam/libchtslib.pyx
+@@ -32,7 +32,7 @@ from warnings import warn
+ ## Constants
+ ########################################################################
+ 
+-__all__ = ['get_verbosity', 'set_verbosity', 'HFile', 'HTSFile']
++__all__ = ['get_verbosity', 'set_verbosity', 'set_runtime_libraries', 'HFile', 'HTSFile']
+ 
+ # maximum genomic coordinace
+ cdef int MAX_POS = (1 << 31) - 1
+@@ -58,6 +58,28 @@ cpdef get_verbosity():
+     return hts_get_verbosity()
+ 
+ 
++cdef extern from * nogil:
++    r"""
++    #ifdef DYNAMIC_NETWORK_LIBS
++    extern void dynamic_set_libcurl_soname(const char *);
++    extern void dynamic_set_libcrypto_soname(const char *);
++    #else
++    #define dynamic_set_libcurl_soname(s)
++    #define dynamic_set_libcrypto_soname(s)
++    #endif
++    """
++    void dynamic_set_libcurl_soname(const char *)
++    void dynamic_set_libcrypto_soname(const char *)
++
++cdef dict _runtime_libraries = {}
++
++def set_runtime_libraries(**kwargs):
++    for lib, soname in kwargs.items():
++        csoname = _runtime_libraries[lib] = force_bytes(soname)
++        if lib == "libcurl": dynamic_set_libcurl_soname(csoname)
++        elif lib == "libcrypto": dynamic_set_libcrypto_soname(csoname)
++
++
+ ########################################################################
+ ########################################################################
+ ## HFile wrapper class
+diff --git a/setup.py b/setup.py
+index 40e9aea8..a78e44d6 100644
+--- a/setup.py
++++ b/setup.py
+@@ -513,6 +513,9 @@ def run(self):
+ print(f"# pysam: HTSLIB_CONFIGURE_OPTIONS={HTSLIB_CONFIGURE_OPTIONS}")
+ htslib_configure_options = None
+ 
++define_macros = []
++dynamic_files = []
++
+ if HTSLIB_MODE in ['shared', 'separate']:
+     package_list += ['pysam.include.htslib',
+                      'pysam.include.htslib.htslib']
+@@ -547,6 +550,14 @@ def run(self):
+         external_htslib_libraries.extend(
+             [re.sub("^-l", "", x) for x in htslib_make_options["LIBS"].split(" ") if x.strip()])
+ 
++    for_redistribution = truthy(os.environ.get("CIBUILDWHEEL", "0"))
++
++    if sys.platform == "linux" and "curl" in external_htslib_libraries and for_redistribution:
++        dynamic_files.append("pysam/dynamic_libs.c")
++        define_macros.append(("DYNAMIC_NETWORK_LIBS", None))
++        # Filter out libraries that we will load dynamically at runtime
++        external_htslib_libraries = [lib for lib in external_htslib_libraries if lib not in ("curl", "crypto")]
++
+ if HTSLIB_LIBRARY_DIR:
+     # linking against a shared, externally installed htslib version,
+     # no sources or built libhts.a required for htslib
+@@ -633,11 +644,6 @@ def run(self):
+         "-Wno-sign-compare",
+         "-Wno-error=declaration-after-statement"]
+ 
+-define_macros = []
+-
+-if os.environ.get("CIBUILDWHEEL", "0") == "1":
+-    define_macros.append(("BUILDING_WHEEL", None))
+-
+ suffix = sysconfig.get_config_var('EXT_SUFFIX')
+ 
+ internal_htslib_libraries = [
+@@ -689,7 +695,7 @@ def prebuild_libcsamtools(ext, force):
+ modules = [
+     dict(name="pysam.libchtslib",
+          prebuild_func=prebuild_libchtslib,
+-         sources=[source_pattern % "htslib", "pysam/htslib_util.c"] + os_c_files,
++         sources=[source_pattern % "htslib", "pysam/htslib_util.c"] + dynamic_files + os_c_files,
+          extra_objects=htslib_objects,
+          libraries=external_htslib_libraries),
+     dict(name="pysam.libcsamtools",
+@@ -786,6 +792,7 @@ def prebuild_libcsamtools(ext, force):
+     'cmdclass': {'build_ext': cy_build_ext, 'clean_ext': clean_ext, 'sdist': cythonize_sdist},
+     'package_dir': package_dirs,
+     'package_data': {'': ['*.pxd', '*.h', 'py.typed', '*.pyi'], },
++    'exclude_package_data': {"pysam": ["dynamic_*.h", "version.h"]},
+     'include_package_data': False,
+     # do not pack in order to permit linking to csamtools.so
+     'zip_safe': False,

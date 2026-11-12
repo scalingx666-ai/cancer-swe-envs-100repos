@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/SigProfilerSuite__SigProfilerExtractor-320"
+description = "Give zip downloads their version (1.6.1)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "SigProfilerExtractor",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "SigProfilerSuite/SigProfilerExtractor"
+ref = "674fe3b28bb4ec90658b3ca9c79402cd24091ec6"
+reference = "https://github.com/SigProfilerSuite/SigProfilerExtractor/pull/320"
+source_access = "auto"
+built_at = "2026-11-12T05:38:09.606572+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:3373abb71dcef06580a9175cd04e5fe25229a2dc0fdde250f6c0fd0d950d77ec"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-12T04:52:11Z"
+diff_format = "unified"
+context_files = [
+    ".git_archival.txt",
+    ".gitattributes",
+    "CHANGELOG.md",
+    "SigProfilerExtractor/web/static/app.js",
+    "tests/test_git_archival.py",
+    "tests/web/test_web_interactions.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 45
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.758145+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:cccde85ef12c7b9df76937a55ac64badd9f756b918b5682e27859d527bc1ec0d"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

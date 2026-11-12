@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/sdsubhajitdas__Brain-Tumor-Segmentation-33"
+description = "Add Umami analytics tracking"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "Brain-Tumor-Segmentation",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "sdsubhajitdas/Brain-Tumor-Segmentation"
+ref = "2719eb599b6706d9afee4e8bd5efa90cf6c8a040"
+reference = "https://github.com/sdsubhajitdas/Brain-Tumor-Segmentation/pull/33"
+source_access = "auto"
+built_at = "2026-11-12T05:37:37.273704+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e4d0420ac8983939927ac5e10be58dd7d6dcc718f79d11c642dafa00ad97e9b0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-20T00:32:49Z"
+diff_format = "unified"
+context_files = [
+    "CLAUDE.md",
+    "web/templates/base.html",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.833804+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:c74aebcc6fd60c5dd634d01b9da153c642db3ac0561182b2f5d34603e8a3539c"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

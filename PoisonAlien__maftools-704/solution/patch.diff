@@ -1,0 +1,162 @@
+diff --git a/.github/workflows/R-CMD-check.yaml b/.github/workflows/R-CMD-check.yaml
+index fb7b370..dd7636c 100644
+--- a/.github/workflows/R-CMD-check.yaml
++++ b/.github/workflows/R-CMD-check.yaml
+@@ -14,31 +14,12 @@ name: R-CMD-check
+ 
+ jobs:
+   R-CMD-check:
+-    runs-on: ${{ matrix.config.os }}
+-
+-    name: ${{ matrix.config.os }} (${{ matrix.config.r }})
+-
+-    strategy:
+-      fail-fast: false
+-      matrix:
+-        config:
+-          - {os: windows-latest, r: 'release'}
+-          - {os: macOS-latest, r: 'release'}
+-          - {os: ubuntu-20.04, r: 'release', rspm: "https://packagemanager.rstudio.com/cran/__linux__/focal/latest"}
+-          - {os: ubuntu-20.04, r: 'devel', rspm: "https://packagemanager.rstudio.com/cran/__linux__/focal/latest"}
+-
++    runs-on: macOS-latest
+     env:
+-      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+-      RSPM: ${{ matrix.config.rspm }}
+       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+-
+     steps:
+       - uses: actions/checkout@v2
+-
+       - uses: r-lib/actions/setup-r@v1
+-        with:
+-          r-version: ${{ matrix.config.r }}
+-
+       - uses: r-lib/actions/setup-pandoc@v1
+ 
+       - name: Query dependencies
+@@ -48,39 +29,22 @@ jobs:
+           writeLines(sprintf("R-%i.%i", getRversion()$major, getRversion()$minor), ".github/R-version")
+         shell: Rscript {0}
+ 
+-      - name: Restore R package cache
+-        if: runner.os != 'Windows'
++      - name: Cache R packages
+         uses: actions/cache@v2
+         with:
+           path: ${{ env.R_LIBS_USER }}
+           key: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-${{ hashFiles('.github/depends.Rds') }}
+           restore-keys: ${{ runner.os }}-${{ hashFiles('.github/R-version') }}-1-
+ 
+-      - name: Install system dependencies
+-        if: runner.os == 'Linux'
+-        run: |
+-          while read -r cmd
+-          do
+-            eval sudo $cmd
+-          done < <(Rscript -e 'writeLines(remotes::system_requirements("ubuntu", "20.04"))')
+-
+       - name: Install dependencies
+         run: |
++          install.packages(c("remotes", "rcmdcheck"))
+           remotes::install_deps(dependencies = TRUE)
+-          remotes::install_cran("rcmdcheck")
++          remotes::install_cran("covr")
+         shell: Rscript {0}
+ 
+       - name: Check
+-        env:
+-          _R_CHECK_CRAN_INCOMING_REMOTE_: false
+         run: |
+           options(crayon.enabled = TRUE)
+-          rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"), error_on = "warning", check_dir = "check")
++          rcmdcheck::rcmdcheck(args = c("--no-manual", "--as-cran"), error_on = "warning")
+         shell: Rscript {0}
+-
+-      - name: Upload check results
+-        if: failure()
+-        uses: actions/upload-artifact@main
+-        with:
+-          name: ${{ runner.os }}-r${{ matrix.config.r }}-results
+-          path: check
+diff --git a/DESCRIPTION b/DESCRIPTION
+index 489581a..57412e4 100644
+--- a/DESCRIPTION
++++ b/DESCRIPTION
+@@ -1,34 +1,59 @@
+-Package: maftools
+ Type: Package
++Package: maftools
+ Title: Summarize, Analyze and Visualize MAF Files
+ Version: 2.7.41
+-Date: 2015-12-14
++Date: 2021-04-30
+ Authors@R: 
+     person(given = "Anand",
+            family = "Mayakonda",
++           role = c("aut", "cre"),
+            email = "anand_mt@hotmail.com",
+-           comment = c(ORCID = "0000-0003-1162-687X"), role = c("aut","cre"))
++           comment = c(ORCID = "0000-0003-1162-687X"))
+ Maintainer: Anand Mayakonda <anand_mt@hotmail.com>
+-Description: Analyze and visualize Mutation Annotation Format (MAF) files from large scale sequencing studies. This package provides various functions to perform most commonly used analyses in cancer genomics and to create feature rich customizable visualzations with minimal effort.
++Description: Analyze and visualize Mutation Annotation Format (MAF) files
++    from large scale sequencing studies. This package provides various
++    functions to perform most commonly used analyses in cancer genomics
++    and to create feature rich customizable visualzations with minimal
++    effort.
++License: MIT + file LICENSE
+ URL: https://github.com/PoisonAlien/maftools
+ BugReports: https://github.com/PoisonAlien/maftools/issues
+-License: MIT + file LICENSE
+-LazyData: TRUE
+-Depends: R (>= 3.3)
++Depends: 
++    R (>= 3.3)
+ Imports: 
+     data.table,
+-    RColorBrewer,
+-    methods,
+     grDevices,
+-    survival,
+-    Rhtslib
+-RoxygenNote: 7.1.1
++    methods,
++    RColorBrewer,
++    Rhtslib,
++    survival
++Suggests: 
++    berryFunctions,
++    Biostrings,
++    BSgenome,
++    BSgenome.Hsapiens.UCSC.hg19,
++    GenomicRanges,
++    IRanges,
++    knitr,
++    mclust,
++    MultiAssayExperiment,
++    NMF,
++    R.utils,
++    RaggedExperiment,
++    rmarkdown,
++    S4Vectors,
++    pheatmap
++LinkingTo: 
++    Rhtslib,
++    zlibbioc
++VignetteBuilder: 
++    knitr
++biocViews: DataRepresentation, DNASeq, Visualization, DriverMutation,
++    VariantAnnotation, FeatureExtraction, Classification, SomaticMutation,
++    Sequencing, FunctionalGenomics, Survival
+ Encoding: UTF-8
+-Suggests: knitr, rmarkdown, BSgenome, Biostrings, NMF, mclust, berryFunctions, MultiAssayExperiment, RaggedExperiment, S4Vectors, GenomicRanges, IRanges
+-VignetteBuilder: knitr
+-biocViews: DataRepresentation, DNASeq, Visualization, DriverMutation, VariantAnnotation,
+-        FeatureExtraction, Classification, SomaticMutation, Sequencing, FunctionalGenomics, Survival
++LazyData: TRUE
+ NeedsCompilation: no
+ Packaged: 2016-04-08 02:06:05 UTC; anand
+-LinkingTo: Rhtslib, zlibbioc
++RoxygenNote: 7.1.1
+ SystemRequirements: GNU make

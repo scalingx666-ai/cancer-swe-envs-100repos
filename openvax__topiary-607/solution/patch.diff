@@ -1,0 +1,95 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index fa4f676..8730a21 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,16 @@
+ # Changelog
+ 
++## 5.112.1
++
++- Re-pin three osteosarc effect expectations for Varcode 11.11.1, which
++  restored `top_priority_effect`'s transcript-name tie-breakers
++  (openvax/varcode#727). ADCY10, IFT122 and PDZRN4 are now reported on another
++  of their gene's equally ranked transcripts: `p.L1236M` becomes `p.L1328M`,
++  `p.R849H` becomes `p.R648H` and `p.E417V` becomes `p.E677V`. The substituted
++  residue and every RNA observation behind it are unchanged, and the pins for
++  earlier Varcode releases still apply, as a new test asserts from both sides
++  of the release.
++
+ ## 5.112.0
+ 
+ - Add `--species` for antigen sequence sources and independent
+diff --git a/tests/test_osteosarc_all_variants.py b/tests/test_osteosarc_all_variants.py
+index 2859fd9..9cddbf5 100644
+--- a/tests/test_osteosarc_all_variants.py
++++ b/tests/test_osteosarc_all_variants.py
+@@ -31,6 +31,20 @@
+     "SULT6B1-chr2-37171433": ("FrameShift", "p.N209fs", 208, 233),
+ }
+ 
++# Varcode 11.11.1 restored top_priority_effect's transcript-name tie-breakers
++# (openvax/varcode#727): where two effects tie on effect class, biotype,
++# completeness, CDS length, transcript length and exon count, the lower-numbered
++# transcript wins again, where the tie had gone to whichever effect came first.
++# Each of these three variants is now reported on another of its gene's equally
++# ranked transcripts, so the substituted residue keeps its identity and moves
++# position. The RNA evidence -- reads, fragments, filters, status -- is
++# untouched, as the rest of each pinned outcome asserts.
++VARCODE_11_11_1_COMPARISONS = {
++    "ADCY10-chr1-167824546": ("Substitution", "p.L1328M", 1327, 1328),
++    "IFT122-chr3-129502728": ("Substitution", "p.R648H", 647, 648),
++    "PDZRN4-chr12-41572809": ("Substitution", "p.E677V", 676, 677),
++}
++
+ 
+ def records():
+     return json.loads((ROOT / "checked-inventory.json").read_text())["variants"]
+@@ -64,6 +78,12 @@ def pinned_rna_outcome(variant_id, varcode_version):
+         expected.update(predicted_effect_class=kind, predicted_effect=description,
+                         predicted_effect_aa_mutation_start_offset=start,
+                         predicted_effect_aa_mutation_end_offset=end)
++    if (Version(varcode_version) >= Version("11.11.1")
++            and variant_id in VARCODE_11_11_1_COMPARISONS):
++        kind, description, start, end = VARCODE_11_11_1_COMPARISONS[variant_id]
++        expected.update(predicted_effect_class=kind, predicted_effect=description,
++                        predicted_effect_aa_mutation_start_offset=start,
++                        predicted_effect_aa_mutation_end_offset=end)
+     return expected
+ 
+ 
+@@ -81,6 +101,22 @@ def test_pinned_deletion_vocabularies_preserve_every_other_field(varcode_version
+             k: v for k, v in historical.items() if k != "predicted_effect"}
+ 
+ 
++@pytest.mark.parametrize("variant_id", sorted(VARCODE_11_11_1_COMPARISONS))
++def test_restored_tie_breakers_move_only_the_reported_effect(variant_id):
++    """Varcode 11.11.1 renames the position; the RNA observation is the same."""
++    before = pinned_rna_outcome(variant_id, "11.11.0")
++    after = pinned_rna_outcome(variant_id, "11.11.1")
++    kind, description, start, end = VARCODE_11_11_1_COMPARISONS[variant_id]
++    assert after["predicted_effect"] == description != before["predicted_effect"]
++    assert after["predicted_effect_class"] == kind == before["predicted_effect_class"]
++    assert (after["predicted_effect_aa_mutation_start_offset"],
++            after["predicted_effect_aa_mutation_end_offset"]) == (start, end)
++    moved = {"predicted_effect", "predicted_effect_aa_mutation_start_offset",
++             "predicted_effect_aa_mutation_end_offset"}
++    assert {k: v for k, v in before.items() if k not in moved} == {
++        k: v for k, v in after.items() if k not in moved}
++
++
+ @pytest.fixture(scope="module")
+ def all_variant_reference(tmp_path_factory):
+     from .osteosarc_all_helpers import reference_models
+diff --git a/topiary/__init__.py b/topiary/__init__.py
+index 9ef5125..6662c0b 100644
+--- a/topiary/__init__.py
++++ b/topiary/__init__.py
+@@ -247,7 +247,7 @@
+     encode_amino_acids,
+ )
+ 
+-__version__ = "5.112.0"
++__version__ = "5.112.1"
+ 
+ __all__ = [
+     "best_protein_transcript",

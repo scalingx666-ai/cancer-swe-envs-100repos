@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/varlociraptor__varlociraptor-581"
+description = "feat: support fragment end bias setting per sample in scenario"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "varlociraptor",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "varlociraptor/varlociraptor"
+ref = "c4c8b7b38998091e73b3b6dd5d53d22fda0386ca"
+reference = "https://github.com/varlociraptor/varlociraptor/pull/581"
+source_access = "auto"
+built_at = "2026-11-12T05:39:05.453731+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9dfe9fbff1367f45e60436ce14a835bcb6c164f94537710dc3b2b6cda55db21a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-17T13:13:31Z"
+diff_format = "unified"
+context_files = [
+    "src/calling/variants/calling.rs",
+    "src/grammar/mod.rs",
+    "src/variants/model/bias/mod.rs",
+    "src/variants/model/modes/generic.rs",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 113
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.838252+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ce4cb6428ef5178f3b0f44179fc72c05b65c68ae9ad1305325b63651d6b0e4e6"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

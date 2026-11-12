@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/immortal71__openoncology-199"
+description = "MSK-CHORD mutation-matching benchmark (OO-29)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "openoncology",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "immortal71/openoncology"
+ref = "81e07f2cb83c747a170029ac2db7702016f1b7b2"
+reference = "https://github.com/immortal71/openoncology/pull/199"
+source_access = "auto"
+built_at = "2026-11-12T05:56:16.322131+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:57e2d5a03338b446d7d6f36694c83cf41a213da3ea98a18876f27ba871d9c280"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-27T03:13:04Z"
+diff_format = "unified"
+context_files = [
+    "BACKLOG.md",
+    "scripts/mskchord/README.md",
+    "scripts/mskchord/fetch_mskchord.py",
+    "scripts/mskchord/run_openoncology_on_mskchord.py",
+    "scripts/mskchord/score_mskchord.py",
+    "scripts/mskchord/targeted_drug_targets.py",
+    "validation_results/civic_actionable_evidence.json",
+    "validation_results/msk_chord_openoncology_run.json",
+    "validation_results/msk_chord_targeted_cohort.json",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1031
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.795124+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:58a8f45388fd7e690ec6ce33f3aed9285f938784f1b077f0c145cffa178f283b"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__isovar-711"
+description = "Store each distinct read set once per export"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "isovar",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/isovar"
+ref = "8091b217fb7f389a6335fcb686a8c1de6df62dee"
+reference = "https://github.com/openvax/isovar/pull/711"
+source_access = "auto"
+built_at = "2026-11-12T05:39:32.647363+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b291d009ca00963de69341c86b135e78c87644f6eeb302c4806eb9d06c8ddf82"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T21:51:44Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "isovar/__init__.py",
+    "isovar/rna_evidence.py",
+    "tests/test_evidence_sets.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 80
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.815987+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:fae6d382c69dc069e085709b6110401ca1b24bb0c9770754201eaa645d2613f3"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

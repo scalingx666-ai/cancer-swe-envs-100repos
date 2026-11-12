@@ -1,0 +1,11 @@
+diff --git a/.readthedocs.yml b/.readthedocs.yml
+index 7540b0a6c..57db12201 100644
+--- a/.readthedocs.yml
++++ b/.readthedocs.yml
+@@ -17,6 +17,3 @@ python:
+ sphinx:
+   configuration: docs/conf.py
+   fail_on_warning: true
+-
+-submodules:
+-  exclude: all

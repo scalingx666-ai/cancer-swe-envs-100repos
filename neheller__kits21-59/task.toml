@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/neheller__kits21-59"
+description = "cyst region in 205 was an erroneous duplicate of a tumor"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "kits21",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "neheller/kits21"
+ref = "21698f97458ba10acc829c68d536ce66b91738dc"
+reference = "https://github.com/neheller/kits21/pull/59"
+source_access = "auto"
+built_at = "2026-11-12T05:38:35.627635+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2d57adcb7a2919928673633cbc9c3e58372cc4f7a91f00c000a05f71ff993afd"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-03-20T02:29:09Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "changelog.md",
+    "kits21/data/case_00205/segmentations/cyst_instance-1_annotation-1.nii.gz",
+    "kits21/data/case_00205/segmentations/cyst_instance-1_annotation-2.nii.gz",
+    "kits21/data/case_00205/segmentations/cyst_instance-1_annotation-3.nii.gz",
+    "setup.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.809511+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6045caa43183c62147ab4abbef463daf3f16d40680fde846a4eeea450e8ea136"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

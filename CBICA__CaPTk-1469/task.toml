@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/CBICA__CaPTk-1469"
+description = "Adding baseline IBSI2 feature extraction"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "CaPTk",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "CBICA/CaPTk"
+ref = "f1181f820a5b4207ab58cc146cade77713570510"
+reference = "https://github.com/CBICA/CaPTk/pull/1469"
+source_access = "auto"
+built_at = "2026-11-12T04:13:21.494609+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f7b411e6e6f2443010cec6daa1c02f7f7c82ee52cf184cbc061f73f95d5663b7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-03-10T18:44:45Z"
+diff_format = "unified"
+context_files = [
+    "src/applications/FeatureExtraction/CMakeLists.txt",
+    "src/applications/FeatureExtraction/src/FeatureExtraction.h",
+    "src/applications/FeatureExtraction/src/FeatureExtraction.hxx",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 190
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.735946+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:36d4754246eb9d216e0bc76e1e46840608066ce03194c50d993ec8add66402a0"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

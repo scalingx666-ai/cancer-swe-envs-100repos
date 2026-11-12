@@ -1,0 +1,181 @@
+diff --git a/Dockerfile b/Dockerfile
+index 9c3ac23..ed6a0fc 100644
+--- a/Dockerfile
++++ b/Dockerfile
+@@ -12,7 +12,7 @@ RUN wget -qO - 'https://github.com/alexdobin/STAR/archive/2.7.10a.tar.gz' | \
+ tar --strip-components=3 -C /usr/local/bin -xzf - 'STAR-2.7.10a/bin/Linux_x86_64/STAR'
+ 
+ # install arriba
+-RUN wget -qO - 'https://github.com/suhrig/arriba/releases/download/v2.3.0/arriba_v2.3.0.tar.gz' | tar -xzf - --exclude='arriba*/.git'
++RUN wget -qO - 'https://github.com/suhrig/arriba/releases/download/v2.4.0/arriba_v2.4.0.tar.gz' | tar -xzf - --exclude='arriba*/.git'
+ 
+ # make wrapper script for download_references.sh
+ RUN echo '#!/bin/bash\n\
+diff --git a/LICENSE b/LICENSE
+index de26ba9..6843549 100644
+--- a/LICENSE
++++ b/LICENSE
+@@ -4,7 +4,7 @@ License of arriba (code & executable), documentation, and database files:
+ 
+ The MIT/Expat License
+ 
+-Copyright (C) 2016-2022 Sebastian Uhrig (s.uhrig@dkfz.de)
++Copyright (C) 2016-2023 Sebastian Uhrig (s.uhrig@dkfz.de)
+ 
+ Permission is hereby granted, free of charge, to any person obtaining a copy
+ of this software and associated documentation files (the "Software"), to deal
+diff --git a/documentation/interpretation-of-results.md b/documentation/interpretation-of-results.md
+index f257fd9..99774cb 100644
+--- a/documentation/interpretation-of-results.md
++++ b/documentation/interpretation-of-results.md
+@@ -30,7 +30,7 @@ Low-confidence fusions can prove useful in situations where sensitivity is cruci
+ Activating fusions
+ ------------------
+ 
+-Gene fusions that lead to activation of oncogenes are typically among the high-confidence predictions and have ample supporting reads, since they are highly expressed. Often (but not always), one can see a sharp increase in expression of the exons retained in the fusion transcript compared to the other exons. The transcribed strands should match the coding strands of the affected genes. The columns `strand1(gene/fusion)` and `strand2(gene/fusion)` report the strands of the genes (before the slash) and the strands being transcribed (after the slash), which should be identical if the fusion is assumed to result in a gain of function. As the oncogene usually constitutes the 3' end of the fusion transcript, the reading frame should be preserved across the fusion junction. Even when the oncogene is fused at the 5' end, the reading frame is usually intact, because the 3' fusion partner provides protein domains which enhance oncogenic function (e.g., dimerization or membrane-embedding). Provided that Arriba was run with the parameter `-P`, the column `reading_frame` in Arriba's output file specifies whether the fusion is in-frame or out-of-frame. Alternatively, the breakpoints of the fusion can be [inspected using IGV](visualization.md#inspection-of-events-using-igv) to interrogate the reading frames of the exons adjacent to the breakpoints. In most cases, the breakpoints of activating fusions coincide with splice-sites. Sometimes they are located within coding exons. Only very rarely are they found in introns or UTRs, because these regions do not code for proteins. For example, EML4-ALK fusions are known to have a breakpoint in an intron of ALK (close to exon 20), because transcribing a few intronic bases rescues the reading frame between EML4 and ALK. It is advisable to check if protein domains that are essential for oncogenic function are retained in the fusion. Fusions with receptor tyrosine kinases are expected to retain the kinase domain, for instance. Which protein domains are retained or lost can be examined [by loading the protein domain track shipped with Arriba into IGV](visualization.md#inspection-of-events-using-igv) (see the `database` directory inside the [release tarballs](https://github.com/suhrig/arriba/releases) of Arriba). Alternatively, the script `draw_fusions.R` can be used to [render visualizations](visualization.md#publication-quality-figures) of Arriba's fusion predictions, which depict the retained protein domains graphically.
++Gene fusions that lead to activation of oncogenes are typically among the high-confidence predictions and have ample supporting reads, since they are highly expressed. Often (but not always), one can see a sharp increase in expression of the exons retained in the fusion transcript compared to the other exons. The transcribed strands should match the coding strands of the affected genes. The columns `strand1(gene/fusion)` and `strand2(gene/fusion)` report the strands of the genes (before the slash) and the strands being transcribed (after the slash), which should be identical if the fusion is assumed to result in a gain of function. As the oncogene usually constitutes the 3' end of the fusion transcript, the reading frame should be preserved across the fusion junction. Even when the oncogene is fused at the 5' end, the reading frame is usually intact, because the 3' fusion partner provides protein domains which enhance oncogenic function (e.g., dimerization or membrane-embedding). The column `reading_frame` in Arriba's output file specifies whether the fusion is in-frame or out-of-frame. Alternatively, the breakpoints of the fusion can be [inspected using IGV](visualization.md#inspection-of-events-using-igv) to interrogate the reading frames of the exons adjacent to the breakpoints. In most cases, the breakpoints of activating fusions coincide with splice-sites. Sometimes they are located within coding exons. Only very rarely are they found in introns or UTRs, because these regions do not code for proteins. For example, EML4-ALK fusions are known to have a breakpoint in an intron of ALK (close to exon 20), because transcribing a few intronic bases rescues the reading frame between EML4 and ALK. It is advisable to check if protein domains that are essential for oncogenic function are retained in the fusion. Fusions with receptor tyrosine kinases are expected to retain the kinase domain, for instance. Which protein domains are retained or lost can be examined [by loading the protein domain track shipped with Arriba into IGV](visualization.md#inspection-of-events-using-igv) (see the `database` directory inside the [release tarballs](https://github.com/suhrig/arriba/releases) of Arriba). Alternatively, the script `draw_fusions.R` can be used to [render visualizations](visualization.md#publication-quality-figures) of Arriba's fusion predictions, which depict the retained protein domains graphically.
+ 
+ Notable exceptions to the above rules are rearrangements involving the [T-cell receptor loci](https://doi.org/10.1038/ng.3909) or the [immunoglobulin loci](https://doi.org/10.1182/blood-2007-02-069625) as frequently found in some hematologic malignancies. Such rearrangements mediate oncogene activation by means of enhancer hijacking. Therefore, the breakpoints can be in intergenic regions near the oncogene rather than at a splice-site or inside a coding exon.
+ 
+diff --git a/documentation/quickstart.md b/documentation/quickstart.md
+index 09902ec..a2917d9 100644
+--- a/documentation/quickstart.md
++++ b/documentation/quickstart.md
+@@ -6,9 +6,9 @@ Arriba has only a single prerequisite: [STAR](https://github.com/alexdobin/STAR)
+ Compile the latest stable version of Arriba or use the precompiled binaries in the download file. **Note: You should not use `git clone` to download Arriba, because the git repository does not include the blacklist! Instead, download the latest tarball from the [releases page](https://github.com/suhrig/arriba/releases/) as shown here:**
+ 
+ ```bash
+-wget https://github.com/suhrig/arriba/releases/download/v2.3.0/arriba_v2.3.0.tar.gz
+-tar -xzf arriba_v2.3.0.tar.gz
+-cd arriba_v2.3.0 && make # or use precompiled binaries
++wget https://github.com/suhrig/arriba/releases/download/v2.4.0/arriba_v2.4.0.tar.gz
++tar -xzf arriba_v2.4.0.tar.gz
++cd arriba_v2.4.0 && make # or use precompiled binaries
+ ```
+ 
+ Arriba requires an assembly in FastA format, gene annotation in GTF format, and a STAR index built from the two. You can use your preferred assembly and annotation, as long as their coordinates are compatible with hg19/hs37d5/GRCh37 or hg38/GRCh38 or mm10/GRCm38 or mm39/GRCm39. If you use another assembly, then the coordinates in the blacklist will not match and the predictions will contain many false positives. GENCODE annotation is recommended over RefSeq due to more comprehensive annotation of immunoglobulin/T-cell receptor loci and splice sites, which improves sensitivity. If you do not already have the files and a STAR index, you can use the script `download_references.sh`. It downloads the files to the current working directory and builds a STAR index. Run the script without arguments to see a list of available files. Choose a file with the keyword `viral` if Arriba is supposed to detect viral integration sites. Note that this step requires ~45 GB of RAM and 8 cores (can be adjusted by setting the environment variable `THREADS`).
+@@ -22,7 +22,7 @@ The download file contains a script `run_arriba.sh`, which demonstrates the usag
+ Run the demo script with 8 threads. In case of single-end data, the second FastQ file is omitted.
+ 
+ ```bash
+-./run_arriba.sh STAR_index_hs37d5viral_GENCODE19/ GENCODE19.gtf hs37d5viral.fa database/blacklist_hg19_hs37d5_GRCh37_v2.3.0.tsv.gz database/known_fusions_hg19_hs37d5_GRCh37_v2.3.0.tsv.gz database/protein_domains_hg19_hs37d5_GRCh37_v2.3.0.gff3 8 test/read1.fastq.gz test/read2.fastq.gz
++./run_arriba.sh STAR_index_hs37d5viral_GENCODE19/ GENCODE19.gtf hs37d5viral.fa database/blacklist_hg19_hs37d5_GRCh37_v2.4.0.tsv.gz database/known_fusions_hg19_hs37d5_GRCh37_v2.4.0.tsv.gz database/protein_domains_hg19_hs37d5_GRCh37_v2.4.0.gff3 8 test/read1.fastq.gz test/read2.fastq.gz
+ ```
+ 
+ Installation using Docker
+@@ -33,7 +33,7 @@ Install [Docker](https://www.docker.com/) according to the developers' instructi
+ Run the script `download_references.sh` inside the Docker container. It downloads the assembly and gene annotation to the directory `/path/to/references` and builds a STAR index. Run the script without arguments to see a list of available files. Choose a file with the keyword `viral` if Arriba is supposed to detect viral integration sites. Note that this step requires ~45 GB of RAM and 8 cores (can be adjusted by passing the parameter `--env=THREADS=...`).
+ 
+ ```bash
+-docker run --rm -v /path/to/references:/references uhrigs/arriba:2.3.0 download_references.sh hs37d5viral+GENCODE19
++docker run --rm -v /path/to/references:/references uhrigs/arriba:2.4.0 download_references.sh hs37d5viral+GENCODE19
+ ```
+ 
+ Use the following Docker command to run Arriba from the container. Replace `/path/to/` with the path to the respective input file. Leave the paths after the colons unmodified - these are the paths inside the Docker container. In case of single-end data, the second FastQ file is omitted. Running Arriba requires ~45 GB of RAM and 8 cores (can be adjusted by passing the parameter `--env=THREADS=...`).
+@@ -44,7 +44,7 @@ docker run --rm \
+        -v /path/to/references:/references:ro \
+        -v /path/to/read1.fastq.gz:/read1.fastq.gz:ro \
+        -v /path/to/read2.fastq.gz:/read2.fastq.gz:ro \
+-       uhrigs/arriba:2.3.0 \
++       uhrigs/arriba:2.4.0 \
+        arriba.sh
+ ```
+ 
+@@ -57,7 +57,7 @@ The Docker container is compatible with Singularity. If desired, it can be conve
+ 
+ ```bash
+ mkdir /path/to/references
+-singularity exec -B /path/to/references:/references docker://uhrigs/arriba:2.3.0 download_references.sh hs37d5viral+GENCODE19
++singularity exec -B /path/to/references:/references docker://uhrigs/arriba:2.4.0 download_references.sh hs37d5viral+GENCODE19
+ ```
+ 
+ Use the following Singularity command to run Arriba from the container. Replace `/path/to/` with the path to the respective input file. Leave the paths after the colons unmodified - these are the paths inside the Singularity container. In case of single-end data, the second FastQ file is omitted. Running Arriba requires ~45 GB of RAM and 8 cores (can be adjusted by setting the environment variable `SINGULARITYENV_THREADS`).
+@@ -68,7 +68,7 @@ singularity exec \
+        -B /path/to/references:/references:ro \
+        -B /path/to/read1.fastq.gz:/read1.fastq.gz:ro \
+        -B /path/to/read2.fastq.gz:/read2.fastq.gz:ro \
+-       docker://uhrigs/arriba:2.3.0 \
++       docker://uhrigs/arriba:2.4.0 \
+        arriba.sh
+ ```
+ 
+@@ -80,7 +80,7 @@ Install [Miniconda](https://conda.io/) according to the developers' instructions
+ Install the `arriba` package:
+ 
+ ```bash
+-conda install -c conda-forge -c bioconda arriba=2.3.0
++conda install -c conda-forge -c bioconda arriba=2.4.0
+ ```
+ 
+ Run the script `download_references.sh`, which is installed inside the conda environment. It downloads the assembly and gene annotation to the current working directory and builds a STAR index. Run the script without arguments to see a list of available files. Choose a file with the keyword `viral` if Arriba is supposed to detect viral integration sites. Note that this step requires ~45 GB of RAM and 8 cores (can be adjusted by setting the environment variable `THREADS`). Replace `$CONDA_PREFIX` with the path to your conda environment.
+@@ -93,7 +93,7 @@ To process FastQ files, run the script `run_arriba.sh`, which is installed insid
+ 
+ ```bash
+ ARRIBA_FILES=$CONDA_PREFIX/var/lib/arriba
+-run_arriba.sh STAR_index_hs37d5viral_GENCODE19/ GENCODE19.gtf hs37d5viral.fa $ARRIBA_FILES/blacklist_hg19_hs37d5_GRCh37_v2.3.0.tsv.gz $ARRIBA_FILES/known_fusions_hg19_hs37d5_GRCh37_v2.3.0.tsv.gz $ARRIBA_FILES/protein_domains_hg19_hs37d5_GRCh37_v2.3.0.gff3 8 $ARRIBA_FILES/read1.fastq.gz $ARRIBA_FILES/read2.fastq.gz
++run_arriba.sh STAR_index_hs37d5viral_GENCODE19/ GENCODE19.gtf hs37d5viral.fa $ARRIBA_FILES/blacklist_hg19_hs37d5_GRCh37_v2.4.0.tsv.gz $ARRIBA_FILES/known_fusions_hg19_hs37d5_GRCh37_v2.4.0.tsv.gz $ARRIBA_FILES/protein_domains_hg19_hs37d5_GRCh37_v2.4.0.gff3 8 $ARRIBA_FILES/read1.fastq.gz $ARRIBA_FILES/read2.fastq.gz
+ ```
+ 
+ Output files
+diff --git a/documentation/visualization.md b/documentation/visualization.md
+index 6545629..c9284c2 100644
+--- a/documentation/visualization.md
++++ b/documentation/visualization.md
+@@ -52,8 +52,8 @@ The following command demonstrates the usage. Please refer to section [Command-l
+     --alignments=Aligned.sortedByCoord.out.bam \
+     --output=fusions.pdf \
+     --annotation=GENCODE19.gtf \
+-    --cytobands=database/cytobands_hg19_hs37d5_GRCh37_v2.3.0.tsv \
+-    --proteinDomains=database/protein_domains_hg19_hs37d5_GRCh37_v2.3.0.gff3
++    --cytobands=database/cytobands_hg19_hs37d5_GRCh37_v2.4.0.tsv \
++    --proteinDomains=database/protein_domains_hg19_hs37d5_GRCh37_v2.4.0.gff3
+ ```
+ 
+ **Execution via Docker**
+@@ -67,7 +67,7 @@ docker run --rm \
+        -v /path/to/fusions.tsv:/fusions.tsv:ro \
+        -v /path/to/Aligned.sortedByCoord.out.bam:/Aligned.sortedByCoord.out.bam:ro \
+        -v /path/to/Aligned.sortedByCoord.out.bam.bai:/Aligned.sortedByCoord.out.bam.bai:ro \
+-       uhrigs/arriba:2.3.0 \
++       uhrigs/arriba:2.4.0 \
+        draw_fusions.sh
+ ```
+ 
+@@ -82,7 +82,7 @@ singularity exec \
+        -B /path/to/fusions.tsv:/fusions.tsv:ro \
+        -B /path/to/Aligned.sortedByCoord.out.bam:/Aligned.sortedByCoord.out.bam:ro \
+        -B /path/to/Aligned.sortedByCoord.out.bam.bai:/Aligned.sortedByCoord.out.bam.bai:ro \
+-       docker://uhrigs/arriba:2.3.0 \
++       docker://uhrigs/arriba:2.4.0 \
+        draw_fusions.sh
+ ```
+ 
+diff --git a/download_references.sh b/download_references.sh
+index f57268f..6e35322 100755
+--- a/download_references.sh
++++ b/download_references.sh
+@@ -91,9 +91,9 @@ fi > "$ASSEMBLY$VIRAL.fa"
+ 
+ if [ "$VIRAL" = "viral" ]; then
+ 	echo "Appending RefSeq viral genomes"
+-	REFSEQ_VIRAL_GENOMES=$(dirname "$0")/RefSeq_viral_genomes_v2.3.0.fa.gz
++	REFSEQ_VIRAL_GENOMES=$(dirname "$0")/RefSeq_viral_genomes_v2.4.0.fa.gz
+ 	if [ ! -e "$REFSEQ_VIRAL_GENOMES" ]; then
+-		REFSEQ_VIRAL_GENOMES=$(dirname "$0")/database/RefSeq_viral_genomes_v2.3.0.fa.gz
++		REFSEQ_VIRAL_GENOMES=$(dirname "$0")/database/RefSeq_viral_genomes_v2.4.0.fa.gz
+ 	fi
+ 	gunzip -c "$REFSEQ_VIRAL_GENOMES" >> "$ASSEMBLY$VIRAL.fa"
+ fi
+diff --git a/source/options.hpp b/source/options.hpp
+index 68d9138..36ab264 100644
+--- a/source/options.hpp
++++ b/source/options.hpp
+@@ -12,7 +12,7 @@ const string HELP_CONTACT = "https://github.com/suhrig/arriba/issues";
+ const string USER_MANUAL = "https://arriba.readthedocs.io/";
+ const string CODE_REPOSITORY = "https://github.com/suhrig/arriba";
+ const string CITATION = "https://doi.org/10.1101/gr.257246.119";
+-const string ARRIBA_VERSION = "2.3.0";
++const string ARRIBA_VERSION = "2.4.0";
+ 
+ string wrap_help(const string& option, const string& text, const unsigned short int max_line_width = 80);
+ 

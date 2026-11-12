@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/BioinformaticsFMRP__TCGAbiolinks-650"
+description = "Editing getBarcodeInfo function to handle updates GDC database for TCGA data"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "TCGAbiolinks",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "BioinformaticsFMRP/TCGAbiolinks"
+ref = "2cea937cd54d8962518e78f8d0ca33dd050b8cd3"
+reference = "https://github.com/BioinformaticsFMRP/TCGAbiolinks/pull/650"
+source_access = "auto"
+built_at = "2026-11-12T05:37:15.307428+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ca9b2e3d77d0d5c3e7f9b36426f291de71ef445868cd9c7db59535524c02d0eb"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-08-29T14:02:08Z"
+diff_format = "unified"
+context_files = [
+    "R/prepare.R",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.735486+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:448247ba5b23f8635ec5ef3c358f20fc39d397553061bf760f23de3388b38979"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

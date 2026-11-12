@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/brentp__slivar-184"
+description = "add ci for 1.6.6 and 2.x"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "slivar",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "brentp/slivar"
+ref = "ba16eb00d2ea0e1c2a964cab65af7891a2db4c18"
+reference = "https://github.com/brentp/slivar/pull/184"
+source_access = "auto"
+built_at = "2026-11-12T05:37:41.484003+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d8d5d473bb7377e6b5c9b3080b2a906536ebb10a458d32b8ce5c4c0b7b4f13b6"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-02T16:18:39Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/ci.yml",
+    "CHANGES.md",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 24
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.769021+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:99da22ce55e7bebaa62275504fbe6b75b42ac457300ad8c9762867daf963e42d"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,90 @@
+version = "1.0"
+
+[task]
+name = "default/birkhoffkiki__GPFM-10"
+description = "fix survival label"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "GPFM",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "birkhoffkiki/GPFM"
+ref = "31fb87ee3f8623b2e7b53a64cc33b4fc10ebfb5c"
+reference = "https://github.com/birkhoffkiki/GPFM/pull/10"
+source_access = "auto"
+built_at = "2026-11-12T05:55:42.160762+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ed8dd26268828065dc9144c877ef95cdf16dc548f1952857f8f76f737d39bcfc"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-02-07T02:44:41Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "dataset_csv/survival_by_case/CPTAC_BRCA_Splits.csv",
+    "dataset_csv/survival_by_case/CPTAC_COAD_Splits.csv",
+    "dataset_csv/survival_by_case/CPTAC_GBM_Splits.csv",
+    "dataset_csv/survival_by_case/CPTAC_LUAD_Splits.csv",
+    "dataset_csv/survival_by_case/CPTAC_UCEC_Splits.csv",
+    "dataset_csv/survival_by_case/GBMLGG_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_BLCA_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_BRCA_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_CESC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_COADREAD_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_GBM_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_HNSC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_KIRC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_KIRP_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_LGG_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_LIHC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_LUAD_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_LUSC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_SARC_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_SKCM_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_STAD_Splits.csv",
+    "dataset_csv/survival_by_case/TCGA_UCEC_Splits.csv",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 13365
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.764929+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:f9d64b0739f115c249485c66b4f76c510c287c8171b5abdb414be9d4ff4f34ff"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

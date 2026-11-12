@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__mhctools-652"
+description = "Restore MHCflurry's download cache after isolated-home artifact tests (4.9.3)"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "mhctools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/mhctools"
+ref = "2d9268c2c97edbbf38fe0face0388ab35c020388"
+reference = "https://github.com/openvax/mhctools/pull/652"
+source_access = "auto"
+built_at = "2026-11-12T05:39:23.497480+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:79de3582157b79f701d944b4e340bbc13a0900e806bd50fac704f326fd863a82"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-07T01:04:41Z"
+diff_format = "unified"
+context_files = [
+    "mhctools/__init__.py",
+    "tests/test_artifacts.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 9
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.816992+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:5213a1bec7bded34e2d7eafda456ac0c3863d6d1c6e9e9cea35a328133cea811"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

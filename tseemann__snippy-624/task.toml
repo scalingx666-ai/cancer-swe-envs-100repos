@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/tseemann__snippy-624"
+description = "Migrate CI workflow from apt-get to conda/miniforge"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "snippy",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "tseemann/snippy"
+ref = "f7d0acb0dc2072d73897988effe33ae96fcd3b92"
+reference = "https://github.com/tseemann/snippy/pull/624"
+source_access = "auto"
+built_at = "2026-11-12T05:36:31.831077+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:97374c344858c669b5a839f97749c8bc84493426a8c950fe1d2846a659edfb52"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-12-08T22:14:58Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/main.yml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 19
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.837168+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0376963d59a70296a5a73f858c22afe1f28f283cf18ec309c2aa8a86f030de43"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

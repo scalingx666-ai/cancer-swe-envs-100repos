@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/KolmogorovLab__Severus-43"
+description = "Fix Plotly titlefont Deprecation in build_graph.py"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "Severus",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "KolmogorovLab/Severus"
+ref = "5d1ce15bb6c9d1b1fa42985e67de94ff8da32a73"
+reference = "https://github.com/KolmogorovLab/Severus/pull/43"
+source_access = "auto"
+built_at = "2026-11-12T05:38:19.579372+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4f7b0ed154463c2564b23fd268f8bf5bad0c537cc370f8473706326505aa362b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-02-19T13:31:12Z"
+diff_format = "unified"
+context_files = [
+    "severus/build_graph.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.746574+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:c2b7978cc6d27235d90adc3b0d46124f32296f2b33fd41ad05415b2f759901de"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

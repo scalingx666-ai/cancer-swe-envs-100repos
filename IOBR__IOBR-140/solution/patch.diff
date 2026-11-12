@@ -1,0 +1,416 @@
+diff --git a/DESCRIPTION b/DESCRIPTION
+index 8783d857..e00b88be 100644
+--- a/DESCRIPTION
++++ b/DESCRIPTION
+@@ -1,6 +1,6 @@
+ Package: IOBR
+ Title: Immune Oncology Biological Research
+-Version: 2.2.3.9000
++Version: 2.2.4
+ Authors@R: c(
+     person("Dongqiang", "Zeng", , "interlaken@smu.edu.cn", role = "aut"),
+     person("Yiran", "Fang", , "fyr_nate@163.com", role = "aut"),
+@@ -113,4 +113,4 @@ biocViews: GeneExpression, DifferentialExpression, ImmunoOncology,
+ Config/testthat/edition: 3
+ Encoding: UTF-8
+ LazyData: FALSE
+-RoxygenNote: 7.3.3
++Config/roxygen2/version: 8.1.1
+diff --git a/NAMESPACE b/NAMESPACE
+index 5dcbacdb..ee439904 100644
+--- a/NAMESPACE
++++ b/NAMESPACE
+@@ -158,70 +158,82 @@ import(stringr)
+ import(survival)
+ import(tibble)
+ import(tidyr)
+-importFrom(grDevices,colorRampPalette)
+-importFrom(grDevices,dev.off)
+-importFrom(grDevices,pdf)
+-importFrom(grDevices,png)
+-importFrom(grDevices,rgb)
+-importFrom(graphics,abline)
+-importFrom(graphics,barplot)
+-importFrom(graphics,box)
+-importFrom(graphics,curve)
+-importFrom(graphics,legend)
+-importFrom(graphics,matlines)
+-importFrom(graphics,mtext)
+-importFrom(graphics,par)
+-importFrom(graphics,points)
+-importFrom(graphics,stars)
+-importFrom(methods,as)
+-importFrom(methods,is)
+-importFrom(parallel,makeCluster)
+-importFrom(parallel,stopCluster)
+-importFrom(stats,aggregate)
+-importFrom(stats,as.formula)
+-importFrom(stats,binomial)
+-importFrom(stats,coef)
+-importFrom(stats,complete.cases)
+-importFrom(stats,cor)
+-importFrom(stats,cor.test)
+-importFrom(stats,dist)
+-importFrom(stats,end)
+-importFrom(stats,glm)
+-importFrom(stats,hclust)
+-importFrom(stats,kruskal.test)
+-importFrom(stats,lm)
+-importFrom(stats,lsfit)
+-importFrom(stats,mad)
+-importFrom(stats,median)
+-importFrom(stats,model.matrix)
+-importFrom(stats,na.exclude)
+-importFrom(stats,na.omit)
+-importFrom(stats,p.adjust)
+-importFrom(stats,pchisq)
+-importFrom(stats,pnorm)
+-importFrom(stats,prcomp)
+-importFrom(stats,pt)
+-importFrom(stats,qqplot)
+-importFrom(stats,quantile)
+-importFrom(stats,reorder)
+-importFrom(stats,sd)
+-importFrom(stats,start)
+-importFrom(stats,time)
+-importFrom(stats,var)
+-importFrom(stats,wilcox.test)
++importFrom(grDevices,
++  colorRampPalette,
++  dev.off,
++  pdf,
++  png,
++  rgb
++)
++importFrom(graphics,
++  abline,
++  barplot,
++  box,
++  curve,
++  legend,
++  matlines,
++  mtext,
++  par,
++  points,
++  stars
++)
++importFrom(methods,
++  as,
++  is
++)
++importFrom(parallel,
++  makeCluster,
++  stopCluster
++)
++importFrom(stats,
++  aggregate,
++  as.formula,
++  binomial,
++  coef,
++  complete.cases,
++  cor,
++  cor.test,
++  dist,
++  end,
++  glm,
++  hclust,
++  kruskal.test,
++  lm,
++  lsfit,
++  mad,
++  median,
++  model.matrix,
++  na.exclude,
++  na.omit,
++  p.adjust,
++  pchisq,
++  pnorm,
++  prcomp,
++  pt,
++  qqplot,
++  quantile,
++  reorder,
++  sd,
++  start,
++  time,
++  var,
++  wilcox.test
++)
+ importFrom(survminer,surv_cutpoint)
+ importFrom(tibble,column_to_rownames)
+-importFrom(utils,adist)
+-importFrom(utils,capture.output)
+-importFrom(utils,combn)
+-importFrom(utils,data)
+-importFrom(utils,head)
+-importFrom(utils,menu)
+-importFrom(utils,packageDescription)
+-importFrom(utils,packageVersion)
+-importFrom(utils,read.csv)
+-importFrom(utils,read.delim)
+-importFrom(utils,read.table)
+-importFrom(utils,tail)
+-importFrom(utils,write.csv)
+-importFrom(utils,write.table)
++importFrom(utils,
++  adist,
++  capture.output,
++  combn,
++  data,
++  head,
++  menu,
++  packageDescription,
++  packageVersion,
++  read.csv,
++  read.delim,
++  read.table,
++  tail,
++  write.csv,
++  write.table
++)
+diff --git a/NEWS.md b/NEWS.md
+index 37b3d6bf..18bf299f 100644
+--- a/NEWS.md
++++ b/NEWS.md
+@@ -1,4 +1,18 @@
+-# IOBR (development version)
++# IOBR 2.2.4
++
++## Improvements
++
++* **purrr compatibility**: Confirmed compatibility with the upcoming purrr release that makes functions deprecated in purrr 1.0.0 defunct (e.g., `when()`). IOBR does not use any of these functions (#139).
++* `download_iobr_data()`: The internet connectivity check now tries Baidu before Google (faster for users in China) and caps each attempt at 5 seconds to avoid hanging.
++* `palettes()`: Diverging palettes (palettes 2-5) now use 5 colors instead of 3 for finer color resolution.
++
++## Bug Fixes
++
++* Fixed `sig_gsea()` failing with newer clusterProfiler versions that removed the `by` argument from `GSEA()` (`unused argument (by = "fgsea")`).
++* Examples of `format_msigdb()` and `sig_gsea()` now skip gracefully when the suggested clusterProfiler or organism annotation package is unavailable.
++* Fixed `iobr_cor_plot()` five-color heatmap palette handling.
++* Fixed `sig_heatmap()` color scale anchors to span (-2, 2) instead of (-3, 3), matching the displayed value clipping.
++* Fixed `surv_group()` legend labels when no reference group is specified.
+ 
+ # IOBR 2.2.3
+ 
+diff --git a/R/format_msigdb.R b/R/format_msigdb.R
+index b798bb1d..30a38c35 100644
+--- a/R/format_msigdb.R
++++ b/R/format_msigdb.R
+@@ -16,18 +16,20 @@
+ #' @export
+ #'
+ #' @examples
+-#' tf <- tempfile(fileext = ".gmt")
+-#' writeLines(
+-#'   c(
+-#'     "HALLMARK_TNFA_SIGNALING_VIA_NFKB\tNA\tTNF\tNFKB1\tNFKB2",
+-#'     "HALLMARK_P53_PATHWAY\tNA\tTP53\tMDM2\tCDKN1A"
+-#'   ),
+-#'   con = tf
+-#' )
++#' if (rlang::is_installed("clusterProfiler")) {
++#'   tf <- tempfile(fileext = ".gmt")
++#'   writeLines(
++#'     c(
++#'       "HALLMARK_TNFA_SIGNALING_VIA_NFKB\tNA\tTNF\tNFKB1\tNFKB2",
++#'       "HALLMARK_P53_PATHWAY\tNA\tTP53\tMDM2\tCDKN1A"
++#'     ),
++#'     con = tf
++#'   )
+ #'
+-#' sig_list <- format_msigdb(tf, ont = "term", gene = "gene")
+-#' names(sig_list)
+-#' sig_list[[1]]
++#'   sig_list <- format_msigdb(tf, ont = "term", gene = "gene")
++#'   names(sig_list)
++#'   sig_list[[1]]
++#' }
+ format_msigdb <- function(gmt, ont = "term", gene = "gene") {
+   if (!file.exists(gmt)) {
+     cli::cli_abort("File {.file {gmt}} does not exist")
+diff --git a/R/sig_gsea.R b/R/sig_gsea.R
+index cede087a..638f0dbf 100644
+--- a/R/sig_gsea.R
++++ b/R/sig_gsea.R
+@@ -101,14 +101,16 @@
+ #'   )
+ #' )
+ #' \donttest{
+-#' res <- sig_gsea(
+-#'   deg = deg,
+-#'   genesets = signature,
+-#'   path = tempdir(),
+-#'   show_plot = FALSE,
+-#'   print_bar = FALSE
+-#' )
+-#' print(names(res))
++#' if (rlang::is_installed("clusterProfiler") && rlang::is_installed("org.Hs.eg.db")) {
++#'   res <- sig_gsea(
++#'     deg = deg,
++#'     genesets = signature,
++#'     path = tempdir(),
++#'     show_plot = FALSE,
++#'     print_bar = FALSE
++#'   )
++#'   print(names(res))
++#' }
+ #' }
+ sig_gsea <- function(deg,
+                      genesets = NULL,
+@@ -213,8 +215,7 @@ sig_gsea <- function(deg,
+     TERM2GENE = term2genes,
+     TERM2NAME = NA,
+     verbose = verbose,
+-    seed = seed,
+-    by = "fgsea"
++    seed = seed
+   )
+ 
+   # Convert to readable format
+diff --git a/cran-comments.md b/cran-comments.md
+index a92c6971..035ad9d6 100644
+--- a/cran-comments.md
++++ b/cran-comments.md
+@@ -4,6 +4,9 @@
+ * windows-latest (on GitHub Actions), R-release
+ * macos-latest (on GitHub Actions), R-release
+ 
++## Resubmission
++Minor release to ship small bug fixes for plotting and data-download functions. This release was requested in response to the upcoming purrr release (https://github.com/IOBR/IOBR/issues/139); we verified that IOBR uses none of the purrr functions deprecated in purrr 1.0.0 (e.g., `when()`), so the package is unaffected by the API removals.
++
+ ## R CMD check results
+ 
+ 0 errors | 0 warnings | 0 notes
+diff --git a/man/format_msigdb.Rd b/man/format_msigdb.Rd
+index 791ad747..d7bc87ca 100644
+--- a/man/format_msigdb.Rd
++++ b/man/format_msigdb.Rd
+@@ -24,16 +24,18 @@ Reads a GMT file from MSigDB and converts it into a named list of gene sets
+ suitable for IOBR functions.
+ }
+ \examples{
+-tf <- tempfile(fileext = ".gmt")
+-writeLines(
+-  c(
+-    "HALLMARK_TNFA_SIGNALING_VIA_NFKB\tNA\tTNF\tNFKB1\tNFKB2",
+-    "HALLMARK_P53_PATHWAY\tNA\tTP53\tMDM2\tCDKN1A"
+-  ),
+-  con = tf
+-)
++if (rlang::is_installed("clusterProfiler")) {
++  tf <- tempfile(fileext = ".gmt")
++  writeLines(
++    c(
++      "HALLMARK_TNFA_SIGNALING_VIA_NFKB\tNA\tTNF\tNFKB1\tNFKB2",
++      "HALLMARK_P53_PATHWAY\tNA\tTP53\tMDM2\tCDKN1A"
++    ),
++    con = tf
++  )
+ 
+-sig_list <- format_msigdb(tf, ont = "term", gene = "gene")
+-names(sig_list)
+-sig_list[[1]]
++  sig_list <- format_msigdb(tf, ont = "term", gene = "gene")
++  names(sig_list)
++  sig_list[[1]]
++}
+ }
+diff --git a/man/patterns_to_na.Rd b/man/patterns_to_na.Rd
+index e6ebcfa1..a4aaa9a5 100644
+--- a/man/patterns_to_na.Rd
++++ b/man/patterns_to_na.Rd
+@@ -1,6 +1,5 @@
+ % Generated by roxygen2: do not edit by hand
+ % Please edit documentation in R/remove_names.R
+-\docType{data}
+ \name{patterns_to_na}
+ \alias{patterns_to_na}
+ \title{Default Pattern List for Name Cleaning}
+@@ -21,4 +20,3 @@ Used in [remove_names()] and other helper functions.
+ # View default patterns
+ patterns_to_na
+ }
+-\keyword{datasets}
+diff --git a/man/sig_gsea.Rd b/man/sig_gsea.Rd
+index 97f620f0..44a7b3a9 100644
+--- a/man/sig_gsea.Rd
++++ b/man/sig_gsea.Rd
+@@ -158,14 +158,16 @@ signature <- list(
+   )
+ )
+ \donttest{
+-res <- sig_gsea(
+-  deg = deg,
+-  genesets = signature,
+-  path = tempdir(),
+-  show_plot = FALSE,
+-  print_bar = FALSE
+-)
+-print(names(res))
++if (rlang::is_installed("clusterProfiler") && rlang::is_installed("org.Hs.eg.db")) {
++  res <- sig_gsea(
++    deg = deg,
++    genesets = signature,
++    path = tempdir(),
++    show_plot = FALSE,
++    print_bar = FALSE
++  )
++  print(names(res))
++}
+ }
+ }
+ \author{
+diff --git a/man/signature_score_calculation_methods.Rd b/man/signature_score_calculation_methods.Rd
+index d7033b15..3c7b9f39 100644
+--- a/man/signature_score_calculation_methods.Rd
++++ b/man/signature_score_calculation_methods.Rd
+@@ -1,6 +1,5 @@
+ % Generated by roxygen2: do not edit by hand
+ % Please edit documentation in R/calculate_sig_score.R
+-\docType{data}
+ \name{signature_score_calculation_methods}
+ \alias{signature_score_calculation_methods}
+ \title{Signature Score Calculation Methods}
+@@ -23,4 +22,3 @@ A named vector of supported methods for calculating signature scores.
+ signature_score_calculation_methods
+ signature_score_calculation_methods["PCA"]
+ }
+-\keyword{datasets}
+diff --git a/man/timer_available_cancers.Rd b/man/timer_available_cancers.Rd
+index 17473a3f..dd016dce 100644
+--- a/man/timer_available_cancers.Rd
++++ b/man/timer_available_cancers.Rd
+@@ -1,12 +1,8 @@
+ % Generated by roxygen2: do not edit by hand
+ % Please edit documentation in R/timer.R
+-\docType{data}
+ \name{timer_available_cancers}
+ \alias{timer_available_cancers}
+ \title{TIMER Available Cancer Types}
+-\format{
+-An object of class \code{character} of length 32.
+-}
+ \usage{
+ timer_available_cancers
+ }
+@@ -24,4 +20,3 @@ timer_available_cancers
+ # Check if a cancer type is supported
+ "brca" \%in\% timer_available_cancers
+ }
+-\keyword{datasets}
+diff --git a/man/tme_deconvolution_methods.Rd b/man/tme_deconvolution_methods.Rd
+index 98fb3cb5..6aaac2e8 100644
+--- a/man/tme_deconvolution_methods.Rd
++++ b/man/tme_deconvolution_methods.Rd
+@@ -1,6 +1,5 @@
+ % Generated by roxygen2: do not edit by hand
+ % Please edit documentation in R/deconvo_tme.R
+-\docType{data}
+ \name{tme_deconvolution_methods}
+ \alias{tme_deconvolution_methods}
+ \title{TME Deconvolution Methods}
+@@ -41,4 +40,3 @@ tme_deconvolution_methods
+ # Get internal method name for a specific method
+ tme_deconvolution_methods["MCPcounter"]
+ }
+-\keyword{datasets}

@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/lh3__minimap2-1260"
+description = "Allow passing read name to mappy"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "minimap2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lh3/minimap2"
+ref = "fcb5d5e6eb9f107b7ec30e4cef81d483b7bf9574"
+reference = "https://github.com/lh3/minimap2/pull/1260"
+source_access = "auto"
+built_at = "2026-11-12T05:35:26.281348+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:53b56d55f98f887dd5fd5c1aa439c7cbb9f296267a0c58354efd6122014120ee"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-11-15T13:51:11Z"
+diff_format = "unified"
+context_files = [
+    "python/cmappy.h",
+    "python/cmappy.pxd",
+    "python/mappy.pyx",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 23
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.802799+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e1086ae7b9ce849e339d6c0aba5bbebebe9b2cd6a287300266a8e30baaab442d"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

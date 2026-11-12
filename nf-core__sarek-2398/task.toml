@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/nf-core__sarek-2398"
+description = "fix: check --intervals against a user-provided FAI at start-up"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "sarek",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "nf-core/sarek"
+ref = "1d46c0274f2b465c55c1bf3a876fc7be4430d6f8"
+reference = "https://github.com/nf-core/sarek/pull/2398"
+source_access = "auto"
+built_at = "2026-11-12T05:33:28.656072+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4ca1560b9f954f9b8c86b88ef9631e1c501630590fad667f9101c538929b8a59"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T11:30:08Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "main.nf",
+    "subworkflows/local/prepare_intervals/main.nf",
+    "subworkflows/local/utils_nfcore_sarek_pipeline/main.nf",
+    "tests/intervals.nf.test",
+    "tests/intervals.nf.test.snap",
+    "tests/lib/UTILS.groovy",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 161
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.813100+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:50cb99d1f7d94fa8527ae181ffadfe2ed0424f2ec552c403d9c67524e1b33b91"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

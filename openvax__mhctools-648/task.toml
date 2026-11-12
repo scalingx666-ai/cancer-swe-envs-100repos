@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__mhctools-648"
+description = "Resolve allele identity migration plan review (4.8.2)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "mhctools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/mhctools"
+ref = "8a3506272f9cad4b9c70b7f76deaad7e64db0f41"
+reference = "https://github.com/openvax/mhctools/pull/648"
+source_access = "auto"
+built_at = "2026-11-12T05:39:24.901087+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e1ebeece5dd365796fb5b0f0f1a7c29514867f8b2acc1e5b5ad2c020b9db03fe"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-05T18:54:13Z"
+diff_format = "unified"
+context_files = [
+    "mhctools/__init__.py",
+    "plans/mhcgnomes-canonical-allele-names-spec.md",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 243
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.816559+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:4d8e137d37cfd9e8787a5eafc64f1f29f06171191f754649f27c44a38bb1e61c"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

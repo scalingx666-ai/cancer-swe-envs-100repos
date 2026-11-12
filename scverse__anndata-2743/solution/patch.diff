@@ -1,0 +1,519 @@
+diff --git a/benchmarks/asv.conf.json b/benchmarks/asv.conf.json
+index f4d4cacd92..24c34584d3 100644
+--- a/benchmarks/asv.conf.json
++++ b/benchmarks/asv.conf.json
+@@ -44,7 +44,7 @@
+     "show_commit_url": "https://github.com/theislab/anndata/commit/",
+     // The Pythons you'd like to test against.  If not provided, defaults
+     // to the current version of Python used to run `asv`.
+-    // "pythons": ["2.7", "3.6"],
++    "pythons": ["3.14"],
+     // The list of conda channel names to be searched for benchmark
+     // dependency packages in the specified order
+     "conda_channels": ["conda-forge"],
+diff --git a/benchmarks/benchmarks/subsetting.py b/benchmarks/benchmarks/subsetting.py
+new file mode 100644
+index 0000000000..595967932d
+--- /dev/null
++++ b/benchmarks/benchmarks/subsetting.py
+@@ -0,0 +1,60 @@
++from __future__ import annotations
++
++from typing import TYPE_CHECKING
++
++import numpy as np
++import pandas as pd
++
++import anndata as ad
++
++if TYPE_CHECKING:
++    from numpy.typing import NDArray
++
++    type Index = tuple[NDArray[np.bool_] | slice, ...]
++
++N_VAR = 2_000
++
++
++def make_index(name: str, n_obs: int, n_var: int) -> Index:
++    rng = np.random.default_rng(0)
++    obs_mask = rng.random(n_obs) < 0.5
++    var_mask = rng.random(n_var) < 0.1
++    indexers: dict[str, Index] = {
++        "obs_mask": (obs_mask, slice(None)),
++        "var_mask": (slice(None), var_mask),
++    }
++    return indexers[name]
++
++
++class SubsetCategorical:
++    """Subsetting with categorical annotations, whose unused categories are removed."""
++
++    params = (("obs_mask", "var_mask"),)
++    param_names = ("index",)
++
++    def setup(self, index: str):
++        n_obs = 500_000
++        rng = np.random.default_rng(0)
++        obs = pd.DataFrame(
++            {
++                # every category is used, so subsetting only genes keeps all of them
++                f"cat_{n}": pd.Categorical.from_codes(
++                    rng.permutation(np.arange(n_obs) % n),
++                    categories=pd.Index([f"c{i}" for i in range(n)]),
++                )
++                for n in (10, 1_000, 100_000)
++            },
++            index=pd.RangeIndex(n_obs).astype(str),
++        )
++        var = pd.DataFrame(index=[f"gene{i}" for i in range(N_VAR)])
++        self.adata = ad.AnnData(obs=obs, var=var)
++        self.index = make_index(index, n_obs, N_VAR)
++
++    def time_view(self, *_):
++        self.adata[self.index]
++
++    def time_copy(self, *_):
++        self.adata[self.index].copy()
++
++    def peakmem_copy(self, *_):
++        self.adata[self.index].copy()
+diff --git a/docs/release-notes/2675.perf.md b/docs/release-notes/2675.perf.md
+new file mode 100644
+index 0000000000..5fba4412af
+--- /dev/null
++++ b/docs/release-notes/2675.perf.md
+@@ -0,0 +1 @@
++Subset {class}`~anndata.AnnData` objects with many observations or variables faster by removing unused categories of categorical annotations only once and only if there are any, and by not re-checking the uniqueness of unchanged names {user}`Intron7`
+diff --git a/src/anndata/_core/anndata.py b/src/anndata/_core/anndata.py
+index f246793791..175c806feb 100644
+--- a/src/anndata/_core/anndata.py
++++ b/src/anndata/_core/anndata.py
+@@ -7,6 +7,7 @@
+ from collections import OrderedDict, defaultdict
+ from collections.abc import Mapping, MutableMapping, Sequence
+ from copy import copy, deepcopy
++from dataclasses import dataclass
+ from functools import singledispatchmethod
+ from pathlib import Path
+ from textwrap import dedent
+@@ -37,7 +38,6 @@
+     has_xp,
+     old_positionals,
+     pandas_as_str,
+-    pandas_no_chained_assignment_warning,
+ )
+ from ..logging import anndata_logger as logger
+ from ..utils import (
+@@ -57,7 +57,12 @@
+ from .raw import Raw
+ from .sparse_dataset import BaseCompressedSparseDataset
+ from .storage import _non_2d_message, coerce_array
+-from .views import DictView, _resolve_idxs, as_view
++from .views import (
++    DictView,
++    _resolve_idxs,
++    as_view,
++    remove_unused_categories,
++)
+ from .xarray import Dataset2D
+ 
+ if TYPE_CHECKING:
+@@ -329,20 +334,22 @@ def _init_as_view(
+         self.file = adata_ref.file
+ 
+         # views on attributes of adata_ref
+-        var_sub = adata_ref.var.iloc[
+-            np.array(self._vidx) if isinstance(self._vidx, IndexManager) else self._vidx
+-        ]
+-        obs_sub = adata_ref.obs.iloc[
+-            np.array(self._oidx) if isinstance(self._oidx, IndexManager) else self._oidx
+-        ]
++        vidx_np, oidx_np = (
++            np.array(idx) if isinstance(idx, IndexManager) else idx
++            for idx in (self._vidx, self._oidx)
++        )
++        var_sub = adata_ref.var.iloc[vidx_np]
++        obs_sub = adata_ref.obs.iloc[oidx_np]
++        _IndexCache(adata_ref.var.index).pass_on_unique(var_sub.index, vidx_np)
++        _IndexCache(adata_ref.obs.index).pass_on_unique(obs_sub.index, oidx_np)
+         # fix categories
+         uns = copy(adata_ref._uns)
+         if settings.remove_unused_categories:
+             self._remove_unused_categories(adata_ref.obs, obs_sub, uns)
+             self._remove_unused_categories(adata_ref.var, var_sub, uns)
+-        # set attributes
+-        self._obs = as_view(obs_sub, view_args=(self, "obs"))
+-        self._var = as_view(var_sub, view_args=(self, "var"))
++        # set attributes; categories are fixed already, so skip `as_view_df` doing it again
++        self._obs = as_view(obs_sub, (self, "obs"), remove_unused_categories=False)
++        self._var = as_view(var_sub, (self, "var"), remove_unused_categories=False)
+         self._uns = uns
+ 
+         # set raw, easy, as it’s immutable anyways...
+@@ -1125,8 +1132,7 @@ def _remove_unused_categories(
+             if not isinstance(df_full[k].dtype, pd.CategoricalDtype):
+                 continue
+             all_categories = df_full[k].cat.categories
+-            with pandas_no_chained_assignment_warning():
+-                df_sub[k] = df_sub[k].cat.remove_unused_categories()
++            remove_unused_categories(df_sub, k)
+             # also correct the colors...
+             color_key = f"{k}_colors"
+             if color_key not in uns:
+@@ -1617,12 +1623,12 @@ def obs_names_make_unique(self, join: str = "-") -> None:
+     def _check_uniqueness(self) -> None:
+         if (
+             settings.restrict_index_types
+-            and self.obs.index[~self.obs.index.isna()].has_duplicates
++            and _IndexCache(self.obs.index).has_duplicates()
+         ):
+             utils.warn_names_duplicates("obs")
+         if (
+             settings.restrict_index_types
+-            and self.var.index[~self.var.index.isna()].has_duplicates
++            and _IndexCache(self.var.index).has_duplicates()
+         ):
+             utils.warn_names_duplicates("var")
+ 
+@@ -2031,3 +2037,36 @@ def _infer_shape(
+         _infer_shape_for_axis(obs, obsm, layers, obsp, 0),
+         _infer_shape_for_axis(var, varm, layers, varp, 1),
+     )
++
++
++@dataclass(frozen=True, slots=True)
++class _IndexCache:
++    """Access to the private cache of a :class:`pandas.Index` (shared with its copies)."""
++
++    index: pd.Index
++
++    @property
++    def cache(self) -> dict[str, object]:
++        return vars(self.index)["_cache"]
++
++    def has_duplicates(self) -> bool:
++        if self.index.hasnans:
++            return self.index[self.index.notna()].has_duplicates
++        # keep only the answer on the index (shared with its copies), not pandas' lookup table,
++        # which costs ~90 bytes per name and slows down slicing: check a throw-away view,
++        # unless the index already has a table (slicing it would build another one)
++        cache = self.cache
++        if "is_unique" not in cache:
++            idx = self.index if "_engine" in cache else self.index[:]
++            cache["is_unique"] = idx.is_unique
++        return not cache["is_unique"]
++
++    def pass_on_unique(self, sub: pd.Index, idx: _Index1DNorm) -> None:
++        """Mark `sub = index[idx]` as unique if `index` is known to be and `idx` can’t repeat a name.
++
++        Copies of a view then don’t have to check its names for duplicates again.
++        """
++        if (isinstance(idx, slice) or idx.dtype == bool) and self.cache.get(
++            "is_unique"
++        ):
++            _IndexCache(sub).cache["is_unique"] = True
+diff --git a/src/anndata/_core/views.py b/src/anndata/_core/views.py
+index dcaf55fc07..3c32b26ccc 100644
+--- a/src/anndata/_core/views.py
++++ b/src/anndata/_core/views.py
+@@ -2,8 +2,8 @@
+ 
+ from contextlib import contextmanager
+ from copy import deepcopy
+-from functools import reduce, singledispatch, wraps
+-from typing import TYPE_CHECKING, Literal
++from functools import partial, reduce, singledispatch, wraps
++from typing import TYPE_CHECKING, Literal, overload
+ 
+ import numpy as np
+ import pandas as pd
+@@ -31,10 +31,10 @@
+ from .xarray import Dataset2D
+ 
+ if TYPE_CHECKING:
+-    from collections.abc import Callable, Iterable, KeysView, Sequence
++    from collections.abc import Callable, Hashable, Iterable, KeysView
+     from typing import Any, ClassVar
+ 
+-    from numpy.typing import NDArray
++    from numpy.typing import ArrayLike, NDArray
+ 
+     from anndata import AnnData
+ 
+@@ -68,7 +68,20 @@ def view_update(adata_view: AnnData, attr_name: str, keys: tuple[str, ...]):
+     adata_view._init_as_actual(new)
+ 
+ 
+-class _SetItemMixin:
++if TYPE_CHECKING:
++
++    class _SupportsSetItem:
++        def __setitem__(self, idx: object, value: object) -> None: ...
++
++else:
++    _SupportsSetItem = object
++
++
++type ViewArgs = tuple["AnnData", str] | tuple["AnnData", str, tuple[str | None, ...]]
++"""`ElementRef` args; its `keys` defaults to `()`."""
++
++
++class _SetItemMixin(_SupportsSetItem):
+     """\
+     Class which (when values are being set) lets their parent AnnData view know,
+     so it can make a copy of itself.
+@@ -114,8 +127,8 @@ def __deepcopy__(self, memo):
+ class ArrayView(_SetItemMixin, np.ndarray):
+     def __new__(
+         cls,
+-        input_array: Sequence[Any],
+-        view_args: tuple[AnnData, str, tuple[str, ...]] | None = None,
++        input_array: ArrayLike,
++        view_args: ViewArgs | None = None,
+     ):
+         arr = np.asanyarray(input_array).view(cls)
+ 
+@@ -252,8 +265,8 @@ def copy(self) -> CupyCSCMatrix:
+ class CupyArrayView(_ViewMixin, CupyArray):
+     def __new__(
+         cls,
+-        input_array: Sequence[Any],
+-        view_args: tuple[AnnData, str, tuple[str, ...]] | None = None,
++        input_array: ArrayLike,
++        view_args: ViewArgs | None = None,
+     ):
+         import cupy as cp
+ 
+@@ -297,8 +310,51 @@ def __setattr__(self, key: str, value: Any):
+             super().__setattr__(key, value)
+ 
+ 
++# `singledispatch` can’t carry the overloads, so they live on this thin wrapper
++@overload
++def as_view(obj: np.ndarray, view_args: ViewArgs, /) -> ArrayView: ...
++@overload
++def as_view(obj: DaskArray, view_args: ViewArgs, /) -> DaskArrayView: ...
++@overload
++def as_view(
++    obj: pd.DataFrame,
++    view_args: ViewArgs,
++    /,
++    *,
++    remove_unused_categories: bool | None = None,
++) -> DataFrameView: ...
++@overload
++def as_view(
++    obj: Dataset2D,
++    view_args: ViewArgs,
++    /,
++    *,
++    remove_unused_categories: bool | None = None,
++) -> Dataset2D: ...
++@overload
++def as_view(obj: sparse.csr_matrix, view_args: ViewArgs, /) -> SparseCSRMatrixView: ...
++@overload
++def as_view(obj: sparse.csc_matrix, view_args: ViewArgs, /) -> SparseCSCMatrixView: ...
++@overload
++def as_view(obj: sparse.csr_array, view_args: ViewArgs, /) -> SparseCSRArrayView: ...
++@overload
++def as_view(obj: sparse.csc_array, view_args: ViewArgs, /) -> SparseCSCArrayView: ...
++@overload
++def as_view(obj: dict, view_args: ViewArgs, /) -> DictView: ...
++@overload
++def as_view(obj: CupyArray, view_args: ViewArgs, /) -> CupyArrayView: ...
++@overload
++def as_view(obj: CupyCSRMatrix, view_args: ViewArgs, /) -> CupySparseCSRView: ...
++@overload
++def as_view(obj: CupyCSCMatrix, view_args: ViewArgs, /) -> CupySparseCSCView: ...
++@overload
++def as_view[T](obj: T, view_args: ViewArgs, /) -> T: ...
++def as_view(obj: object, view_args: ViewArgs, /, **kwargs: bool | None) -> object:
++    return _as_view_dispatch(obj, view_args, **kwargs)
++
++
+ @singledispatch
+-def as_view(obj, view_args):
++def _as_view_dispatch(obj: object, view_args: ViewArgs, /) -> object:
+     if has_xp_base(obj):
+         # TODO: Determine if we need some sort of specific view object for array-api, or some sort of wrapper that just warns loudly?
+         # Likely not - we will just make it clear that any view-specific behavior is offloaded onto the array-api.
+@@ -309,76 +365,66 @@ def as_view(obj, view_args):
+         raise NotImplementedError(msg)
+ 
+ 
+-@as_view.register(np.ndarray)
+-def as_view_array(array, view_args):
+-    return ArrayView(array, view_args=view_args)
+-
+-
+-@as_view.register(DaskArray)
+-def as_view_dask_array(array, view_args):
+-    return DaskArrayView(array, view_args=view_args)
++def remove_unused_categories(df: pd.DataFrame, col: Hashable) -> None:
++    """Remove unused categories of a categorical column in place.
+ 
++    Checking usage with :func:`numpy.bincount` first is much faster than always calling
++    :meth:`pandas.Series.cat.remove_unused_categories`, which sorts all codes.
++    """
++    # use the array directly: `.cat.codes` would build a new Series, which costs as much as the check
++    cat: pd.Categorical = df[col].array
++    # shift by 1 to count missing values (code -1) separately
++    counts = np.bincount(cat.codes + 1, minlength=len(cat.categories) + 1)
++    if counts[1:].all():
++        return
++    with pandas_no_chained_assignment_warning():
++        df[col] = df[col].cat.remove_unused_categories()
++
++
++@_as_view_dispatch.register
++def as_view_df(
++    df: pd.DataFrame,
++    view_args: ViewArgs,
++    /,
++    *,
++    remove_unused_categories: bool | None = None,
++) -> DataFrameView:
++    if remove_unused_categories is None:
++        remove_unused_categories = settings.remove_unused_categories
++    if remove_unused_categories:
++        from .views import remove_unused_categories as ruc  # shadowed above
+ 
+-@as_view.register(pd.DataFrame)
+-def as_view_df(df, view_args):
+-    if settings.remove_unused_categories:
+         for col in df.columns:
+             if isinstance(df[col].dtype, pd.CategoricalDtype):
+-                with pandas_no_chained_assignment_warning():
+-                    df[col] = df[col].cat.remove_unused_categories()
++                ruc(df, col)
+     return DataFrameView(df, view_args=view_args)
+ 
+ 
+-@as_view.register(sparse.csr_matrix)
+-def as_view_csr_matrix(mtx, view_args):
+-    return SparseCSRMatrixView(mtx, view_args=view_args)
+-
+-
+-@as_view.register(sparse.csc_matrix)
+-def as_view_csc_matrix(mtx, view_args):
+-    return SparseCSCMatrixView(mtx, view_args=view_args)
+-
+-
+-@as_view.register(sparse.csr_array)
+-def as_view_csr_array(mtx, view_args):
+-    return SparseCSRArrayView(mtx, view_args=view_args)
+-
+-
+-@as_view.register(sparse.csc_array)
+-def as_view_csc_array(mtx, view_args):
+-    return SparseCSCArrayView(mtx, view_args=view_args)
+-
+-
+-@as_view.register(dict)
+-def as_view_dict(d, view_args):
+-    return DictView(d, view_args=view_args)
+-
+-
+-@as_view.register(ZappyArray)
+-def as_view_zappy(z, view_args):
+-    # Previous code says ZappyArray works as view,
+-    # but as far as I can tell they’re immutable.
+-    return z
+-
+-
+-@as_view.register(CupyArray)
+-def as_view_cupy(array, view_args):
+-    return CupyArrayView(array, view_args=view_args)
+-
+-
+-@as_view.register(CupyCSRMatrix)
+-def as_view_cupy_csr(mtx, view_args):
+-    return CupySparseCSRView(mtx, view_args=view_args)
++def _as_view_wrap[T](
++    obj: object, view_args: ViewArgs, /, *, view_cls: Callable[..., T]
++) -> T:
++    return view_cls(obj, view_args=view_args)
+ 
+ 
+-@as_view.register(CupyCSCMatrix)
+-def as_view_cupy_csc(mtx, view_args):
+-    return CupySparseCSCView(mtx, view_args=view_args)
++for _cls, _view_cls in [
++    (np.ndarray, ArrayView),
++    (DaskArray, DaskArrayView),
++    (sparse.csr_matrix, SparseCSRMatrixView),
++    (sparse.csc_matrix, SparseCSCMatrixView),
++    (sparse.csr_array, SparseCSRArrayView),
++    (sparse.csc_array, SparseCSCArrayView),
++    (dict, DictView),
++    (CupyArray, CupyArrayView),
++    (CupyCSRMatrix, CupySparseCSRView),
++    (CupyCSCMatrix, CupySparseCSCView),
++]:
++    _as_view_dispatch.register(_cls, partial(_as_view_wrap, view_cls=_view_cls))
+ 
+ 
+-@as_view.register(Dataset2D)
+-def _(a: Dataset2D, view_args):
+-    return a
++# Previous code says ZappyArray works as view, but as far as I can tell they’re immutable.
++# `Dataset2D` gets `remove_unused_categories` like `pd.DataFrame`, but ignores it.
++for _cls in [ZappyArray, Dataset2D]:
++    _as_view_dispatch.register(_cls, lambda obj, view_args, /, **_: obj)
+ 
+ 
+ try:
+@@ -387,7 +433,7 @@ def _(a: Dataset2D, view_args):
+     from ..compat import awkward as ak
+ 
+     # Registry to store weak references from AwkwardArrayViews to their parent AnnData container
+-    _registry = weakref.WeakValueDictionary()
++    _registry: weakref.WeakValueDictionary[str, AnnData] = weakref.WeakValueDictionary()
+     _PARAM_NAME = "_view_args"
+ 
+     class AwkwardArrayView(_ViewMixin, AwkArray):
+@@ -419,9 +465,9 @@ def __copy__(self) -> AwkArray:
+             array = ak.with_parameter(array, "__list__", None)
+             return array
+ 
+-    @as_view.register(AwkArray)
+-    def as_view_awkarray(array, view_args):
+-        parent, attrname, keys = view_args
++    @_as_view_dispatch.register
++    def as_view_awkarray(array: AwkArray, view_args: ViewArgs, /) -> AwkArray:
++        parent, attrname, keys = ElementRef(*view_args)
+         parent_key = f"target-{id(parent)}"
+         _registry[parent_key] = parent
+         # TODO: See https://github.com/scverse/anndata/pull/647#discussion_r963494798_ for more details and
+diff --git a/src/anndata/experimental/backed/_lazy_arrays.py b/src/anndata/experimental/backed/_lazy_arrays.py
+index aa698c577b..5cfc79c530 100644
+--- a/src/anndata/experimental/backed/_lazy_arrays.py
++++ b/src/anndata/experimental/backed/_lazy_arrays.py
+@@ -9,7 +9,7 @@
+ import zarr
+ 
+ from anndata._core.index import _subset
+-from anndata._core.views import as_view
++from anndata._core.views import _as_view_dispatch
+ from anndata._io.specs.lazy_methods import get_chunksize
+ 
+ from ..._io.utils import pandas_nullable_dtype
+@@ -24,6 +24,7 @@
+     from pandas._libs.missing import NAType
+     from pandas.core.dtypes.dtypes import BaseMaskedDtype
+ 
++    from ..._core.views import ViewArgs
+     from ...typing import _Index1DNorm
+ 
+     if TYPE_CHECKING:  # Double nesting so Sphinx can import the parent block
+@@ -201,8 +202,8 @@ def _subset_masked(
+     return a[subset_idx]
+ 
+ 
+-@as_view.register(XDataArray)
+-def _view_pd_boolean_array(a: XDataArray, view_args):
++@_as_view_dispatch.register(XDataArray)
++def _view_pd_boolean_array(a: XDataArray, view_args: ViewArgs) -> XDataArray:
+     return a
+ 
+ 

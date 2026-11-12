@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__topiary-607"
+description = "Re-pin three effects for Varcode 11.11.1's restored tie-breakers (5.112.1)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "topiary",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/topiary"
+ref = "186365d8a2cb24b073380c39bdb3e2061fe8d777"
+reference = "https://github.com/openvax/topiary/pull/607"
+source_access = "auto"
+built_at = "2026-11-12T05:39:35.804505+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:fe584ebc5c4b9bd2df6f9e35765d96c93e1648ff0f1ed2834b994cde7c9ac02c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T12:59:32Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "tests/test_osteosarc_all_variants.py",
+    "topiary/__init__.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 49
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.819684+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0274c56e4d2387dac7b2f1adfbd1207d0d5a202b192bf8d55d9fefbaeaa960eb"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

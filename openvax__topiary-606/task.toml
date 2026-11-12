@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__topiary-606"
+description = "One transcript rule for --protein-change too (5.113.0)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "topiary",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/topiary"
+ref = "81ad2e0e8b9802e7098b1012041a7c2ae1f0ef91"
+reference = "https://github.com/openvax/topiary/pull/606"
+source_access = "auto"
+built_at = "2026-11-12T05:39:37.103345+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e5e568237a3f425e6b9b18d35b38dde85d6529b5b55477083594555c4898b04b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T12:59:42Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "docs/api.md",
+    "docs/cli.md",
+    "tests/test_cli_coverage.py",
+    "tests/test_twin_conformance.py",
+    "topiary/__init__.py",
+    "topiary/cli/protein_changes.py",
+    "topiary/sources.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 261
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.819231+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:379d98f1efbf4e364aadd9ba4b197b0270700f79ce53666b9c230c6ec8838411"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

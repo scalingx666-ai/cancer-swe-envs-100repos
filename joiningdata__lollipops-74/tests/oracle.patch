@@ -1,0 +1,698 @@
+diff --git a/README.md b/README.md
+index 5105a88..b819767 100644
+--- a/README.md
++++ b/README.md
+@@ -6,8 +6,8 @@
+ 
+ A simple 'lollipop' mutation diagram generator that tries to make things
+ simple and easy by automating as much as possible. It uses the
+-[UniProt REST API](http://www.uniprot.org/uploadlists/) and/or
+-[Pfam API](http://pfam-legacy.xfam.org/help#tabview=tab9) to automate translation
++[UniProt REST API](http://www.uniprot.org/uploadlists/) and
++[InterPro API](https://interpro-documentation.readthedocs.io/en/latest/faq.html#application-programming-interface-api) to automate translation
+ of Gene Symbols and lookup domain/motif features for display. If
+ variant changes are provided, it will also annotate them to the diagram
+ using the "lollipops" markers that give the tool it's name.
+@@ -79,15 +79,6 @@ the area is exponentially proportional to the count indicated. Examples:
+   -dpi=300                set DPI (PNG output only)
+ ```
+ 
+-#### Alternative input sources:
+-
+-```
+-  -pfam                   use Pfam legacy as an alternative to uniprot for
+-                          fetching domain/motif information
+-  -l=filename.json        use local file instead of Pfam API for graphic data
+-                            see: http://pfam-legacy.xfam.org/help#tabview=tab9
+-```
+-
+ ## Installation
+ 
+ Head over to the [Releases](https://github.com/joiningdata/lollipops/releases) to
+diff --git a/data/data.go b/data/data.go
+index 6395ba2..8e6f62b 100644
+--- a/data/data.go
++++ b/data/data.go
+@@ -56,6 +56,54 @@ type GraphicResponse struct {
+ 	Regions  []GraphicFeature `json:"regions"`
+ }
+ 
++type InterProMetaData struct {
++	Accession string `json:"accession"`
++	Name      string `json:"name"`
++	Type      string `json:"type"`
++}
++
++type InterProExtraField struct {
++	ShortName string `json:"short_name"`
++}
++
++type InterProFragment struct {
++	Start      json.Number `json:"start"`
++	End        json.Number `json:"end"`
++	SeqFeature string      `json:"seq_feature"`
++}
++
++type InterProLocation struct {
++	Fragments []InterProFragment `json:"fragments"`
++}
++
++type InterProMatch struct {
++	Locations []InterProLocation `json:"entry_protein_locations"`
++}
++
++type InterProEntry struct {
++	Metadata    InterProMetaData   `json:"metadata"`
++	Matches     []InterProMatch    `json:"proteins"`
++	ExtraFields InterProExtraField `json:"extra_fields"`
++}
++
++type InterProEntryResponse struct {
++	Entries []InterProEntry `json:"results"`
++}
++
++type InterProFeature struct {
++	Accession string             `json:"accession"`
++	Database  string             `json:"source_database"`
++	Locations []InterProLocation `json:"locations"`
++}
++
++type UniProtSequence struct {
++	Length int `json:"length"`
++}
++
++type UniProtResponse struct {
++	Sequence UniProtSequence `json:"sequence"`
++}
++
+ func GetLocalGraphicData(filename string) (*GraphicResponse, error) {
+ 	f, err := os.Open(filename)
+ 	if err != nil {
+diff --git a/data/interpro.go b/data/interpro.go
+new file mode 100644
+index 0000000..e0ddb4a
+--- /dev/null
++++ b/data/interpro.go
+@@ -0,0 +1,177 @@
++//
++//    Lollipops diagram generation framework for genetic variations.
++//    Copyright (C) 2015 Jeremy Jay <jeremy@pbnjay.com>
++//
++//    This program is free software: you can redistribute it and/or modify
++//    it under the terms of the GNU General Public License as published by
++//    the Free Software Foundation, either version 3 of the License, or
++//    (at your option) any later version.
++//
++//    This program is distributed in the hope that it will be useful,
++//    but WITHOUT ANY WARRANTY; without even the implied warranty of
++//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++//    GNU General Public License for more details.
++//
++//    You should have received a copy of the GNU General Public License
++//    along with this program.  If not, see <http://www.gnu.org/licenses/>.
++
++package data
++
++import (
++	"encoding/json"
++	"fmt"
++	"io/ioutil"
++	"net"
++	"os"
++	"sort"
++)
++
++const PfamURL = "https://www.ebi.ac.uk/interpro/api/entry/pfam/protein/uniprot/%s/?extra_fields=short_name&page_size=100"
++const PfamLink = "https://www.ebi.ac.uk/interpro/entry/pfam/%s"
++const SequenceFeaturesURL = "https://www.ebi.ac.uk/interpro/api/protein/UniProt/%s/?extra_features=true"
++
++func GetPfamProteinMatches(accession string) ([]GraphicFeature, error) {
++	queryURL := fmt.Sprintf(PfamURL, accession)
++	resp, err := httpGet(queryURL)
++	if err != nil {
++		if err, ok := err.(net.Error); ok && err.Timeout() {
++			fmt.Fprintf(os.Stderr, "Unable to connect to InterPro. Check your internet connection or try again later.")
++			os.Exit(1)
++		}
++		return nil, err
++	}
++	respBytes, err := ioutil.ReadAll(resp.Body)
++	if err != nil {
++		return nil, err
++	}
++	if resp.StatusCode != 200 {
++		return nil, fmt.Errorf("InterPro error: %s", resp.Status)
++	}
++
++	r := InterProEntryResponse{}
++	err = json.Unmarshal(respBytes, &r)
++	if err != nil {
++		return nil, err
++	}
++
++	var gs []GraphicFeature
++	for _, e := range r.Entries {
++		for _, m := range e.Matches {
++			for _, l := range m.Locations {
++				for _, f := range l.Fragments {
++					gf := GraphicFeature{
++						Text:  e.ExtraFields.ShortName,
++						Type:  e.Metadata.Type,
++						Start: f.Start,
++						End:   f.End,
++						Link:  fmt.Sprintf(PfamLink, e.Metadata.Accession),
++						Metadata: GraphicMetadata{
++							Description: e.Metadata.Name,
++							Identifier:  e.Metadata.Accession,
++						},
++					}
++					gs = append(gs, gf)
++				}
++			}
++		}
++	}
++
++	sort.Slice(gs, func(i, j int) bool {
++		start1, _ := gs[i].Start.Int64()
++		start2, _ := gs[j].Start.Int64()
++
++		if start1 != start2 {
++			return start1 < start2
++		}
++
++		end1, _ := gs[i].End.Int64()
++		end2, _ := gs[j].End.Int64()
++		return end1 < end2
++	})
++
++	hexColors := [14]string{
++		"#2DCF00", "#FF5353", "#5B5BFF", "#EBD61D", "#BA21E0", "#FF9C42", "#FF7DFF",
++		"#B9264F", "#BABA21", "#C48484", "#1F88A7", "#CAFEB8", "#4A9586", "#CEB86C",
++	}
++
++	for i := 0; i < len(gs); i++ {
++		gs[i].Color = hexColors[i%len(hexColors)]
++	}
++
++	return gs, nil
++}
++
++func GetSequenceFeatures(accession string) ([]GraphicFeature, error) {
++	queryURL := fmt.Sprintf(SequenceFeaturesURL, accession)
++	resp, err := httpGet(queryURL)
++	if err != nil {
++		if err, ok := err.(net.Error); ok && err.Timeout() {
++			fmt.Fprintf(os.Stderr, "Unable to connect to InterPro. Check your internet connection or try again later.")
++			os.Exit(1)
++		}
++		return nil, err
++	}
++	respBytes, err := ioutil.ReadAll(resp.Body)
++	if err != nil {
++		return nil, err
++	}
++	if resp.StatusCode != 200 {
++		return nil, fmt.Errorf("InterPro error: %s", resp.Status)
++	}
++
++	data := make(map[string]InterProFeature)
++
++	err = json.Unmarshal(respBytes, &data)
++	if err != nil {
++		return nil, fmt.Errorf("InterPro error: %s", err)
++	}
++
++	var gs []GraphicFeature
++	featureDatabases := map[string]string{
++		"signalp_e":  "sig_p",
++		"signalp_g+": "sig_p",
++		"signalp_g-": "sig_p",
++		"coils":      "coiled_coil",
++		"tmhmm":      "transmembrane",
++	}
++	for _, feature := range data {
++		if feature.Database == "mobidblt" {
++			for _, location := range feature.Locations {
++				for _, fragment := range location.Fragments {
++					if fragment.SeqFeature == "Consensus Disorder Prediction" {
++						gf := GraphicFeature{
++							Color: "#CCCCCC",
++							Type:  "disorder",
++							Start: fragment.Start,
++							End:   fragment.End,
++						}
++						gs = append(gs, gf)
++					}
++				}
++			}
++
++			continue
++		}
++
++		for feature_db, feature_type := range featureDatabases {
++			if feature.Database == feature_db {
++
++				for _, location := range feature.Locations {
++					for _, fragment := range location.Fragments {
++						gf := GraphicFeature{
++							Color: "#CCCCCC",
++							Type:  feature_type,
++							Start: fragment.Start,
++							End:   fragment.End,
++						}
++						gs = append(gs, gf)
++					}
++				}
++
++				break
++			}
++		}
++	}
++
++	return gs, nil
++}
+diff --git a/data/pfam.go b/data/pfam.go
+deleted file mode 100644
+index ffc462b..0000000
+--- a/data/pfam.go
++++ /dev/null
+@@ -1,72 +0,0 @@
+-//
+-//    Lollipops diagram generation framework for genetic variations.
+-//    Copyright (C) 2015 Jeremy Jay <jeremy@pbnjay.com>
+-//
+-//    This program is free software: you can redistribute it and/or modify
+-//    it under the terms of the GNU General Public License as published by
+-//    the Free Software Foundation, either version 3 of the License, or
+-//    (at your option) any later version.
+-//
+-//    This program is distributed in the hope that it will be useful,
+-//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+-//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-//    GNU General Public License for more details.
+-//
+-//    You should have received a copy of the GNU General Public License
+-//    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-
+-package data
+-
+-import (
+-	"encoding/json"
+-	"fmt"
+-	"io/ioutil"
+-	"net"
+-	"os"
+-)
+-
+-const PfamGraphicURL = "https://pfam-legacy.xfam.org/protein/%s/graphic"
+-
+-func GetPfamGraphicData(accession string) (*GraphicResponse, error) {
+-	queryURL := fmt.Sprintf(PfamGraphicURL, accession)
+-	resp, err := httpGetInsecure(queryURL)
+-	if err != nil {
+-		if err, ok := err.(net.Error); ok && err.Timeout() {
+-			fmt.Fprintf(os.Stderr, "Unable to connect to Pfam. Check your internet connection or try again later.")
+-			os.Exit(1)
+-		}
+-		return nil, err
+-	}
+-	respBytes, err := ioutil.ReadAll(resp.Body)
+-	if err != nil {
+-		return nil, err
+-	}
+-	if resp.StatusCode != 200 {
+-		return nil, fmt.Errorf("pfam error: %s", resp.Status)
+-	}
+-
+-	data := []GraphicResponse{}
+-	err = json.Unmarshal(respBytes, &data)
+-	if err != nil {
+-		return nil, err
+-	}
+-	if len(data) != 1 {
+-		return nil, fmt.Errorf("pfam returned invalid result")
+-	}
+-	r := data[0]
+-	for i, x := range r.Motifs {
+-		if x.Link != "" {
+-			//x.Link = "https://pfam-legacy.xfam.org" + x.Link
+-			x.Link = "https://www.ebi.ac.uk/interpro/protein/UniProt/" + accession
+-			r.Motifs[i] = x
+-		}
+-	}
+-	for i, x := range r.Regions {
+-		if x.Link != "" {
+-			//x.Link = "https://pfam-legacy.xfam.org" + x.Link
+-			x.Link = "https://www.ebi.ac.uk/interpro/protein/UniProt/" + accession
+-			r.Regions[i] = x
+-		}
+-	}
+-	return &r, nil
+-}
+diff --git a/data/uniprot.go b/data/uniprot.go
+index 68a1c42..5ea43c4 100644
+--- a/data/uniprot.go
++++ b/data/uniprot.go
+@@ -24,43 +24,13 @@ import (
+ 	"fmt"
+ 	"io"
+ 	"io/ioutil"
+-	"log"
+ 	"net"
+ 	"net/http"
+ 	"net/url"
+ 	"os"
+-	"regexp"
+ 	"strings"
+ )
+ 
+-const UniprotDataURL = "https://rest.uniprot.org/uniprotkb/%s.txt"
+-
+-var defaultUniprotFeatures = map[string][]string{
+-	"COILED":   {"motif", "coiled_coil", "#9cff00"},
+-	"SIGNAL":   {"motif", "sig_p", "#ff9c00"},
+-	"TRANSMEM": {"motif", "transmembrane", "#ff0000"},
+-	"COMPBIAS": {"motif", "low_complexity", "#00ffff"},
+-
+-	"DNA_BIND": {"region", "dna_bind", "#ff5353"},
+-	"ZN_FING":  {"region", "zn_fing", "#2dcf00"},
+-	"CA_BIND":  {"region", "ca_bind", "#86bcff"},
+-
+-	"MOTIF":  {"region", "motif", "#1fc01f"},
+-	"REPEAT": {"region", "repeat", "#1fc01f"},
+-	"DOMAIN": {"region", "domain", "#9999ff"},
+-}
+-
+-func getValueForKey(line, key string) string {
+-	parts := strings.Split(line, ";")
+-	for _, s := range parts {
+-		p := strings.SplitN(s, "=", 2)
+-		if p[0] == key {
+-			return strings.TrimSpace(p[1])
+-		}
+-	}
+-	return ""
+-}
+-
+ func uniprotDecompress(respBytes []byte) []byte {
+ 	// uniprot's REST implementation doesn't set a valid Content-Encoding header when
+ 	// gzipping the response, so Go's automatic gzip decompression doesn't work.
+@@ -79,112 +49,7 @@ func uniprotDecompress(respBytes []byte) []byte {
+ 	return respBytes
+ }
+ 
+-func GetUniprotGraphicData(accession string) (*GraphicResponse, error) {
+-	queryURL := fmt.Sprintf(UniprotDataURL, accession)
+-	resp, err := httpGet(queryURL)
+-	if err != nil {
+-		if err, ok := err.(net.Error); ok && err.Timeout() {
+-			fmt.Fprintf(os.Stderr, "Unable to connect to Uniprot. Check your internet connection or try again later.")
+-			os.Exit(1)
+-		}
+-		return nil, err
+-	}
+-	defer resp.Body.Close()
+-	respBytes, err := io.ReadAll(resp.Body)
+-	if err != nil {
+-		return nil, err
+-	}
+-	respBytes = uniprotDecompress(respBytes)
+-	if resp.StatusCode != 200 {
+-		return nil, fmt.Errorf("pfam error: %s", resp.Status)
+-	}
+-	trimTags := regexp.MustCompile("[{][^}]*[}]")
+-	minisplit := regexp.MustCompile("[;.]")
+-
+-	gd := &GraphicResponse{}
+-	pat := regexp.MustCompile(`FT\s+([A-Z_]+)\s+(\d+)\.\.(\d+)\nFT\s+\/note="([\w\s\d]+)"`)
+-	matches := pat.FindAllSubmatch(respBytes, -1)
+-
+-	for _, match := range matches {
+-		featureType := string(match[1])
+-		fromPos := string(match[2]) //	'From' endpoint
+-		toPos := string(match[3])   //	'To' endpoint
+-		desc := string(match[4])    //	Description
+-		if fromPos == "" || toPos == "" || fromPos == toPos {
+-			// skip any unknown positions or point features
+-			continue
+-		}
+-		fdata, ok := defaultUniprotFeatures[featureType]
+-		if !ok {
+-			continue
+-		}
+-		desc = strings.TrimSpace(trimTags.ReplaceAllString(desc, ""))
+-		shortDesc := desc
+-		if p := minisplit.Split(desc, 2); len(p) == 2 {
+-			shortDesc = strings.TrimSpace(p[0])
+-		}
+-
+-		feat := GraphicFeature{
+-			Color: fdata[2],
+-			Text:  strings.Trim(shortDesc, ". "),
+-			Type:  fdata[1],
+-			Start: json.Number(fromPos),
+-			End:   json.Number(toPos),
+-			Metadata: GraphicMetadata{
+-				Description: strings.Trim(shortDesc, ". "),
+-			},
+-		}
+-		switch fdata[0] {
+-		case "region":
+-			gd.Regions = append(gd.Regions, feat)
+-		case "motif":
+-			gd.Motifs = append(gd.Motifs, feat)
+-		default:
+-			log.Println("unknown feature set", fdata[0])
+-		}
+-	}
+-
+-	for _, bline := range bytes.Split(respBytes, []byte("\n")) {
+-		if len(bline) < 5 {
+-			continue
+-		}
+-		key := string(bytes.TrimSpace(bline[:5]))
+-		line := string(bline[5:])
+-		switch key {
+-		case "GN":
+-			// GN   Name=CTNNB1; Synonyms=CTNNB; ORFNames=OK/SW-cl.35, PRO2286;
+-			sym := getValueForKey(line, "Name")
+-			if sym != "" {
+-				gd.Metadata.Identifier = sym
+-			}
+-		case "DE":
+-			// DE   RecName: Full=Catenin beta-1;
+-			if !strings.HasPrefix(line, "RecName: ") {
+-				continue
+-			}
+-			desc := getValueForKey(line[9:], "Full")
+-			if desc != "" {
+-				gd.Metadata.Description = desc
+-			}
+-		case "SQ":
+-			// SQ   SEQUENCE   781 AA;  85497 MW;  CB78F165A3EEF86E CRC64;
+-			parts := strings.Split(line, ";")
+-			for _, p := range parts {
+-				if !strings.HasPrefix(p, "SEQUENCE") {
+-					continue
+-				}
+-				seqLen := strings.TrimSpace(strings.TrimSuffix(p[8:], "AA"))
+-				gd.Length = json.Number(seqLen)
+-				break
+-			}
+-			////////////////////////////
+-		}
+-	}
+-
+-	return gd, nil
+-}
+-
+-const UNIPROTRESTURL = "https://rest.uniprot.org/uniprotkb/search?query=%s+AND+reviewed:true+AND+organism_id:9606&columns=id,entry+name,reviewed,genes,organism&format=tsv"
++const UNIPROTRESTURL = "https://rest.uniprot.org/uniprotkb/search?query=%s+AND+reviewed:true+AND+organism_id:9606&format=tsv&fields=accession,gene_names,length"
+ 
+ func GetProtID(symbol string) (string, error) {
+ 	apiURL := fmt.Sprintf(UNIPROTRESTURL, symbol)
+@@ -208,9 +73,12 @@ func GetProtID(symbol string) (string, error) {
+ 	nmatches := 0
+ 	bestHit := 0
+ 	protID := ""
+-	for _, line := range strings.Split(string(respBytes), "\n") {
++	for i, line := range strings.Split(string(respBytes), "\n") {
++		if i == 0 {
++			continue
++		}
+ 		p := strings.Split(string(line), "\t")
+-		for _, g := range strings.Split(string(p[4]), " ") {
++		for _, g := range strings.Split(string(p[1]), " ") {
+ 			if g == symbol {
+ 				// exact match, return immediately
+ 				return p[0], nil
+@@ -236,6 +104,35 @@ func GetProtID(symbol string) (string, error) {
+ 	return protID, nil
+ }
+ 
++func GetProtLength(accession string) (int, error) {
++	apiURL := fmt.Sprintf("https://rest.uniprot.org/uniprotkb/%s.json", accession)
++	resp, err := http.Get(apiURL)
++	if err != nil {
++		if err, ok := err.(net.Error); ok && err.Timeout() {
++			fmt.Fprintf(os.Stderr, "Unable to connect to Uniprot. Check your internet connection or try again later.")
++			os.Exit(1)
++		}
++		return 0, err
++	}
++	defer resp.Body.Close()
++	respBytes, err := io.ReadAll(resp.Body)
++	if err != nil {
++		return 0, err
++	}
++	respBytes = uniprotDecompress(respBytes)
++	if resp.StatusCode != 200 {
++		return 0, fmt.Errorf("uniprot error: %s", resp.Status)
++	}
++
++	data := UniProtResponse{}
++	err = json.Unmarshal(respBytes, &data)
++	if err != nil {
++		return 0, err
++	}
++
++	return data.Sequence.Length, nil
++}
++
+ func GetProtMapping(dbname, geneid string) (string, error) {
+ 	apiURL := `https://www.uniprot.org/uploadlists/`
+ 	params := url.Values{
+diff --git a/main.go b/main.go
+index c38e1a0..94c09eb 100644
+--- a/main.go
++++ b/main.go
+@@ -21,6 +21,7 @@
+ package main
+ 
+ import (
++	"encoding/json"
+ 	"flag"
+ 	"fmt"
+ 	"os"
+@@ -51,9 +52,6 @@ var (
+ 	mutColor = flag.String("mut-color", "#ff0000", "color to use for non-synonymous lollipops")
+ 
+ 	fontPath = flag.String("f", "", "Path to truetype font to use for drawing (defaults to Arial.ttf)")
+-
+-	localPath     = flag.String("l", "", "Path to local json graphic data (Pfam response format)")
+-	alternateData = flag.Bool("pfam", false, "fetch alternative domain/motif information from Uniprot instead of Pfam")
+ )
+ 
+ func main() {
+@@ -111,13 +109,6 @@ Output options:
+   -o=filename.png         set output filename (.png or .svg supported)
+   -w=700                  set diagram pixel width (default = automatic fit)
+   -dpi=300                set DPI (PNG output only)
+-
+-Alternative input sources:
+-  -pfam                   use Pfam legacy as an alternative to UniprotKB for
+-                          fetching domain/motif information
+-  -l=filename.json        use local file instead of Pfam API for graphic data
+-                            see: http://pfam-legacy.xfam.org/help#tabview=tab9
+-
+ `)
+ 	}
+ 
+@@ -194,22 +185,29 @@ Press Enter/Ctrl-C to quit.`)
+ 		os.Exit(1)
+ 	}
+ 
+-	var d *data.GraphicResponse
+-	if *localPath != "" {
+-		d, err = data.GetLocalGraphicData(*localPath)
+-	} else if *alternateData {
+-		d, err = data.GetPfamGraphicData(acc)
+-	} else {
+-		d, err = data.GetUniprotGraphicData(acc)
++	var d *data.GraphicResponse = &data.GraphicResponse{}
++
++	length, err := data.GetProtLength(acc)
++	if err != nil {
++		fmt.Fprintln(os.Stderr, err)
++		os.Exit(1)
+ 	}
++
++	d.Length = json.Number(fmt.Sprint(length))
++
++	regions, err := data.GetPfamProteinMatches(acc)
+ 	if err != nil {
+ 		fmt.Fprintln(os.Stderr, err)
+ 		os.Exit(1)
+ 	}
+-	if geneSymbol == "" {
+-		geneSymbol = d.Metadata.Identifier
+-		fmt.Fprintln(os.Stderr, "Gene Symbol: ", geneSymbol)
++	d.Regions = regions
++
++	motifs, err := data.GetSequenceFeatures(acc)
++	if err != nil {
++		fmt.Fprintln(os.Stderr, err)
++		os.Exit(1)
+ 	}
++	d.Motifs = motifs
+ 
+ 	if *output == "" {
+ 		*output = geneSymbol + ".svg"
+diff --git a/tp53.png b/tp53.png
+index a1bcff8..69e0065 100644
+Binary files a/tp53.png and b/tp53.png differ
+diff --git a/tp53.svg b/tp53.svg
+index 7d15056..290fb25 100644
+--- a/tp53.svg
++++ b/tp53.svg
+@@ -1,5 +1,5 @@
+ <?xml version='1.0'?>
+-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="888.000000" height="111.000000">
++<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1012.500000" height="111.000000">
+ <defs>
+   <filter id="ds" x="0" y="0">
+     <feOffset in="SourceAlpha" dx="2" dy="2" />
+@@ -11,9 +11,10 @@
+     <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" stroke="#000000" opacity="0.3" />
+   </pattern>
+ </defs>
+-<line x1="287.900763" x2="287.900763" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="T125"><circle cx="287.900763" cy="19.000000" r="4.000000" fill="#0000ff" /></a><line x1="397.061069" x2="397.061069" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R175H"><circle cx="397.061069" cy="19.000000" r="4.000000" fill="#ff0000" /></a><line x1="556.435115" x2="556.435115" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R248Q"><circle cx="556.435115" cy="19.000000" r="4.000000" fill="#ff0000" /></a><line x1="611.015267" x2="611.015267" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R273C"><circle cx="611.015267" cy="19.000000" r="4.000000" fill="#ff0000" /></a><a xlink:title="P53_HUMAN, Cellular tumor antigen p53 (393aa)"><rect fill="#BABDB6" x="15.000000" y="47.000000" width="858.000000" height="14.000000"/></a><g transform="translate(25.916031,42.000000)"><a xlink:href="http://pfam-legacy.xfam.org/family/PF08563" xlink:title="P53 transactivation motif"><rect fill="#2dcf00" x="0" y="0" width="52.396947" height="24.000000" filter="url(#ds)"/></a></g>
+-<g transform="translate(222.404580,42.000000)"><a xlink:href="http://pfam-legacy.xfam.org/family/PF00870" xlink:title="P53 DNA-binding domain"><rect fill="#ff5353" x="0" y="0" width="423.541985" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:Arial;fill:#ffffff;" text-anchor="middle" x="211.770992" y="16.000000">P53 DNA-binding domain</text></a></g>
+-<g transform="translate(711.442748,42.000000)"><a xlink:href="http://pfam-legacy.xfam.org/family/PF07710" xlink:title="P53 tetramerisation motif"><rect fill="#5b5bff" x="0" y="0" width="85.145038" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:Arial;fill:#ffffff;" text-anchor="middle" x="42.572519" y="16.000000">P53_tetramer</text></a></g>
++<line x1="327.500000" x2="327.500000" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="T125"><circle cx="327.500000" cy="19.000000" r="4.000000" fill="#0000ff" /></a><line x1="452.500000" x2="452.500000" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R175H"><circle cx="452.500000" cy="19.000000" r="4.000000" fill="#ff0000" /></a><line x1="635.000000" x2="635.000000" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R248Q"><circle cx="635.000000" cy="19.000000" r="4.000000" fill="#ff0000" /></a><line x1="697.500000" x2="697.500000" y1="19.000000" y2="47.000000" stroke="#BABDB6" stroke-width="2"/><a xlink:title="R273C"><circle cx="697.500000" cy="19.000000" r="4.000000" fill="#ff0000" /></a><a xlink:title=",  (393aa)"><rect fill="#BABDB6" x="15.000000" y="47.000000" width="982.500000" height="14.000000"/></a><g transform="translate(30.000000,42.000000)"><a xlink:href="https://www.ebi.ac.uk/interpro/entry/pfam/PF08563" xlink:title="P53 transactivation motif"><rect fill="#2DCF00" x="0" y="0" width="60.000000" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:OpenSans;fill:#ffffff;" text-anchor="middle" x="30.000000" y="16.000000">P53_TAD</text></a></g>
++<g transform="translate(102.500000,42.000000)"><a xlink:href="https://www.ebi.ac.uk/interpro/entry/pfam/PF18521" xlink:title="Transactivation domain 2"><rect fill="#FF5353" x="0" y="0" width="60.000000" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:OpenSans;fill:#ffffff;" text-anchor="middle" x="30.000000" y="16.000000">TAD2</text></a></g>
++<g transform="translate(265.000000,42.000000)"><a xlink:href="https://www.ebi.ac.uk/interpro/entry/pfam/PF00870" xlink:title="P53 DNA-binding domain"><rect fill="#5B5BFF" x="0" y="0" width="470.000000" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:OpenSans;fill:#ffffff;" text-anchor="middle" x="235.000000" y="16.000000">P53 DNA-binding domain</text></a></g>
++<g transform="translate(812.500000,42.000000)"><a xlink:href="https://www.ebi.ac.uk/interpro/entry/pfam/PF07710" xlink:title="P53 tetramerisation motif"><rect fill="#EBD61D" x="0" y="0" width="95.000000" height="24.000000" filter="url(#ds)"/><text style="font-size:12px;font-family:OpenSans;fill:#ffffff;" text-anchor="middle" x="47.500000" y="16.000000">P53_tetramer</text></a></g>
+ <g class="axis">
+-<line x1="15.000000" x2="873.000000" y1="76.000000" y2="76.000000" stroke="#AAAAAA" /><line x1="15.000000" x2="15.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><line x1="25.916031" x2="25.916031" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="25.916031" y="91.000000">5</text><line x1="78.312977" x2="78.312977" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="78.312977" y="91.000000">29</text><line x1="222.404580" x2="222.404580" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="222.404580" y="91.000000">95</text><line x1="287.900763" x2="287.900763" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="287.900763" y="91.000000">125</text><line x1="397.061069" x2="397.061069" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="397.061069" y="91.000000">175</text><line x1="556.435115" x2="556.435115" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="556.435115" y="91.000000">248</text><line x1="611.015267" x2="611.015267" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="611.015267" y="91.000000">273</text><line x1="645.946565" x2="645.946565" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="645.946565" y="91.000000">289</text><line x1="711.442748" x2="711.442748" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="711.442748" y="91.000000">319</text><line x1="796.587786" x2="796.587786" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="796.587786" y="91.000000">358</text><line x1="873.000000" x2="873.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:Arial;fill:#000000;" text-anchor="middle" x="873.000000" y="91.000000">393</text></g>
++<line x1="15.000000" x2="997.500000" y1="76.000000" y2="76.000000" stroke="#AAAAAA" /><line x1="15.000000" x2="15.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><line x1="30.000000" x2="30.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="30.000000" y="91.000000">6</text><line x1="90.000000" x2="90.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="90.000000" y="91.000000">30</text><line x1="162.500000" x2="162.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="162.500000" y="91.000000">59</text><line x1="265.000000" x2="265.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="265.000000" y="91.000000">100</text><line x1="327.500000" x2="327.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="327.500000" y="91.000000">125</text><line x1="452.500000" x2="452.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="452.500000" y="91.000000">175</text><line x1="635.000000" x2="635.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="635.000000" y="91.000000">248</text><line x1="697.500000" x2="697.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="697.500000" y="91.000000">273</text><line x1="735.000000" x2="735.000000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="735.000000" y="91.000000">288</text><line x1="812.500000" x2="812.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="812.500000" y="91.000000">319</text><line x1="907.500000" x2="907.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="907.500000" y="91.000000">357</text><line x1="997.500000" x2="997.500000" y1="76.000000" y2="81.000000" stroke="#AAAAAA" /><text style="font-size:10px;font-family:OpenSans;fill:#000000;" text-anchor="middle" x="997.500000" y="91.000000">393</text></g>
+ </svg>
+diff --git a/tp53_more.png b/tp53_more.png
+index 749f6c0..e2a78fe 100644
+Binary files a/tp53_more.png and b/tp53_more.png differ
+diff --git a/workflow/lollipops.cwl b/workflow/lollipops.cwl
+index 27baead..4c0581e 100644
+--- a/workflow/lollipops.cwl
++++ b/workflow/lollipops.cwl
+@@ -120,20 +120,7 @@ inputs:
+     type: string
+     inputBinding:
+       prefix: "-o"
+-
+-  uniprotDomains:
+-    doc: "use uniprot domains instead of Pfam"
+-    type: boolean?
+-    inputBinding:
+-      prefix: "-uniprot"
+-  localDomainFile:
+-    doc: "get domain info from a file"
+-    ## see: http://pfam-legacy.xfam.org/help#tabview=tab9
+-    type: File?
+-    inputBinding:
+-      prefix: "-l="
+-      separate: false
+-    
++   
+ outputs:
+   image:
+     type: File

@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/scverse__anndata-2743"
+description = "Backport PR #2675: perf: faster subsetting of AnnData objects"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "anndata",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "scverse/anndata"
+ref = "43b15d408aad43700088c152274be12b3ec762d2"
+reference = "https://github.com/scverse/anndata/pull/2743"
+source_access = "auto"
+built_at = "2026-11-12T05:36:12.842564+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:63b03639a5dfa2ab57a2ffbb8a512caf444490b18252e89d15ce67ce43f417b8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-09T15:12:08Z"
+diff_format = "unified"
+context_files = [
+    "benchmarks/asv.conf.json",
+    "benchmarks/benchmarks/subsetting.py",
+    "docs/release-notes/2675.perf.md",
+    "src/anndata/_core/anndata.py",
+    "src/anndata/_core/views.py",
+    "src/anndata/experimental/backed/_lazy_arrays.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 331
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.831692+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:069945577d7598c58b3502b7ee2146e42ce0afd6e11c8687cb487f885c118153"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

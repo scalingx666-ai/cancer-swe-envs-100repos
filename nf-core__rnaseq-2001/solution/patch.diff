@@ -1,0 +1,204 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index e7687036a6..da6f91354e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -42,7 +42,7 @@ Special thanks to the following for their contributions to the release:
+ - [PR #1942](https://github.com/nf-core/rnaseq/pull/1942) - Fix `--with_umi` transcriptome-side samtools stats silently colliding with genome-side stats, caused by a broad `withName` wildcard in `conf/modules/alignment.config` also matching the `BAM_DEDUP_UMI` subworkflow
+ - [PR #1943](https://github.com/nf-core/rnaseq/pull/1943) - Apply `--min_mapped_reads` filtering to HISAT2 alignments
+ - [PR #1958](https://github.com/nf-core/rnaseq/pull/1958) - Stop building the SortMeRNA index twice, and build the Salmon strandedness-inference index centrally in `PREPARE_GENOME_INDICES`
+-- [PR #1959](https://github.com/nf-core/rnaseq/pull/1959) - Right-size `RSEM_CALCULATEEXPRESSION` resources, drop its unused BAM output, and use local scratch for RSEM/dupRadar in the AWS full test
++- [PR #1959](https://github.com/nf-core/rnaseq/pull/1959) - Right-size `RSEM_CALCULATEEXPRESSION` resources, drop its unused BAM output, stop pinning `--seed 1` in its default arguments, and use local scratch for RSEM/dupRadar in the AWS full test
+ - [PR #1963](https://github.com/nf-core/rnaseq/pull/1963) - Correct local nf-test examples to explicitly select the default pipeline tests and include the `test` profile.
+ - [PR #1968](https://github.com/nf-core/rnaseq/pull/1968) - Fix duplicated valueless flags passed via `--extra_trimgalore_args`
+ - [PR #1969](https://github.com/nf-core/rnaseq/pull/1969) - Add `--fail_on_low_trimmed_reads`, `--fail_on_low_mapped_reads` and `--fail_on_undetermined_strandedness` to fail the run, instead of silently skipping the sample or defaulting to `unstranded`
+@@ -60,6 +60,7 @@ Special thanks to the following for their contributions to the release:
+ - [PR #1997](https://github.com/nf-core/rnaseq/pull/1997) - Update `bowtie2/align` and `bowtie2/build` to pick up the bowtie2 2.5.5 CPU-dispatch version parsing fix and rebuilt containers, including the arm64 overrides in `conf/arm.config`
+ - [PR #1998](https://github.com/nf-core/rnaseq/pull/1998) - Address review nits from the 3.28.0 release PR: remove a stale `nf_core_version` comment, make `anySampleAutoStrandedness` independent of the samplesheet column count, and complete the software dependencies table
+ - [PR #1999](https://github.com/nf-core/rnaseq/pull/1999) - Declare the `force_completion_email` parameter in `nextflow.config` and `nextflow_schema.json`, and add tests for `--fail_on_low_trimmed_reads` and `--fail_on_low_mapped_reads`
++- [PR #2001](https://github.com/nf-core/rnaseq/pull/2001) - Address review feedback on the 3.28.0 release PR: skip the strandedness-inference Salmon index for BAM-only `auto` samples, stop an unparsed HISAT2 alignment rate dropping every sample, fix the `EAUTILS_GTF2BED` conda lock paths, and update the Trim Galore citation link
+ - [PR #2000](https://github.com/nf-core/rnaseq/pull/2000) - Important! Template update for nf-core/tools v4.2.2
+ 
+ ### Software dependencies
+diff --git a/CITATIONS.md b/CITATIONS.md
+index 871373422d..ca486fc14b 100644
+--- a/CITATIONS.md
++++ b/CITATIONS.md
+@@ -112,7 +112,7 @@
+ 
+   > Shaw J, Yu YW. Rapid species-level metagenome profiling and containment estimation with sylph. Nat Biotechnol. 2025 Aug;43(8):1348-1359. doi: 10.1038/s41587-024-02412-y. Epub 2024 Oct 8. PMID: 39379646; PMCID: PMC12339375.
+ 
+-- [Trim Galore!](https://www.bioinformatics.babraham.ac.uk/projects/trim_galore/)
++- [Trim Galore!](https://github.com/FelixKrueger/TrimGalore)
+ 
+ - [tximport](https://pubmed.ncbi.nlm.nih.gov/26925227/)
+ 
+diff --git a/conf/containers_conda_lock_files_amd64.config b/conf/containers_conda_lock_files_amd64.config
+index 2f0dd41448..81ed45ec13 100644
+--- a/conf/containers_conda_lock_files_amd64.config
++++ b/conf/containers_conda_lock_files_amd64.config
+@@ -6,7 +6,7 @@ process { withName: 'CUSTOM_GTFFILTER' { conda = 'modules/nf-core/custom/gtffilt
+ process { withName: 'CUSTOM_MULTIQCCUSTOMBIOTYPE' { conda = 'modules/nf-core/custom/multiqccustombiotype/.conda-lock/linux_amd64-bd-2411dfb0536aecdf_1.txt' } }
+ process { withName: 'CUSTOM_RSEMMERGECOUNTS' { conda = 'modules/nf-core/custom/rsemmergecounts/.conda-lock/linux_amd64-bd-2af80cd00892ec9f_1.txt' } }
+ process { withName: 'CUSTOM_TX2GENE' { conda = 'modules/nf-core/custom/tx2gene/.conda-lock/linux_amd64-bd-b5b45c494792cf95_1.txt' } }
+-process { withName: 'EAUTILS_GTF2BED' { conda = 'modules/nf-core/ea-utils/gtf2bed/.conda-lock/linux_amd64-bd-2f879f377ee6109b_1.txt' } }
++process { withName: 'EAUTILS_GTF2BED' { conda = 'modules/nf-core/eautils/gtf2bed/.conda-lock/linux_amd64-bd-2f879f377ee6109b_1.txt' } }
+ process { withName: 'FASTP' { conda = 'modules/nf-core/fastp/.conda-lock/linux_amd64-bd-df415eab5e33cb11_1.txt' } }
+ process { withName: 'FASTQC' { conda = 'modules/nf-core/fastqc/.conda-lock/linux_amd64-bd-b342db7b694c9af4_1.txt' } }
+ process { withName: 'HISAT2_ALIGN' { conda = 'modules/nf-core/hisat2/align/.conda-lock/linux_amd64-bd-a0c9b8ccf8116a89_1.txt' } }
+diff --git a/conf/containers_conda_lock_files_arm64.config b/conf/containers_conda_lock_files_arm64.config
+index 768444f3c7..10620fee59 100644
+--- a/conf/containers_conda_lock_files_arm64.config
++++ b/conf/containers_conda_lock_files_arm64.config
+@@ -6,7 +6,7 @@ process { withName: 'CUSTOM_GTFFILTER' { conda = 'modules/nf-core/custom/gtffilt
+ process { withName: 'CUSTOM_MULTIQCCUSTOMBIOTYPE' { conda = 'modules/nf-core/custom/multiqccustombiotype/.conda-lock/linux_arm64-bd-90d594548a5b8d06_1.txt' } }
+ process { withName: 'CUSTOM_RSEMMERGECOUNTS' { conda = 'modules/nf-core/custom/rsemmergecounts/.conda-lock/linux_arm64-bd-5bd8e00756eeb836_1.txt' } }
+ process { withName: 'CUSTOM_TX2GENE' { conda = 'modules/nf-core/custom/tx2gene/.conda-lock/linux_arm64-bd-960a3ac1dc8fceb8_1.txt' } }
+-process { withName: 'EAUTILS_GTF2BED' { conda = 'modules/nf-core/ea-utils/gtf2bed/.conda-lock/linux_arm64-bd-cc808f21c017d239_1.txt' } }
++process { withName: 'EAUTILS_GTF2BED' { conda = 'modules/nf-core/eautils/gtf2bed/.conda-lock/linux_arm64-bd-cc808f21c017d239_1.txt' } }
+ process { withName: 'FASTP' { conda = 'modules/nf-core/fastp/.conda-lock/linux_arm64-bd-39bad1c703aea2ba_1.txt' } }
+ process { withName: 'FASTQC' { conda = 'modules/nf-core/fastqc/.conda-lock/linux_arm64-bd-7c8a53b986d9a000_1.txt' } }
+ process { withName: 'HISAT2_ALIGN' { conda = 'modules/nf-core/hisat2/align/.conda-lock/linux_arm64-bd-2061bdd7bd29b1cd_1.txt' } }
+diff --git a/main.nf b/main.nf
+index 15eecb0246..2abadf86f0 100755
+--- a/main.nf
++++ b/main.nf
+@@ -218,12 +218,13 @@ workflow {
+ */
+ 
+ //
+-// Check whether any sample declares strandedness 'auto'
++// Check whether any sample that will be processed from FASTQ declares strandedness 'auto'
++// (strandedness is only inferred on the FASTQ path, so BAM rows under --skip_alignment do not count)
+ //
+ 
+ def anySampleAutoStrandedness() {
+     samplesheetToList(params.input, "${projectDir}/assets/schema_input.json")
+-        .any { row -> row[0].strandedness == 'auto' }
++        .any { row -> row[0].strandedness == 'auto' && !(params.skip_alignment && (row[3] || row[4])) }
+ }
+ 
+ /*
+diff --git a/modules.json b/modules.json
+index bf470109db..4791d24162 100644
+--- a/modules.json
++++ b/modules.json
+@@ -67,7 +67,7 @@
+                     },
+                     "eautils/gtf2bed": {
+                         "branch": "master",
+-                        "git_sha": "7b3452a23773f687ededb4befd037920e5a51341",
++                        "git_sha": "96862e5b8dbee826fa55a4e4646f28030fd0abdc",
+                         "installed_by": ["modules"]
+                     },
+                     "fastp": {
+diff --git a/modules/nf-core/eautils/gtf2bed/meta.yml b/modules/nf-core/eautils/gtf2bed/meta.yml
+index 450a7767f8..791ddae014 100644
+--- a/modules/nf-core/eautils/gtf2bed/meta.yml
++++ b/modules/nf-core/eautils/gtf2bed/meta.yml
+@@ -78,6 +78,6 @@ containers:
+       https: https://community-cr-prod.seqera.io/docker/registry/v2/blobs/sha256/a9/a90490336208590dfdaaf102bb64f3c341aa0ced1f95d9247020ce88ae017db7/data
+   conda:
+     linux/amd64:
+-      lock_file: modules/nf-core/ea-utils/gtf2bed/.conda-lock/linux_amd64-bd-2f879f377ee6109b_1.txt
++      lock_file: modules/nf-core/eautils/gtf2bed/.conda-lock/linux_amd64-bd-2f879f377ee6109b_1.txt
+     linux/arm64:
+-      lock_file: modules/nf-core/ea-utils/gtf2bed/.conda-lock/linux_arm64-bd-cc808f21c017d239_1.txt
++      lock_file: modules/nf-core/eautils/gtf2bed/.conda-lock/linux_arm64-bd-cc808f21c017d239_1.txt
+diff --git a/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf b/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf
+index e8165d8764..95a1389466 100644
+--- a/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf
++++ b/subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf
+@@ -830,10 +830,11 @@ def biotypeQcUsable(params) {
+ }
+ 
+ //
+-// Function that parses HISAT2's summary log to get the overall percent mapped
++// Function that parses HISAT2's summary log (--new-summary format) to get the overall percent mapped.
++// Returns null when the rate is not found, so the sample is not filtered on --min_mapped_reads.
+ //
+ def getHisat2PercentMapped(align_log) {
+-    def percent_aligned = 0
++    def percent_aligned = null
+     def pattern = /Overall alignment rate:\s*([\d\.]+)%/
+     align_log.eachLine { line ->
+         def matcher = line =~ pattern
+@@ -841,6 +842,9 @@ def getHisat2PercentMapped(align_log) {
+             percent_aligned = matcher[0][1].toFloat()
+         }
+     }
++    if (percent_aligned == null) {
++        log.warn "Could not find the overall alignment rate in HISAT2 summary '${align_log.name}'; the sample will not be filtered on --min_mapped_reads."
++    }
+     return percent_aligned
+ }
+ 
+diff --git a/subworkflows/local/utils_nfcore_rnaseq_pipeline/tests/main.function.nf.test b/subworkflows/local/utils_nfcore_rnaseq_pipeline/tests/main.function.nf.test
+index 08a3bc7ce5..5f835347e6 100644
+--- a/subworkflows/local/utils_nfcore_rnaseq_pipeline/tests/main.function.nf.test
++++ b/subworkflows/local/utils_nfcore_rnaseq_pipeline/tests/main.function.nf.test
+@@ -626,4 +626,48 @@ nextflow_function {
+             )
+         }
+     }
++
++    test("Test Function getHisat2PercentMapped parses the overall alignment rate") {
++
++        function "getHisat2PercentMapped"
++
++        when {
++            function {
++                """
++                def log_file = File.createTempFile('hisat2', '.summary.log')
++                log_file.text = 'HISAT2 summary stats:\\n\\tTotal pairs: 100\\n\\tOverall alignment rate: 96.84%\\n'
++                input[0] = log_file.toPath()
++                """
++            }
++        }
++
++        then {
++            assertAll(
++                { assert function.success },
++                { assert function.result == 96.84 }
++            )
++        }
++    }
++
++    test("Test Function getHisat2PercentMapped returns null when the rate is missing") {
++
++        function "getHisat2PercentMapped"
++
++        when {
++            function {
++                """
++                def log_file = File.createTempFile('hisat2', '.summary.log')
++                log_file.text = 'unexpected log format\\n'
++                input[0] = log_file.toPath()
++                """
++            }
++        }
++
++        then {
++            assertAll(
++                { assert function.success },
++                { assert function.result == null }
++            )
++        }
++    }
+ }
+diff --git a/workflows/rnaseq/main.nf b/workflows/rnaseq/main.nf
+index 593a8130b4..0209d48045 100755
+--- a/workflows/rnaseq/main.nf
++++ b/workflows/rnaseq/main.nf
+@@ -463,7 +463,11 @@ workflow RNASEQ {
+     ch_transcriptome_bam = ch_transcriptome_bam
+         .map { meta, bam -> [ meta.id, meta, bam ] }
+         .join(ch_genome_bam_bai_mapping.status, remainder: true)
+-        .filter { row -> row[1] != null && row[-1] != false }
++        .filter { row ->
++            def has_transcriptome_bam = row[1] != null   // false for a status with no transcriptome BAM (e.g. HISAT2)
++            def failed_mapped_check   = row[-1] == false // null (no status) counts as passing
++            return has_transcriptome_bam && !failed_mapped_check
++        }
+         .map { row -> [ row[1], row[2] ] }
+ 
+     //

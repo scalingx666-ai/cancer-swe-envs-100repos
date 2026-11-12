@@ -1,0 +1,1464 @@
+diff --git a/code/1_split.py b/code/1_split.py
+index 2cefac1..a97a78f 100644
+--- a/code/1_split.py
++++ b/code/1_split.py
+@@ -1,17 +1,25 @@
+-# DeepSlide
+-# Jason Wei, Behnaz Abdollahi, Saeed Hassanpour
++"""
++DeepSlide
++Jason Wei, Behnaz Abdollahi, Saeed Hassanpour
+ 
+-# This splits the train, val, and test data.
++This splits the train, val, and test data.
++"""
+ 
+ import config
+-from utils import *
++from os.path import basename, join, dirname
++from utils import (
++    confirm_output_folder,
++    get_subfolder_paths,
++    get_image_paths,
++)
+ 
+ 
+ # main function
+ # note that we want the validation and test sets to be balanced
+-def split(all_wsi, train_folder, val_folder, test_folder, val_split, test_split, keep_orig_copy, labels_train, labels_val, labels_test):
++def split(all_wsi, train_folder, val_folder, test_folder, val_split,
++          test_split, keep_orig_copy, labels_train, labels_val, labels_test):
+ 
+-    head = 'cp' if keep_orig_copy else 'mv'     # based on whether we want to move or keep the files
++    head = 'cp' if keep_orig_copy else 'mv'  # based on whether we want to move or keep the files
+ 
+     # create folders
+     for folder in [train_folder, val_folder, test_folder]:
+@@ -23,12 +31,36 @@ def split(all_wsi, train_folder, val_folder, test_folder, val_split, test_split,
+     val_img_to_label = {}
+     test_img_to_label = {}
+ 
++    def move_set(folder, image_files, ops):
++        """
++        Return:
++            a dictionary where
++                key is (str)image_file_name and
++                value is (str)image_class
++        """
++        def remove_topdir(filepath):
++            """filepath should be a relative path
++            ex) a/b/c.jpg -> b/c.jpg
++            """
++            first_delimiter_idx = filepath.find('/')
++            return filepath[first_delimiter_idx + 1:]
++
++        img_to_label = {}
++        for image_file in image_files:
++            output_path = join(folder, remove_topdir(image_file))
++            os.system(f'{ops} {image_file} {output_path}')
++            img_name = basename(image_file)
++            img_class = basename(dirname(image_file))
++            img_to_label[img_name] = img_class
++        return img_to_label
++
+     # sort the images and move/copy them appropriately
+     subfolder_paths = get_subfolder_paths(all_wsi)
+     for subfolder in subfolder_paths:
+ 
+         image_paths = get_image_paths(subfolder)
+-        assert len(image_paths) > val_split + test_split     # make sure we have enough slides in each class
++        assert len(image_paths) > val_split + test_split
++        # make sure we have enough slides in each class
+ 
+         # assign training, test, and val images
+         test_idx = len(image_paths) - test_split
+@@ -36,50 +68,41 @@ def split(all_wsi, train_folder, val_folder, test_folder, val_split, test_split,
+         train_images = image_paths[:val_idx]
+         val_images = image_paths[val_idx:test_idx]
+         test_images = image_paths[test_idx:]
+-        print('class '+subfolder.split('/')[-1] + ':', '#train=' + str(len(train_images)), '#val=' + str(len(val_images)), '#test=' + str(len(test_images)))
++        print('class {}:'.format(basename(subfolder)),
++              '#train={}'.format(len(train_images)),
++              '#val={} '.format(len(val_images)),
++              '#test={}'.format(len(test_images)))
+ 
+         # move train
+-        for train_image in train_images:
+-            output_path = '/'.join([train_folder, '/'.join(train_image.split('/')[1:])])
+-            os.system(' '.join([head, train_image, output_path]))
+-            img_name = train_image.split('/')[-1]
+-            img_class = train_image.split('/')[-2]
+-            train_img_to_label[img_name] = img_class
+-            # writer_train.write(img_name + ',' + img_class + '\n')
++        tmp_train_img_to_label = move_set(folder=train_folder,
++                                          image_files=train_images,
++                                          ops=head)
++        train_img_to_label.update(tmp_train_img_to_label)
+ 
+         # move val
+-        for val_image in val_images:
+-            output_path = '/'.join([val_folder, '/'.join(val_image.split('/')[1:])])
+-            os.system(' '.join([head, val_image, output_path]))
+-            img_name = val_image.split('/')[-1]
+-            img_class = val_image.split('/')[-2]
+-            val_img_to_label[img_name] = img_class
+-            # writer_val.write(img_name + ',' + img_class + '\n')
++        tmp_val_img_to_label = move_set(folder=val_folder,
++                                        image_files=val_images,
++                                        ops=head)
++        val_img_to_label.update(tmp_train_img_to_label)
+ 
+         # move test
+-        for test_image in test_images:
+-            output_path = '/'.join([test_folder, '/'.join(test_image.split('/')[1:])])
+-            os.system(' '.join([head, test_image, output_path]))
+-            img_name = test_image.split('/')[-1]
+-            img_class = test_image.split('/')[-2]
+-            test_img_to_label[img_name] = img_class
+-            # writer_test.write(img_name + ',' + img_class + '\n')
++        tmp_test_img_to_label = move_set(folder=test_folder,
++                                         image_files=test_images,
++                                         ops=head)
+ 
+     # for making the csv files
+-    writer_train = open(labels_train, 'w')
+-    writer_train.write('img,gt\n')
+-    for img in sorted(train_img_to_label.keys()):
+-        writer_train.write(img + ',' + train_img_to_label[img] + '\n')
+-
+-    writer_val = open(labels_val, 'w')
+-    writer_val.write('img,gt\n')
+-    for img in sorted(val_img_to_label.keys()):
+-        writer_val.write(img + ',' + val_img_to_label[img] + '\n')
++    def write_to_csv(dest_filename, image_lable_dict):
++        with open(dest_filename, 'w') as writer:
++            writer.write('img,gt\n')
++            for img in sorted(image_lable_dict.keys()):
++                writer.write(img + ',' + image_lable_dict[img] + '\n')
+ 
+-    writer_test = open(labels_test, 'w')
+-    writer_test.write('img,gt\n')
+-    for img in sorted(test_img_to_label.keys()):
+-        writer_test.write(img + ',' + test_img_to_label[img] + '\n')
++    write_to_csv(dest_filename=labels_train,
++                 image_lable_dict=train_img_to_label)
++    write_to_csv(dest_filename=labels_val,
++                 image_lable_dict=val_img_to_label)
++    write_to_csv(dest_filename=labels_test,
++                 image_lable_dict=test_img_to_label)
+ 
+ 
+ if __name__ == '__main__':
+@@ -93,5 +116,4 @@ def split(all_wsi, train_folder, val_folder, test_folder, val_split, test_split,
+           keep_orig_copy=config.keep_orig_copy,
+           labels_train=config.labels_train,
+           labels_val=config.labels_val,
+-          labels_test=config.labels_test
+-          )
++          labels_test=config.labels_test)
+diff --git a/code/2_process_patches.py b/code/2_process_patches.py
+index 1fbbe63..9b5b764 100644
+--- a/code/2_process_patches.py
++++ b/code/2_process_patches.py
+@@ -1,14 +1,17 @@
+-
+-import utils_processing
+-from utils_processing import *
+-
++from utils_processing import (
++    gen_train_patches,
++    balance_classes,
++    gen_val_patches,
++    gen_patches_by_folder,
++)
+ 
+ ###########################################
+ #                  MAIN                   #
+ ###########################################
+ 
+ # generate train_patches
+-gen_train_patches(config.wsi_train, config.train_patches, config.num_train_per_class)
++gen_train_patches(config.wsi_train, config.train_patches,
++                  config.num_train_per_class)
+ 
+ # balance the training patches
+ balance_classes(config.train_patches)
+@@ -20,7 +23,9 @@
+ # gen_patches_by_folder(config.wsi_train, config.patches_eval_train, config.slide_overlap)
+ 
+ # generate val_eval_patches
+-gen_patches_by_folder(config.wsi_val, config.patches_eval_val, config.slide_overlap)
++gen_patches_by_folder(config.wsi_val, config.patches_eval_val,
++                      config.slide_overlap)
+ 
+ # generate test_eval_patches
+-gen_patches_by_folder(config.wsi_test, config.patches_eval_test, config.slide_overlap)
++gen_patches_by_folder(config.wsi_test, config.patches_eval_test,
++                      config.slide_overlap)
+diff --git a/code/3_train.py b/code/3_train.py
+index 38d6681..84fd75f 100644
+--- a/code/3_train.py
++++ b/code/3_train.py
+@@ -3,12 +3,9 @@
+ 
+ # Training the resnet
+ 
+-import utils_model
+-from utils_model import *
+-
++from utils_model import train_resnet
+ 
+ if __name__ == '__main__':
+-
+     train_resnet(train_folder=config.train_folder,
+                  num_epochs=config.num_epochs,
+                  num_layers=config.num_layers,
+@@ -21,5 +18,4 @@
+                  save_interval=config.save_interval,
+                  checkpoints_folder=config.checkpoints_folder,
+                  pretrain=config.pretrain,
+-                 log_csv=config.log_csv
+-                 )
++                 log_csv=config.log_csv)
+diff --git a/code/4_test.py b/code/4_test.py
+index 6682da1..5590687 100644
+--- a/code/4_test.py
++++ b/code/4_test.py
+@@ -3,8 +3,7 @@
+ 
+ # Run the resnet on generated patches.
+ 
+-import utils_model
+-from utils_model import *
++from utils_model import get_predictions, get_predictions
+ 
+ # validation patches
+ get_predictions(patches_eval_folder=config.patches_eval_val,
+@@ -18,5 +17,4 @@
+                 auto_select=config.auto_select,
+                 eval_model=config.eval_model,
+                 checkpoints_folder=config.checkpoints_folder,
+-                output_folder=config.preds_test
+-                )
++                output_folder=config.preds_test)
+diff --git a/code/5_grid_search.py b/code/5_grid_search.py
+index b704e0b..9bfc32a 100644
+--- a/code/5_grid_search.py
++++ b/code/5_grid_search.py
+@@ -3,16 +3,12 @@
+ 
+ # Searching over thresholds for filtering noise
+ 
+-import utils_evaluation
+-from utils_evaluation import *
+-
++from utils_evaluation import grid_search, get_best_acc
+ 
+ grid_search(threshold_search=config.threshold_search,
+             pred_folder=config.preds_val,
+             inference_folder=config.inference_val,
+-            labels_csv=config.labels_val
+-            )
++            labels_csv=config.labels_val)
+ 
+ get_best_acc(labels_csv=config.labels_val,
+-             inference_folder=config.inference_val
+-             )
++             inference_folder=config.inference_val)
+diff --git a/code/6_visualize.py b/code/6_visualize.py
+index c19f045..b6d01da 100644
+--- a/code/6_visualize.py
++++ b/code/6_visualize.py
+@@ -3,16 +3,13 @@
+ 
+ # Visualizing patch predictions with overlaid dots
+ 
+-import utils_evaluation
+-from utils_evaluation import *
+-
++from utils_evaluation import visualize
+ 
+ # visualize val set
+ visualize(wsi_folder=config.wsi_val,
+           preds_folder=config.preds_val,
+           vis_folder=config.vis_val,
+-          colors=config.colors
+-          )
++          colors=config.colors)
+ 
+ # visualize test set
+ # visualize(wsi_folder=config.wsi_test,
+diff --git a/code/7_final_test.py b/code/7_final_test.py
+index c0ab748..413ecb0 100755
+--- a/code/7_final_test.py
++++ b/code/7_final_test.py
+@@ -3,18 +3,18 @@
+ 
+ # Running the code on the testing set
+ 
+-import utils_evaluation
+-from utils_evaluation import *
++from utils_evaluation import (
++    get_best_thresholds,
++    output_all_predictions,
++    print_final_test_results,
++)
+ 
+ best_thresholds = get_best_thresholds(labels_csv=config.labels_val,
+-                                      inference_folder=config.inference_val
+-                                      )
++                                      inference_folder=config.inference_val)
+ 
+ output_all_predictions(patches_pred_folder=config.preds_test,
+                        output_folder=config.inference_test,
+-                       conf_thresholds=best_thresholds
+-                       )
++                       conf_thresholds=best_thresholds)
+ 
+ print_final_test_results(labels_csv=config.labels_test,
+-                         inference_folder=config.inference_test
+-                         )
++                         inference_folder=config.inference_test)
+diff --git a/code/utils.py b/code/utils.py
+index f7b67a5..35ce967 100755
+--- a/code/utils.py
++++ b/code/utils.py
+@@ -16,7 +16,10 @@
+ 
+ # getting the classes for classification
+ def get_classes(folder):
+-    subfolder_paths = sorted([f for f in listdir(folder) if (isdir(join(folder, f)) and '.DS_Store' not in f)])
++    subfolder_paths = sorted([
++        f for f in listdir(folder)
++        if (isdir(join(folder, f)) and '.DS_Store' not in f)
++    ])
+     return subfolder_paths
+ 
+ 
+@@ -24,7 +27,8 @@ def get_classes(folder):
+ def get_log_csv_name(log_folder):
+     now = datetime.datetime.now()
+     month, day, year, hour, minute, second = now.month, now.day, now.year, now.hour, now.minute, now.second
+-    return log_folder + '/log_' + str(month) + str(day) + str(year) + '_' + str(hour) + str(minute) + str(second) + '.csv'
++    return log_folder + '/log_' + str(month) + str(day) + str(
++        year) + '_' + str(hour) + str(minute) + str(second) + '.csv'
+ 
+ 
+ # just get the name of images in a folder
+@@ -38,7 +42,9 @@ def get_image_names(folder):
+ 
+ # get full image paths
+ def get_image_paths(folder):
+-    image_paths = [join(folder, f) for f in listdir(folder) if isfile(join(folder, f))]
++    image_paths = [
++        join(folder, f) for f in listdir(folder) if isfile(join(folder, f))
++    ]
+     if join(folder, '.DS_Store') in image_paths:
+         image_paths.remove(join(folder, '.DS_Store'))
+     image_paths = sorted(image_paths)
+@@ -47,7 +53,10 @@ def get_image_paths(folder):
+ 
+ # get subfolders
+ def get_subfolder_paths(folder):
+-    subfolder_paths = [join(folder, f) for f in listdir(folder) if (isdir(join(folder, f)) and '.DS_Store' not in f)]
++    subfolder_paths = [
++        join(folder, f) for f in listdir(folder)
++        if (isdir(join(folder, f)) and '.DS_Store' not in f)
++    ]
+     if join(folder, '.DS_Store') in subfolder_paths:
+         subfolder_paths.remove(join(folder, '.DS_Store'))
+     subfolder_paths = sorted(subfolder_paths)
+@@ -78,7 +87,6 @@ def basefolder(path):
+ 
+ # get all image paths
+ def get_all_image_paths(master_folder):
+-
+     all_paths = []
+     subfolders = get_subfolder_paths(master_folder)
+     if len(subfolders) > 1:
+@@ -91,7 +99,10 @@ def get_all_image_paths(master_folder):
+ 
+ # get csv paths in a folder
+ def get_csv_paths(folder):
+-    csv_paths = [join(folder, f) for f in listdir(folder) if isfile(join(folder, f)) and 'csv' in f]
++    csv_paths = [
++        join(folder, f) for f in listdir(folder)
++        if isfile(join(folder, f)) and 'csv' in f
++    ]
+     if join(folder, '.DS_Store') in csv_paths:
+         csv_paths.remove(join(folder, '.DS_Store'))
+     csv_paths = list(sorted(csv_paths))
+@@ -100,7 +111,6 @@ def get_csv_paths(folder):
+ 
+ # reading labels from a csv
+ def create_labels(csv_path):
+-
+     lines = open(csv_path, 'r').readlines()[1:]
+     file_to_gt_label = {}
+ 
+diff --git a/code/utils_evaluation.py b/code/utils_evaluation.py
+index 846f284..6035331 100755
+--- a/code/utils_evaluation.py
++++ b/code/utils_evaluation.py
+@@ -3,37 +3,31 @@
+ 
+ # Methods for evaluation.
+ 
+-
+ import config
+ from utils import *
+ 
+-from sklearn.metrics import recall_score
+-from sklearn.metrics import precision_score
+-from sklearn.metrics import confusion_matrix
++import cv2
+ import operator
+-from sklearn.metrics import cohen_kappa_score, f1_score, accuracy_score
+-
+-
++import skimage.measure
+ from scipy.misc import imsave
+ from PIL import Image
+ from random import randint
+ from scipy.stats import mode
+-import cv2
+-import skimage.measure
+ from skimage.transform import rescale, rotate
++from sklearn.metrics import (recall_score, precision_score, confusion_matrix,
++                             cohen_kappa_score, f1_score, accuracy_score)
+ Image.MAX_IMAGE_PIXELS = 1e10
+ 
+-
+ ###########################################
+ #         THRESHOLD GRID SEARCH           #
+ ###########################################
+ 
++
+ # get a prediction for a single whole slide
+ def get_prediction(patches_pred_file, conf_thresholds):
+-
+     classes = list(conf_thresholds.keys())
+-    class_to_count = {_class: 0 for _class in classes} 		# predicted class distribution per slide
+-
++    # predictedclass distribution per slide
++    class_to_count = {_class: 0 for _class in classes}
+     # looping through all the lines in the file and adding predictions
+     patches_pred_lines = open(patches_pred_file, 'r').readlines()[1:]
+     for line in patches_pred_lines:
+@@ -42,29 +36,31 @@ def get_prediction(patches_pred_file, conf_thresholds):
+         line_conf = float(line_items[3])
+         if line_class in classes and line_conf > conf_thresholds[line_class]:
+             class_to_count[line_class] += 1
+-
+     if sum(class_to_count.values()) > 0:
+-        class_to_percent = {_class: class_to_count[_class]/sum(class_to_count.values()) for _class in class_to_count}
++        class_to_percent = {
++            _class: class_to_count[_class] / sum(class_to_count.values())
++            for _class in class_to_count
++        }
+     else:
+         class_to_percent = {_class: 0 for _class in class_to_count}
+-
+     # you can implement your own heuristic other than taking the max
+-    predicted_class = max(class_to_percent.items(), key=operator.itemgetter(1))[0]
+-
++    predicted_class = max(class_to_percent.items(),
++                          key=operator.itemgetter(1))[0]
+     # diagnostic info that could be helpful
+-    counts_percent = [str(class_to_percent[_class])[:5] for _class in config.classes]
++    counts_percent = [
++        str(class_to_percent[_class])[:5] for _class in config.classes
++    ]
+     counts_num = [str(class_to_count[_class])[:5] for _class in config.classes]
+     count_line = ','.join(counts_percent) + ',' + ','.join(counts_num)
+-
+     # creating the line for output to csv
+-    line = patches_pred_file.split('/')[-1].replace("csv", "jpg") + ',' + predicted_class + ',' + count_line
+-
++    line = patches_pred_file.split('/')[-1].replace(
++        "csv", "jpg") + ',' + predicted_class + ',' + count_line
+     return line
+ 
+ 
+ # output predictions for all the whole slides into a csv
+-def output_all_predictions(patches_pred_folder, output_folder, conf_thresholds):
+-
++def output_all_predictions(patches_pred_folder, output_folder,
++                           conf_thresholds):
+     # open a new csv file for each set of confidence thresholds used on each set of wsi
+     output_file = ""
+     for _class in conf_thresholds:
+@@ -81,7 +77,7 @@ def output_all_predictions(patches_pred_folder, output_folder, conf_thresholds):
+ 
+     csv_paths = get_csv_paths(patches_pred_folder)
+     for csv_path in csv_paths:
+-        writer.write(get_prediction(csv_path, conf_thresholds)+'\n')
++        writer.write(get_prediction(csv_path, conf_thresholds) + '\n')
+ 
+     writer.close()
+ 
+@@ -99,34 +95,30 @@ def grid_search(threshold_search, pred_folder, inference_folder, labels_csv):
+ #        FINDING BEST THRESHOLDS          #
+ ###########################################
+ 
++
+ # get the average class accuracy of predictions
+ def get_scores(gt_labels, prediction_labels):
+-
+     assert len(gt_labels) == len(prediction_labels)
+-
+     class_to_gt_count = {_class: 0 for _class in config.classes}
+     class_to_pred_count = {_class: 0 for _class in config.classes}
+     gts = []
+     preds = []
+-
+     for file in sorted(gt_labels.keys()):
+-
+         gt_label = gt_labels[file]
+         pred_label = prediction_labels[file]
+         gts.append(gt_label)
+         preds.append(pred_label)
+-
+         # predicted correct
+         if gt_label == pred_label:
+             class_to_pred_count[gt_label] += 1
+-
+         # add to total
+         class_to_gt_count[gt_label] += 1
+-
+     conf_matrix = confusion_matrix(gts, preds)
+-    class_to_acc = {_class: float(class_to_pred_count[_class]) / class_to_gt_count[_class] for _class in class_to_gt_count}
++    class_to_acc = {
++        _class: float(class_to_pred_count[_class]) / class_to_gt_count[_class]
++        for _class in class_to_gt_count
++    }
+     avg_class_acc = sum(list(class_to_acc.values())) / len(class_to_acc)
+-
+     return avg_class_acc, conf_matrix
+ 
+ 
+@@ -138,41 +130,37 @@ def parse_thresholds(csv_path):
+     for item in items:
+         subitems = item.split('.')
+         _class = subitems[0]
+-        threshold = float('0.'+subitems[1])
++        threshold = float('0.' + subitems[1])
+         class_to_threshold[_class] = threshold
+     return class_to_threshold
+ 
+ 
+ # printing the best accuracy with thresholds
+ def get_best_acc(labels_csv, inference_folder):
+-
+     gt_labels = create_labels(labels_csv)
+     prediction_csv_paths = get_csv_paths(inference_folder)
+     best_acc = 0
+     best_thresholds = None
+     best_csv = None
+-
+     for prediction_csv_path in prediction_csv_paths:
+         prediction_labels = create_labels(prediction_csv_path)
+         avg_class_acc, conf_matrix = get_scores(gt_labels, prediction_labels)
+         thresholds = parse_thresholds(prediction_csv_path)
+-        print('thresholds', thresholds, 'has average class accuracy', str(avg_class_acc)[:5])
++        print('thresholds', thresholds, 'has average class accuracy',
++              str(avg_class_acc)[:5])
+         if best_acc < avg_class_acc:
+             best_acc = avg_class_acc
+             best_thresholds = thresholds
+             best_csv = prediction_csv_path
+-
+     print("view these predictions in", best_csv)
+ 
+ 
+ # finding the best threshold
+ def get_best_thresholds(labels_csv, inference_folder):
+-
+     gt_labels = create_labels(labels_csv)
+     prediction_csv_paths = get_csv_paths(inference_folder)
+     best_acc = 0
+     best_thresholds = None
+-
+     for prediction_csv_path in prediction_csv_paths:
+         prediction_labels = create_labels(prediction_csv_path)
+         avg_class_acc, conf_matrix = get_scores(gt_labels, prediction_labels)
+@@ -180,16 +168,13 @@ def get_best_thresholds(labels_csv, inference_folder):
+         if best_acc < avg_class_acc:
+             best_acc = avg_class_acc
+             best_thresholds = thresholds
+-
+     return best_thresholds
+ 
+ 
+ # print accuracy and confusion matrix
+ def print_final_test_results(labels_csv, inference_folder):
+-
+     gt_labels = create_labels(labels_csv)
+     prediction_csv_paths = get_csv_paths(inference_folder)
+-
+     for prediction_csv_path in prediction_csv_paths:
+         prediction_labels = create_labels(prediction_csv_path)
+         avg_class_acc, conf_matrix = get_scores(gt_labels, prediction_labels)
+@@ -202,86 +187,78 @@ def print_final_test_results(labels_csv, inference_folder):
+ #             VISUALIZATION               #
+ ###########################################
+ 
+-def color_to_np_color(color):
+-
+-    colors = {'white': np.array([255, 255, 255]),
+-              'pink': np.array([255, 108, 180]),
+-              'black': np.array([0, 0, 0]),
+-              'red': np.array([255, 0, 0]),
+-              'purple': np.array([225, 225, 0]),
+-              'yellow': np.array([255, 255, 0]),
+-              'orange': np.array([255, 127, 80]),
+-              'blue': np.array([0, 0, 255]),
+-              'green': np.array([0, 255, 0])
+-              }
+ 
++def color_to_np_color(color):
++    colors = {
++        'white': np.array([255, 255, 255]),
++        'pink': np.array([255, 108, 180]),
++        'black': np.array([0, 0, 0]),
++        'red': np.array([255, 0, 0]),
++        'purple': np.array([225, 225, 0]),
++        'yellow': np.array([255, 255, 0]),
++        'orange': np.array([255, 127, 80]),
++        'blue': np.array([0, 0, 255]),
++        'green': np.array([0, 255, 0])
++    }
+     return colors[color]
+ 
+ 
+ # overlay the predicted dots on an image
+ def add_predictions_to_image(xy_to_pred_class, image, prediction_to_color):
+-
+     for x, y in xy_to_pred_class.keys():
+         prediction, confidence = xy_to_pred_class[x, y]
+         x = int(x)
+         y = int(y)
+-
+-        image[x+112-11:x+112+11, y+112-11:y+112+11, :] = prediction_to_color[prediction]
++        image[x + 112 - 11:x + 112 + 11, y + 112 - 11:y + 112 +
++              11, :] = prediction_to_color[prediction]
+         # if confidence > class_to_threshold[prediction]:         # confident prediction
+         #     image[x+112-11:x+112+11, y+112-11:y+112+11, :] = prediction_to_color[prediction]
+         # else:     # not confident prediction
+         #      image[x+112-3:x+112+3, y+112-3:y+112+3, :] = prediction_to_color[prediction]
+-
+     return image
+ 
+ 
+ # get the dictionary of predictions
+ def get_xy_to_pred_class(window_prediction_folder, img_name):
+-
+     xy_to_pred_class = {}
+-
+     csv_file = join(window_prediction_folder, img_name.split('.')[0]) + ".csv"
+     csv_lines = open(csv_file, 'r').readlines()[1:]
+     predictions = [line[:-1].split(',') for line in csv_lines]
+-
+     for prediction in predictions:
+         x = prediction[0]
+         y = prediction[1]
+         pred_class = prediction[2]
+         confidence = float(prediction[3])
+-
+         # implement thresholding
+         xy_to_pred_class[(x, y)] = (pred_class, confidence)
+-
+-    return(xy_to_pred_class)
++    return (xy_to_pred_class)
+ 
+ 
+ # main function for visualization
+ def visualize(wsi_folder, preds_folder, vis_folder, colors):
+-
+     # get list of whole slides
+     whole_slides = get_all_image_paths(wsi_folder)
+     print(len(whole_slides), "whole slides found from", wsi_folder)
+-
+-    prediction_to_color = {config.classes[i]: color_to_np_color(config.colors[i]) for i in range(config.num_classes)}
+-
++    prediction_to_color = {
++        config.classes[i]: color_to_np_color(config.colors[i])
++        for i in range(config.num_classes)
++    }
+     # for each wsi
+     for whole_slide in whole_slides:
+-
+         # read in the image
+         whole_slide_numpy = cv2.imread(whole_slide)
+         print("visualizing", whole_slide, "of shape", whole_slide_numpy.shape)
+         assert whole_slide_numpy.shape[2] == 3
+-
+         # get the predictions
+-        xy_to_pred_class = get_xy_to_pred_class(preds_folder, whole_slide.split('/')[-1])
+-
++        xy_to_pred_class = get_xy_to_pred_class(preds_folder,
++                                                whole_slide.split('/')[-1])
+         # add the predictions to image
+-        whole_slide_with_predictions = add_predictions_to_image(xy_to_pred_class, whole_slide_numpy, prediction_to_color)
+-
++        whole_slide_with_predictions = add_predictions_to_image(
++            xy_to_pred_class, whole_slide_numpy, prediction_to_color)
+         # save it
+-        output_path = join(vis_folder, whole_slide.split('/')[-1].split('.')[0]+'_predictions.jpg')
++        output_path = join(
++            vis_folder,
++            whole_slide.split('/')[-1].split('.')[0] + '_predictions.jpg')
+         confirm_output_folder(basefolder(output_path))
+         imsave(output_path, whole_slide_with_predictions)
+-
+     print('find the visualizations in', vis_folder)
+diff --git a/code/utils_model.py b/code/utils_model.py
+index 7268014..f33045c 100755
+--- a/code/utils_model.py
++++ b/code/utils_model.py
+@@ -29,12 +29,12 @@
+ def reverse_norm(mean, std):
+     mean = torch.tensor(mean, dtype=torch.float32)
+     std = torch.tensor(std, dtype=torch.float32)
+-    return (-mean/std).tolist(), (1/std).tolist()
++    return (-mean / std).tolist(), (1 / std).tolist()
+ 
+ 
+ # computing the confusion matrix
+-def update_confusion_matrix(all_labels, all_predicts, batch_labels, batch_predicts, num_classes):
+-
++def update_confusion_matrix(all_labels, all_predicts, batch_labels,
++                            batch_predicts, num_classes):
+     if all_labels is not None:
+         assert all_labels.shape[0] == all_predicts.shape[0]
+         if all_labels.shape[0] > 10000:
+@@ -48,7 +48,9 @@ def update_confusion_matrix(all_labels, all_predicts, batch_labels, batch_predic
+         all_labels = torch.cat((all_labels, batch_labels))
+         all_predicts = torch.cat((all_predicts, batch_predicts))
+ 
+-    conf_matrix = confusion_matrix(all_labels, all_predicts, labels=list(range(num_classes)))
++    conf_matrix = confusion_matrix(all_labels,
++                                   all_predicts,
++                                   labels=list(range(num_classes)))
+ 
+     probs_matrix = np.zeros(conf_matrix.shape)
+ 
+@@ -57,7 +59,7 @@ def update_confusion_matrix(all_labels, all_predicts, batch_labels, batch_predic
+         if np.sum(row) == 0:
+             probs_row = 0
+         else:
+-            probs_row = row/np.sum(row)
++            probs_row = row / np.sum(row)
+         probs_matrix[i] = probs_row
+ 
+     probs_matrix = np.around(probs_matrix, decimals=5)
+@@ -66,10 +68,12 @@ def update_confusion_matrix(all_labels, all_predicts, batch_labels, batch_predic
+ 
+ # printing the confusion matrix during training
+ def print_conf_matrix(confusion_matrix, classes):
+-    first_line = "   " + " ".join(['{:5s}'.format(_class) for _class in classes])
++    first_line = "   " + " ".join(
++        ['{:5s}'.format(_class) for _class in classes])
+     print(first_line)
+     for row, _class in zip(confusion_matrix, classes):
+-        row_pretty = '{:3s}'.format(_class) + " ".join(['{:.3f}'.format(number) for number in row])
++        row_pretty = '{:3s}'.format(_class) + " ".join(
++            ['{:.3f}'.format(number) for number in row])
+         print(row_pretty)
+ 
+ 
+@@ -103,36 +107,40 @@ def create_model(num_layers, pretrain):
+ def get_data_transforms():
+ 
+     data_transforms = {
+-        'train': transforms.Compose([
++        'train':
++        transforms.Compose([
+             transforms.CenterCrop(config.patch_size),
+-            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2),
++            transforms.ColorJitter(brightness=0.5,
++                                   contrast=0.5,
++                                   saturation=0.5,
++                                   hue=0.2),
+             transforms.RandomHorizontalFlip(),
+             transforms.RandomVerticalFlip(),
+             Random90Rotation(),
+             transforms.ToTensor(),
+-            transforms.Normalize(PATH_MEAN, PATH_STD)    # mean and standard deviations for lung adenocarcinoma resection slides
++            transforms.Normalize(
++                PATH_MEAN, PATH_STD
++            )  # mean and standard deviations for lung adenocarcinoma resection slides
+         ]),
+-        'val': transforms.Compose([
++        'val':
++        transforms.Compose([
+             transforms.CenterCrop(config.patch_size),
+             transforms.ToTensor(),
+             transforms.Normalize(PATH_MEAN, PATH_STD)
+         ]),
+-        'unnormalize': transforms.Compose([
+-            transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))
+-        ]),
++        'unnormalize':
++        transforms.Compose(
++            [transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))]),
+     }
+ 
+     return data_transforms
+ 
+ 
+ # printing the model
+-def print_params(train_folder, num_epochs, num_layers,
+-                 learning_rate, batch_size,
+-                 weight_decay, learning_rate_decay,
+-                 resume_checkpoint, resume_checkpoint_path,
+-                 save_interval, checkpoints_folder,
+-                 pretrain, log_csv
+-                 ):
++def print_params(train_folder, num_epochs, num_layers, learning_rate,
++                 batch_size, weight_decay, learning_rate_decay,
++                 resume_checkpoint, resume_checkpoint_path, save_interval,
++                 checkpoints_folder, pretrain, log_csv):
+ 
+     print("train_folder:", train_folder)
+     print("num_epochs:", num_epochs)
+@@ -141,7 +149,8 @@ def print_params(train_folder, num_epochs, num_layers,
+     print("batch_size:", batch_size)
+     print("weight_decay:", weight_decay)
+     print("resume_checkpoint:", resume_checkpoint)
+-    print("resume_checkpoint_path (only if resume_checkpoint is true):", resume_checkpoint_path)
++    print("resume_checkpoint_path (only if resume_checkpoint is true):",
++          resume_checkpoint_path)
+     print("save_interval:", save_interval)
+     print("output in checkpoints_folder:", checkpoints_folder)
+     print("pretrain:", pretrain)
+@@ -153,8 +162,10 @@ def print_params(train_folder, num_epochs, num_layers,
+ #          MAIN TRAIN FUNCTION            #
+ ###########################################
+ 
++
+ # helper function for training resnet
+-def train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer, scheduler, num_epochs, save_interval, writer):
++def train_helper(model, dataloaders, device, dataset_sizes, criterion,
++                 optimizer, scheduler, num_epochs, save_interval, writer):
+ 
+     since = time.time()
+ 
+@@ -188,8 +199,11 @@ def train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer
+ 
+             # update training diagnostics
+             train_running_loss += train_loss.item() * train_inputs.size(0)
+-            train_running_corrects += torch.sum(train_preds == train_labels.data)
+-            train_conf_matrix, train_all_labels, train_all_predicts = update_confusion_matrix(train_all_labels, train_all_predicts, train_labels.data, train_preds, config.num_classes)
++            train_running_corrects += torch.sum(
++                train_preds == train_labels.data)
++            train_conf_matrix, train_all_labels, train_all_predicts = update_confusion_matrix(
++                train_all_labels, train_all_predicts, train_labels.data,
++                train_preds, config.num_classes)
+ 
+         # print training diagnostics
+         train_loss = train_running_loss / dataset_sizes['train']
+@@ -221,7 +235,9 @@ def train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer
+             # update validation diagnostics
+             val_running_loss += val_loss.item() * val_inputs.size(0)
+             val_running_corrects += torch.sum(val_preds == val_labels.data)
+-            val_conf_matrix, val_all_labels, val_all_predicts = update_confusion_matrix(val_all_labels, val_all_predicts, val_labels.data, val_preds, config.num_classes)
++            val_conf_matrix, val_all_labels, val_all_predicts = update_confusion_matrix(
++                val_all_labels, val_all_predicts, val_labels.data, val_preds,
++                config.num_classes)
+ 
+         # print validation diagnostics
+         val_loss = val_running_loss / dataset_sizes['val']
+@@ -237,14 +253,20 @@ def train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer
+ 
+         # remaining things related to training
+         if epoch % int(save_interval) == 0:
+-            epoch_output_path = config.checkpoints_folder + "/resnet" + str(config.num_layers) + "_e" + str(epoch) + "_va" + str(float(val_acc))[:5] + ".pt"
++            epoch_output_path = config.checkpoints_folder + "/resnet" + str(
++                config.num_layers) + "_e" + str(epoch) + "_va" + str(
++                    float(val_acc))[:5] + ".pt"
+             confirm_output_folder(basefolder(epoch_output_path))
+             torch.save(model, epoch_output_path)
+ 
+-        writer.write('{},{:4f},{:4f},{:4f},{:4f}\n'.format(str(epoch), train_loss, train_acc, val_loss, val_acc))
++        writer.write('{},{:4f},{:4f},{:4f},{:4f}\n'.format(
++            str(epoch), train_loss, train_acc, val_loss, val_acc))
+ 
+         # remaining diagnostics
+-        print('Epoch {} with lr {:.15f}: t_loss: {:.4f} t_acc: {:.4f} v_loss:{:.4f} v_acc: {:.4f}'.format(str(epoch), current_lr, train_loss, train_acc, val_loss, val_acc))
++        print(
++            'Epoch {} with lr {:.15f}: t_loss: {:.4f} t_acc: {:.4f} v_loss:{:.4f} v_acc: {:.4f}'
++            .format(str(epoch), current_lr, train_loss, train_acc, val_loss,
++                    val_acc))
+         print()
+ 
+     # at the end:
+@@ -254,42 +276,56 @@ def train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer
+ 
+ 
+ # main function for training resnet
+-def train_resnet(train_folder, num_epochs, num_layers,
+-                 learning_rate, batch_size,
+-                 weight_decay, learning_rate_decay,
+-                 resume_checkpoint, resume_checkpoint_path,
+-                 save_interval, checkpoints_folder,
+-                 pretrain, log_csv
+-                 ):
++def train_resnet(train_folder, num_epochs, num_layers, learning_rate,
++                 batch_size, weight_decay, learning_rate_decay,
++                 resume_checkpoint, resume_checkpoint_path, save_interval,
++                 checkpoints_folder, pretrain, log_csv):
+ 
+     # loading in the data
+     data_transforms = {
+-        'train': transforms.Compose([
++        'train':
++        transforms.Compose([
+             transforms.CenterCrop(config.patch_size),
+-            transforms.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.2),
++            transforms.ColorJitter(brightness=0.5,
++                                   contrast=0.5,
++                                   saturation=0.5,
++                                   hue=0.2),
+             transforms.RandomHorizontalFlip(),
+             transforms.RandomVerticalFlip(),
+             Random90Rotation(),
+             transforms.ToTensor(),
+-            transforms.Normalize(PATH_MEAN, PATH_STD)       # mean and standard deviations for lung adenocarcinoma resection slides
++            transforms.Normalize(
++                PATH_MEAN, PATH_STD
++            )  # mean and standard deviations for lung adenocarcinoma resection slides
+         ]),
+-        'val': transforms.Compose([
++        'val':
++        transforms.Compose([
+             transforms.CenterCrop(config.patch_size),
+             transforms.ToTensor(),
+             transforms.Normalize(PATH_MEAN, PATH_STD)
+         ]),
+-        'unnormalize': transforms.Compose([
+-            transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))
+-        ]),
++        'unnormalize':
++        transforms.Compose(
++            [transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))]),
+     }
+ 
+-    image_datasets = {x: datasets.ImageFolder(os.path.join(config.train_folder, x), data_transforms[x]) for x in ['train', 'val']}
+-    dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=(x is 'train'), num_workers=4) for x in ['train', 'val']}
++    image_datasets = {
++        x: datasets.ImageFolder(os.path.join(config.train_folder, x),
++                                data_transforms[x])
++        for x in ['train', 'val']
++    }
++    dataloaders = {
++        x: torch.utils.data.DataLoader(image_datasets[x],
++                                       batch_size=batch_size,
++                                       shuffle=(x is 'train'),
++                                       num_workers=4)
++        for x in ['train', 'val']
++    }
+     dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+ 
+     print(len(config.classes), 'classes:', config.classes)
+-    print('num train images', len(dataloaders['train'])*batch_size)
+-    print('num val images', len(dataloaders['val'])*batch_size)
++    print('num train images', len(dataloaders['train']) * batch_size)
++    print('num val images', len(dataloaders['val']) * batch_size)
+     print("CUDA is_available:", torch.cuda.is_available())
+     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+ 
+@@ -300,16 +336,19 @@ def train_resnet(train_folder, num_epochs, num_layers,
+     else:
+         model = create_model(num_layers, pretrain)
+ 
+-    model = model.to(device)        # same as model.cuda()
++    model = model.to(device)  # same as model.cuda()
+ 
+     # multi class cross entropy
+     criterion = nn.CrossEntropyLoss()
+ 
+     # adam optimizer
+-    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
++    optimizer = optim.Adam(model.parameters(),
++                           lr=learning_rate,
++                           weight_decay=weight_decay)
+ 
+     # learning rate: exponential, can also try scheduler = lr_scheduler.ReduceLROnPlateau(optimizer)
+-    scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=learning_rate_decay)
++    scheduler = lr_scheduler.ExponentialLR(optimizer,
++                                           gamma=learning_rate_decay)
+ 
+     # logging the model after every epoch
+     confirm_output_folder(basefolder(log_csv))
+@@ -317,22 +356,22 @@ def train_resnet(train_folder, num_epochs, num_layers,
+     writer.write('epoch,train_loss,train_acc,val_loss,val_acc\n')
+ 
+     # print
+-    print_params(train_folder, num_epochs, num_layers,
+-                 learning_rate, batch_size,
+-                 weight_decay, learning_rate_decay,
+-                 resume_checkpoint, resume_checkpoint_path,
+-                 save_interval, checkpoints_folder,
+-                 pretrain, log_csv
+-                 )
++    print_params(train_folder, num_epochs, num_layers, learning_rate,
++                 batch_size, weight_decay, learning_rate_decay,
++                 resume_checkpoint, resume_checkpoint_path, save_interval,
++                 checkpoints_folder, pretrain, log_csv)
+ 
+     # train model
+-    model = train_helper(model, dataloaders, device, dataset_sizes, criterion, optimizer, scheduler, num_epochs, save_interval, writer)
++    model = train_helper(model, dataloaders, device, dataset_sizes, criterion,
++                         optimizer, scheduler, num_epochs, save_interval,
++                         writer)
+ 
+ 
+ ###########################################
+ #      MAIN EVALUATION FUNCTION           #
+ ###########################################
+ 
++
+ # parsing the validation accuracy from filename
+ def parse_val_acc(model_path):
+     no_extension = ".".join(basename(model_path).split('.')[:-1])
+@@ -349,7 +388,8 @@ def get_best_model(checkpoints_folder):
+ 
+ 
+ # main function for running on all the generated windows
+-def get_predictions(patches_eval_folder, auto_select, eval_model, checkpoints_folder, output_folder):
++def get_predictions(patches_eval_folder, auto_select, eval_model,
++                    checkpoints_folder, output_folder):
+ 
+     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+ 
+@@ -365,38 +405,44 @@ def get_predictions(patches_eval_folder, auto_select, eval_model, checkpoints_fo
+     print('model loaded from', model_path)
+ 
+     # for outputting the predictions
+-    class_num_to_class = {i: config.classes[i] for i in range(len(config.classes))}
++    class_num_to_class = {
++        i: config.classes[i]
++        for i in range(len(config.classes))
++    }
+     class_to_class_num = {v: k for k, v in class_num_to_class.items()}
+ 
+     # data transforms, no augmentation this time
+     data_transforms = {
+-        'normalize': transforms.Compose([
++        'normalize':
++        transforms.Compose([
+             transforms.CenterCrop(224),
+             transforms.ToTensor(),
+             transforms.Normalize(PATH_MEAN, PATH_STD)
+         ]),
+-        'unnormalize': transforms.Compose([
+-            transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))
+-        ]),
++        'unnormalize':
++        transforms.Compose(
++            [transforms.Normalize(*reverse_norm(PATH_MEAN, PATH_STD))]),
+     }
+ 
+     start = time.time()
+-
+     # load data for each folder:
+     image_folders = get_subfolder_paths(patches_eval_folder)
+ 
+-    for image_folder in image_folders:      # for each whole slide
+-
++    for image_folder in image_folders:  # for each whole slide
+         # where we want to write out the predictions
+         confirm_output_folder(output_folder)
+-        csv_path = join(output_folder, image_folder.split('/')[-1])+'.csv'
++        csv_path = join(output_folder, image_folder.split('/')[-1]) + '.csv'
+         writer = open(csv_path, 'w')
+         writer.write("x,y,prediction,confidence\n")
+ 
+         # load the image dataset
+-        image_dataset = datasets.ImageFolder(image_folder, data_transforms['normalize'])
+-        dataloader = torch.utils.data.DataLoader(image_dataset, batch_size=config.batch_size, shuffle=False, num_workers=4)
+-        num_test_image_windows = len(dataloader)*config.batch_size
++        image_dataset = datasets.ImageFolder(image_folder,
++                                             data_transforms['normalize'])
++        dataloader = torch.utils.data.DataLoader(image_dataset,
++                                                 batch_size=config.batch_size,
++                                                 shuffle=False,
++                                                 num_workers=4)
++        num_test_image_windows = len(dataloader) * config.batch_size
+ 
+         # load the image names so we know the coordinates of the windows we are predicting
+         image_folder = join(image_folder, image_folder.split('/')[-1])
+@@ -407,33 +453,27 @@ def get_predictions(patches_eval_folder, auto_select, eval_model, checkpoints_fo
+ 
+         # loop through all the windows
+         for test_inputs, test_labels in dataloader:
+-
+-            batch_window_names = window_names[batch_num*config.batch_size:batch_num*config.batch_size+config.batch_size]
++            batch_window_names = window_names[batch_num *
++                                              config.batch_size:batch_num *
++                                              config.batch_size +
++                                              config.batch_size]
+             test_inputs = test_inputs.to(device)
+             test_outputs = model(test_inputs)
+             softmax_test_outputs = nn.Softmax()(test_outputs)
+             confidences, test_preds = torch.max(softmax_test_outputs, 1)
+-
+             for i in range(test_preds.shape[0]):
+-                # unnormalized_image = data_transforms['unnormalize'](test_inputs[i]).cpu().numpy()
+-                # unnormalized_image = np.swapaxes(unnormalized_image, 0, 2) #in case you want to make sure you're looking at the right image
+-
+                 # get coordinates and predicted class
+                 image_name = batch_window_names[i]
+                 x = basename(image_name).split('.')[0].split(';')[0]
+                 y = basename(image_name).split('.')[0].split(';')[1]
+                 predicted_class = class_num_to_class[test_preds[i].data.item()]
+                 confidence = confidences[i].data.item()
+-
+                 # write them
+-                out_line = ','.join([x, y, predicted_class, str(confidence)[:5]]) + '\n'
++                out_line = ','.join(
++                    [x, y, predicted_class,
++                     str(confidence)[:5]]) + '\n'
+                 writer.write(out_line)
+-
+-                # out_path = 'check_images_2/' + image_folder.split('/')[-1] + '_' + str(counter) + '_' + '_'.join([x, y, predicted_class, str(confidence)[:5]]) + '.jpg'
+-                # imsave(out_path, unnormalized_image)
+-
+             batch_num += 1
+-
+         writer.close()
+ 
+-    print('time for', patches_eval_folder, ':', time.time()-start, 'seconds')
++    print('time for', patches_eval_folder, ':', time.time() - start, 'seconds')
+diff --git a/code/utils_processing.py b/code/utils_processing.py
+index 38832e1..83a1fb1 100755
+--- a/code/utils_processing.py
++++ b/code/utils_processing.py
+@@ -15,13 +15,13 @@
+ from scipy.misc import imsave
+ Image.MAX_IMAGE_PIXELS = 1e10
+ 
+-
+ ###########################################
+ #           FILTERING WHITESPACE          #
+ ###########################################
+ 
++
+ def is_purple_dot(r, g, b):
+-    rb_avg = (r+b)/2
++    rb_avg = (r + b) / 2
+     if r > g - 10 and b > g - 10 and rb_avg > g + 20:
+         return True
+     return False
+@@ -29,7 +29,9 @@ def is_purple_dot(r, g, b):
+ 
+ # this is actually a better method than is whitespace, but only if your images are purple lols
+ def is_purple(crop):
+-    pooled = skimage.measure.block_reduce(crop, (int(crop.shape[0]/15), int(crop.shape[1]/15), 1), np.average)
++    pooled = skimage.measure.block_reduce(
++        crop, (int(crop.shape[0] / 15), int(crop.shape[1] / 15), 1),
++        np.average)
+     num_purple_squares = 0
+     for x in range(pooled.shape[0]):
+         for y in range(pooled.shape[1]):
+@@ -47,10 +49,13 @@ def is_purple(crop):
+ #         GENERATING TRAINING DATA        #
+ ###########################################
+ 
++
+ # returns number of folders and images given a folder path
+ # used for deciding how much to slide windows
+ def get_folder_size_and_num_images(folder):
+-    image_paths = [join(folder, f) for f in listdir(folder) if isfile(join(folder, f))]
++    image_paths = [
++        join(folder, f) for f in listdir(folder) if isfile(join(folder, f))
++    ]
+     if join(folder, '.DS_Store') in image_paths:
+         image_paths.remove(join(folder, '.DS_Store'))
+     file_size = 0
+@@ -66,65 +71,78 @@ def get_folder_size_and_num_images(folder):
+ def get_subfolder_to_overlap(subfolders, desired_crops_per_class):
+     subfolder_to_overlap_factor = {}
+     for subfolder in subfolders:
+-        subfolder_size, subfolder_num_images = get_folder_size_and_num_images(subfolder)
+-        overlap_factor = math.sqrt(desired_crops_per_class / (subfolder_size / 0.013)) 		# each image is 13 kb = 0.013 MB, idk I just added two randomly
+-        overlap_factor = max(1, math.pow(overlap_factor, 1.5)) 		# empircal guessing?
++        subfolder_size, subfolder_num_images = get_folder_size_and_num_images(
++            subfolder)
++        overlap_factor = math.sqrt(
++            desired_crops_per_class / (subfolder_size / 0.013)
++        )  # each image is 13 kb = 0.013 MB, idk I just added two randomly
++        overlap_factor = max(1, math.pow(overlap_factor,
++                                         1.5))  # empircal guessing?
+         subfolder_to_overlap_factor[subfolder] = overlap_factor
+-        print(subfolder + ": " + str(subfolder_size)[:9] + "MB, " + str(subfolder_num_images) + " images, overlap_factor=" + str(overlap_factor))
++        print(subfolder + ": " + str(subfolder_size)[:9] + "MB, " +
++              str(subfolder_num_images) + " images, overlap_factor=" +
++              str(overlap_factor))
+     return subfolder_to_overlap_factor
+ 
+ 
+ # zero padding for really small crops
+ def zero_pad(image, patch_size):
+ 
+-    x = image.shape[0]         # get current x and y of image
++    x = image.shape[0]  # get current x and y of image
+     y = image.shape[1]
+     if x >= patch_size and y >= patch_size:
+-        return image         # if its already big enough, then do nothing
++        return image  # if its already big enough, then do nothing
+ 
+     x_new = max(x, patch_size)
+     y_new = max(y, patch_size)
+-    new_image = np.zeros((x_new, y_new, 3))      # otherwise, make a new image
+-    x_start = int(x_new/2 - x/2)
+-    y_start = int(y_new/2 - y/2)                  # find where to place the old image
+-    new_image[x_start:x_start+x, y_start:y_start+y, :] = image 	# place the old image
++    new_image = np.zeros((x_new, y_new, 3))  # otherwise, make a new image
++    x_start = int(x_new / 2 - x / 2)
++    y_start = int(y_new / 2 - y / 2)  # find where to place the old image
++    new_image[x_start:x_start + x, y_start:y_start +
++              y, :] = image  # place the old image
+ 
+-    return new_image 		# return the padded image
++    return new_image  # return the padded image
+ 
+ 
+ # get the small windows a given subfolder
+ # this is a big boy function
+ def produce_patches(input_subfolder, output_subfolder, inverse_overlap_factor):
+ 
+-    confirm_output_folder(output_subfolder)             # make the directory if it doens't exist
++    confirm_output_folder(
++        output_subfolder)  # make the directory if it doens't exist
+     image_names = get_image_names(input_subfolder)
+     start_time = time.time()
+     outputed_windows_per_subfolder = 0
+ 
+-    print('\n' + "getting small crops from " + str(len(image_names)) + ' images in ' + input_subfolder + " with inverse overlap factor " + str(inverse_overlap_factor) + " outputting in " + output_subfolder)
++    print('\n' + "getting small crops from " + str(len(image_names)) +
++          ' images in ' + input_subfolder + " with inverse overlap factor " +
++          str(inverse_overlap_factor) + " outputting in " + output_subfolder)
+ 
+     # get the patches for each wsi
+     for image_name in image_names:
+ 
+         image_path = join(input_subfolder, image_name)
+         image = cv2.imread(image_path)
+-        image = zero_pad(image, config.patch_size) 		# zero pad if too small
++        image = zero_pad(image, config.patch_size)  # zero pad if too small
+ 
+-        x_max = image.shape[0]         # width of image
+-        y_max = image.shape[1]         # height of image
++        x_max = image.shape[0]  # width of image
++        y_max = image.shape[1]  # height of image
+         window_size = 224
+-        x_steps = int((x_max-window_size) / window_size * inverse_overlap_factor)   # number of x starting points
+-        y_steps = int((y_max-window_size) / window_size * inverse_overlap_factor)     # number of y starting points
+-        step_size = int(config.patch_size / inverse_overlap_factor)                 # step size, same for x and y
++        x_steps = int((x_max - window_size) / window_size *
++                      inverse_overlap_factor)  # number of x starting points
++        y_steps = int((y_max - window_size) / window_size *
++                      inverse_overlap_factor)  # number of y starting points
++        step_size = int(config.patch_size /
++                        inverse_overlap_factor)  # step size, same for x and y
+ 
+         # loop through the entire big image
+-        for i in range(x_steps+1):
+-            for j in range(y_steps+1):
++        for i in range(x_steps + 1):
++            for j in range(y_steps + 1):
+ 
+                 # get a patch
+-                x_start = i*step_size
++                x_start = i * step_size
+                 x_end = x_start + config.patch_size
+-                y_start = j*step_size
++                y_start = j * step_size
+                 y_end = y_start + config.patch_size
+ 
+                 assert x_start >= 0
+@@ -134,10 +152,14 @@ def produce_patches(input_subfolder, output_subfolder, inverse_overlap_factor):
+ 
+                 patch = image[x_start:x_end, y_start:y_end, :]
+                 assert patch.shape == (config.patch_size, config.patch_size, 3)
+-                out_path = join(output_subfolder, file_no_extension(image_name)+"_"+str(x_start)+"_"+str(y_start)+".jpg")
+-
+-                if config.type_histopath:         # do you want to check for white space?
+-                    if is_purple(patch):         # if its purple (histopathology images)
++                out_path = join(
++                    output_subfolder,
++                    file_no_extension(image_name) + "_" + str(x_start) + "_" +
++                    str(y_start) + ".jpg")
++
++                if config.type_histopath:  # do you want to check for white space?
++                    if is_purple(
++                            patch):  # if its purple (histopathology images)
+                         imsave(out_path, patch)
+                         outputed_windows_per_subfolder += 1
+ 
+@@ -146,8 +168,11 @@ def produce_patches(input_subfolder, output_subfolder, inverse_overlap_factor):
+                     outputed_windows_per_subfolder += 1
+ 
+     total_time = time.time() - start_time
+-    print("finished patches from " + input_subfolder + " with inverse overlap factor " + str(inverse_overlap_factor) + " outputting in " + output_subfolder)
+-    print('total time : ', total_time, 'for', outputed_windows_per_subfolder, 'patches')
++    print("finished patches from " + input_subfolder +
++          " with inverse overlap factor " + str(inverse_overlap_factor) +
++          " outputting in " + output_subfolder)
++    print('total time : ', total_time, 'for', outputed_windows_per_subfolder,
++          'patches')
+ 
+ 
+ # use this function to generate all patches for subfolders in the training set
+@@ -156,7 +181,8 @@ def gen_train_patches(input_folder, output_folder, num_train_per_class):
+     # get the subfolders and how much patches should overlap for each
+     subfolders = get_subfolder_paths(input_folder)
+     print(len(subfolders), "subfolders found from", input_folder)
+-    subfolder_to_overlap_factor = get_subfolder_to_overlap(subfolders, num_train_per_class)
++    subfolder_to_overlap_factor = get_subfolder_to_overlap(
++        subfolders, num_train_per_class)
+     # print(subfolder_to_overlap_factor)
+ 
+     # produce the patches
+@@ -187,6 +213,7 @@ def gen_val_patches(input_folder, output_folder, overlap_factor):
+ #       BALANCING CLASS DISTRIBUTION      #
+ ###########################################
+ 
++
+ def duplicate_until_n(image_paths, n):
+ 
+     num_dupls = n - len(image_paths)
+@@ -197,7 +224,10 @@ def duplicate_until_n(image_paths, n):
+         this_round = int(i / len(image_paths)) + 2
+         idx = i % len(image_paths)
+         image_path = image_paths[idx]
+-        dupl_path = basefolder(image_path) + '/' + '_'.join(basename(image_path).split('_')[:-2]) + 'dup' + str(this_round) + '_' + '_'.join(basename(image_path).split('_')[-2:])
++        dupl_path = basefolder(image_path) + '/' + '_'.join(
++            basename(image_path).split('_')[:-2]) + 'dup' + str(
++                this_round) + '_' + '_'.join(
++                    basename(image_path).split('_')[-2:])
+         os.system(" ".join(['cp', image_path, dupl_path]))
+ 
+ 
+@@ -205,8 +235,14 @@ def duplicate_until_n(image_paths, n):
+ def balance_classes(training_folder):
+ 
+     subfolders = get_subfolder_paths(training_folder)
+-    subfolder_to_images = {subfolder: get_image_paths(subfolder) for subfolder in subfolders}
+-    subfolder_to_num_images = {subfolder: len(subfolder_to_images[subfolder]) for subfolder in subfolders}
++    subfolder_to_images = {
++        subfolder: get_image_paths(subfolder)
++        for subfolder in subfolders
++    }
++    subfolder_to_num_images = {
++        subfolder: len(subfolder_to_images[subfolder])
++        for subfolder in subfolders
++    }
+ 
+     # get class with the most images
+     biggest_size = max(subfolder_to_num_images.values())
+@@ -222,6 +258,7 @@ def balance_classes(training_folder):
+ #       GENERATING PATCHES BY FOLDER      #
+ ###########################################
+ 
++
+ def add_zeros(string):
+     while len(string) < 5:
+         string = "0" + string
+@@ -232,7 +269,9 @@ def add_zeros(string):
+ def gen_patches_by_folder(input_folder, output_folder, inverse_overlap_factor):
+ 
+     start_time = time.time()
+-    print('\n' + "getting small crops from " + input_folder + " with inverse overlap factor " + str(inverse_overlap_factor) + " outputting in " + output_folder)
++    print('\n' + "getting small crops from " + input_folder +
++          " with inverse overlap factor " + str(inverse_overlap_factor) +
++          " outputting in " + output_folder)
+     confirm_output_folder(output_folder)
+     image_paths = get_all_image_paths(input_folder)
+ 
+@@ -241,30 +280,38 @@ def gen_patches_by_folder(input_folder, output_folder, inverse_overlap_factor):
+ 
+         # load the image
+         image = cv2.imread(image_path)
+-        x_max = image.shape[0]         # width of image
+-        y_max = image.shape[1]         # height of image
++        x_max = image.shape[0]  # width of image
++        y_max = image.shape[1]  # height of image
+ 
+         if x_max < 224 or y_max < 224:
+             print(image_path, 'of size', x_max, 'by', y_max, "is too small")
+ 
+         else:
+             num_outputed_windows = 0
+-            x_steps = int((x_max-config.patch_size) / config.patch_size * inverse_overlap_factor)         # number of x starting points
+-            y_steps = int((y_max-config.patch_size) / config.patch_size * inverse_overlap_factor)         # number of y starting points
+-            step_size = int(config.patch_size / inverse_overlap_factor)                                 # step size, same for x and y
++            x_steps = int(
++                (x_max - config.patch_size) / config.patch_size *
++                inverse_overlap_factor)  # number of x starting points
++            y_steps = int(
++                (y_max - config.patch_size) / config.patch_size *
++                inverse_overlap_factor)  # number of y starting points
++            step_size = int(
++                config.patch_size /
++                inverse_overlap_factor)  # step size, same for x and y
+ 
+             # this is hacky due to the way patches are loaded into pytorch
+-            output_subsubfolder = join(output_folder, basename(image_path).split('.')[0])
+-            output_subsubfolder = join(output_subsubfolder, output_subsubfolder.split('/')[-1])
++            output_subsubfolder = join(output_folder,
++                                       basename(image_path).split('.')[0])
++            output_subsubfolder = join(output_subsubfolder,
++                                       output_subsubfolder.split('/')[-1])
+             confirm_output_folder(output_subsubfolder)
+ 
+             # slide the window
+-            for i in range(x_steps+1):
+-                for j in range(y_steps+1):
++            for i in range(x_steps + 1):
++                for j in range(y_steps + 1):
+ 
+-                    x_start = i*step_size
++                    x_start = i * step_size
+                     x_end = x_start + config.patch_size
+-                    y_start = j*step_size
++                    y_start = j * step_size
+                     y_end = y_start + config.patch_size
+ 
+                     assert x_start >= 0
+@@ -273,18 +320,26 @@ def gen_patches_by_folder(input_folder, output_folder, inverse_overlap_factor):
+                     assert y_end <= y_max
+ 
+                     patch = image[x_start:x_end, y_start:y_end, :]
+-                    assert patch.shape == (config.patch_size, config.patch_size, 3)
+-                    out_path = join(output_subsubfolder, add_zeros(str(x_start))+";"+add_zeros(str(y_start))+".jpg")
+-
+-                    if config.type_histopath:         # do you want to check for white space?
+-                        if is_purple(patch):         # if its purple (histopathology images)
++                    assert patch.shape == (config.patch_size,
++                                           config.patch_size, 3)
++                    out_path = join(
++                        output_subsubfolder,
++                        add_zeros(str(x_start)) + ";" +
++                        add_zeros(str(y_start)) + ".jpg")
++
++                    if config.type_histopath:  # do you want to check for white space?
++                        if is_purple(
++                                patch
++                        ):  # if its purple (histopathology images)
+                             imsave(out_path, patch)
+                             num_outputed_windows += 1
+                     else:
+                         imsave(out_path, patch)
+                         num_outputed_windows += 1
+ 
+-            print(image_path, ": num outputed windows:", num_outputed_windows)        # , "; percent whitespace:", str(whitespace_ratio)[:6])
++            print(image_path, ": num outputed windows:", num_outputed_windows
++                  )  # , "; percent whitespace:", str(whitespace_ratio)[:6])
+ 
+     total_time = time.time() - start_time
+-    print("finished generating patches from " + input_folder + " in " + str(total_time) + " seconds " + " outputting in " + output_folder)
++    print("finished generating patches from " + input_folder + " in " +
++          str(total_time) + " seconds " + " outputting in " + output_folder)

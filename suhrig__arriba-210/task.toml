@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/suhrig__arriba-210"
+description = "Fix case of -p option in documentation"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "arriba",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "suhrig/arriba"
+ref = "9bd0eba0c3cdc5081abe64ea05474c7a1f76d8cf"
+reference = "https://github.com/suhrig/arriba/pull/210"
+source_access = "auto"
+built_at = "2026-11-12T04:20:32.186548+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6eb2446378c3a650d08fd0f4f70bbe7cab05eaa3aa2f4c79b01fadd3be3e9b8c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-08-18T21:20:40Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfile",
+    "LICENSE",
+    "documentation/interpretation-of-results.md",
+    "documentation/quickstart.md",
+    "documentation/visualization.md",
+    "download_references.sh",
+    "source/options.hpp",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 40
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.836172+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:1368ad47097e1ae6e89691f2ed32b72651b38728819869cdcaea2080b56aad38"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

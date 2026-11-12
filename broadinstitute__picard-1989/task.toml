@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__picard-1989"
+description = "Optionally extract all fingerprint snps"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "picard",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/picard"
+ref = "5b17c4725f158ea9cd06e008d91b78b863a8f969"
+reference = "https://github.com/broadinstitute/picard/pull/1989"
+source_access = "auto"
+built_at = "2026-11-12T04:19:16.786517+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:582b93f53fae1ef87a60b7fbecaa560c05d1c30ff9d9857173defb78aabef0c0"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-19T16:47:47Z"
+diff_format = "unified"
+context_files = [
+    "src/main/java/picard/fingerprint/ExtractFingerprint.java",
+    "src/main/java/picard/fingerprint/FingerprintUtils.java",
+    "src/main/java/picard/fingerprint/Snp.java",
+    "src/test/java/picard/fingerprint/CheckFingerprintTest.java",
+    "src/test/java/picard/fingerprint/FingerprintCheckerTest.java",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 89
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.777878+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:cc027abb62c9aca0adfaf65a5213a8cc9a57ecb08d3d7d9d89f28a24cad4d15e"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

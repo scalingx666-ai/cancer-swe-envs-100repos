@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/neheller__kits19-68"
+description = "added option to sacrifice runtime to save ram when visualizing"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "kits19",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "neheller/kits19"
+ref = "ae9de5b21d566e1d1f9c72455a139500fa773447"
+reference = "https://github.com/neheller/kits19/pull/68"
+source_access = "auto"
+built_at = "2026-11-12T05:36:49.854076+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9d4074bb8ec420f513b4d561e4f100e0baa9b1fb9eda0b731019027b0d66789d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-10-23T16:43:24Z"
+diff_format = "unified"
+context_files = [
+    "requirements.txt",
+    "starter_code/visualize.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 203
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.808087+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:41bb10daf92327182f91f38f86e8784ac8a0b5165487193467829a9f27ec34b6"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

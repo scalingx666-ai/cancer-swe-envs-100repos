@@ -1,0 +1,415 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 2ae288f7..6d72fd2e 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,21 @@
+ # Changelog
+ 
++## 1.90.3
++
++Fixes #707.
++
++- Place supporting reads on an RNA sequence once instead of once per ORF
++  model. The new `AlleleReadTiling` records where each allele observation
++  lies on a candidate cDNA and where it disagrees with it, then answers
++  `interval_support` for any coding interval. `reconstruct_variant_orfs`
++  shares one tiling per RNA sequence and strand across its ORF models.
++  `coding_interval_support` remains as the single-interval form.
++- Results are unchanged and no RNA or model alternative is dropped or capped.
++  A read that mismatches the cDNA outside an interval still supports that
++  interval, as before. On a synthetic locus with 400 reads, 60 ORF models and
++  177 RNA alternatives, `reconstruct_variant_orfs` takes 7.5 s instead of 38 s
++  with byte-identical output.
++
+ ## 1.90.2
+ 
+ Fixes #690.
+diff --git a/isovar/__init__.py b/isovar/__init__.py
+index dc70ea73..bd3fca0c 100644
+--- a/isovar/__init__.py
++++ b/isovar/__init__.py
+@@ -10,7 +10,7 @@
+ # See the License for the specific language governing permissions and
+ # limitations under the License.
+ 
+-__version__ = "1.90.2"
++__version__ = "1.90.3"
+ 
+ 
+ from .allele_interpretations import reconcile_allele_interpretations
+diff --git a/isovar/coding_interval_support.py b/isovar/coding_interval_support.py
+index bdafd29b..0b81c40d 100644
+--- a/isovar/coding_interval_support.py
++++ b/isovar/coding_interval_support.py
+@@ -1,6 +1,9 @@
+ """Original RNA coverage of an explicitly positioned coding interval."""
+ 
+-from collections.abc import Callable, Hashable, Iterable, Sequence
++from bisect import bisect_left
++from collections import defaultdict
++from collections.abc import Callable, Iterable, Sequence
++from itertools import accumulate
+ from typing import TypedDict
+ 
+ from .allele_read import AlleleRead
+@@ -20,6 +23,129 @@ class CodingIntervalSupport(TypedDict):
+     paired_template_span_support: RNASupport
+ 
+ 
++def _union(spans):
++    """Merge half-open spans into sorted disjoint ones."""
++    merged = []
++    for start, end in sorted(spans):
++        if merged and start <= merged[-1][1]:
++            merged[-1][1] = max(merged[-1][1], end)
++        else:
++            merged.append([start, end])
++    return merged
++
++
++class AlleleReadTiling:
++    """Where allele observations lie on one candidate cDNA, and where they disagree with it.
++
++    Placing a read depends only on the cDNA, the focal allele offset and the
++    strand, so one tiling answers `interval_support` for every coding interval
++    of that cDNA without comparing the reads again.
++
++    Parameters
++    ----------
++    reads : iterable of AlleleRead
++        Original allele observations, possibly merged overlapping mates.
++    sequence : str
++        Candidate cDNA in transcript orientation.
++    variant_start : int
++        Zero-based start of the focal alternate allele in ``sequence``.
++    strand : str
++        Transcript strand relative to the observations' genomic orientation.
++
++    Attributes
++    ----------
++    sequence : str
++        The candidate cDNA.
++    variant_start : int
++        The focal allele offset.
++    """
++
++    def __init__(self, reads: Iterable[AlleleRead], sequence: str, variant_start: int, strand: str):
++        if strand not in ("+", "-"):
++            raise ValueError("Invalid strand")
++        if not 0 <= variant_start <= len(sequence):
++            raise ValueError("Invalid focal allele offset")
++        self.sequence, self.variant_start = sequence, variant_start
++        # (start, end, mismatched offsets, read) of each read overlapping the cDNA, in read order.
++        self._placements = []
++        fragments = defaultdict(list)
++        for read in reads:
++            observed, allele_start = read.sequence, len(read.prefix)
++            if strand == "-":
++                observed, allele_start = reverse_complement_dna(observed), len(read.suffix)
++            shift = variant_start - allele_start
++            start, end = max(0, shift), min(len(sequence), shift + len(observed))
++            if end <= start:
++                continue
++            mismatches = () if sequence[start:end] == observed[start - shift:end - shift] else tuple(
++                offset for offset in range(start, end) if sequence[offset] != observed[offset - shift])
++            placement = start, end, mismatches, read
++            self._placements.append(placement)
++            for fragment in fragment_ids([read]):
++                fragments[fragment].append(placement)
++        # A fragment whose reads all agree with the cDNA covers the same bases
++        # in every interval. One with a mismatched read is admitted per
++        # interval, because a mismatch outside the interval does not exclude it.
++        changes = [0] * (len(sequence) + 1)
++        self._conditional = []
++        for placements in fragments.values():
++            if any(mismatches for _, _, mismatches, _ in placements):
++                self._conditional.append(placements)
++                continue
++            for start, end in _union((start, end) for start, end, _, _ in placements):
++                changes[start] += 1
++                changes[end] -= 1
++        self._depth = list(accumulate(changes[:-1]))
++
++    def interval_support(self, interval: Sequence[int],
++                         support: Callable[[list[AlleleRead]], RNASupport]) -> CodingIntervalSupport:
++        """Measure the reads' exact coverage of one coding interval.
++
++        Parameters
++        ----------
++        interval : pair of int
++            Half-open coding interval, including an observed stop when requested.
++        support : callable
++            Converts a read collection to its scoped RNA support record.
++
++        Returns
++        -------
++        dict
++            Per-base fragment depth, exact full-interval allele-observation support
++            and its single-read and merged paired-template subsets. The latter
++            counts observations made from two overlapping mates, not unsequenced
++            inserts. Single-read spans exclude merged observations; they do not
++            recount the original mates hidden within a merged consensus. Different placements
++            and overlapping observations of a fragment count once at each base.
++        """
++        start, end = interval
++        if not 0 <= start <= end <= len(self.sequence):
++            raise ValueError("Invalid coding interval")
++
++        def clipped(placement):
++            """The placement's part of the interval, or None if absent or mismatched there."""
++            left, right = max(start, placement[0]), min(end, placement[1])
++            mismatches = placement[2]
++            if left < right and bisect_left(mismatches, left) == bisect_left(mismatches, right):
++                return left, right
++            return None
++
++        depths = self._depth[start:end]
++        for placements in self._conditional:
++            for left, right in _union(filter(None, map(clipped, placements))):
++                for offset in range(left, right):
++                    depths[offset - start] += 1
++        spanning = [placement[3] for placement in self._placements if clipped(placement) == (start, end)]
++        return dict(
++            scope="exact_observed_coding_interval",
++            coding_interval=[start, end], fragment_depth=depths,
++            minimum_fragment_depth=min(depths) if depths else 0,
++            fully_tiled=bool(depths) and all(depths),
++            allele_observation_span_support=support(spanning),
++            single_read_span_support=support([read for read in spanning if read.source_read_count == 1]),
++            paired_template_span_support=support([read for read in spanning if read.source_read_count == 2]))
++
++
+ def coding_interval_support(
+         reads: Iterable[AlleleRead], sequence: str, variant_start: int,
+         interval: Sequence[int], strand: str,
+@@ -44,45 +170,7 @@ def coding_interval_support(
+     Returns
+     -------
+     dict
+-        Per-base fragment depth, exact full-interval allele-observation support
+-        and its single-read and merged paired-template subsets. The latter
+-        counts observations made from two overlapping mates, not unsequenced
+-        inserts. Single-read spans exclude merged observations; they do not
+-        recount the original mates hidden within a merged consensus. Different placements
+-        and overlapping observations of a fragment count once at each base.
++        See `AlleleReadTiling.interval_support`, which several intervals of one
++        cDNA should share.
+     """
+-    start, end = interval
+-    if strand not in ("+", "-") or not 0 <= start <= end <= len(sequence):
+-        raise ValueError("Invalid coding interval or strand")
+-    if not 0 <= variant_start <= len(sequence):
+-        raise ValueError("Invalid focal allele offset")
+-    covered: list[set[Hashable]] = [set() for _ in range(end - start)]
+-    spanning, single, paired = [], [], []
+-    for read in reads:
+-        observed = read.sequence
+-        allele_start = len(read.prefix)
+-        if strand == "-":
+-            observed = reverse_complement_dna(observed)
+-            allele_start = len(read.suffix)
+-        shift = variant_start - allele_start
+-        left, right = max(start, shift), min(end, shift + len(observed))
+-        if right <= left or sequence[left:right] != observed[left - shift:right - shift]:
+-            continue
+-        identities = fragment_ids([read])
+-        for position in range(left, right):
+-            covered[position - start].update(identities)
+-        if left == start and right == end:
+-            spanning.append(read)
+-            if read.source_read_count == 1:
+-                single.append(read)
+-            elif read.source_read_count == 2:
+-                paired.append(read)
+-    depths = [len(ids) for ids in covered]
+-    return dict(
+-        scope="exact_observed_coding_interval",
+-        coding_interval=[start, end], fragment_depth=depths,
+-        minimum_fragment_depth=min(depths) if depths else 0,
+-        fully_tiled=bool(depths) and all(depths),
+-        allele_observation_span_support=support(spanning),
+-        single_read_span_support=support(single),
+-        paired_template_span_support=support(paired))
++    return AlleleReadTiling(reads, sequence, variant_start, strand).interval_support(interval, support)
+diff --git a/isovar/variant_rna_orfs.py b/isovar/variant_rna_orfs.py
+index 0a15db20..ed6e2c87 100644
+--- a/isovar/variant_rna_orfs.py
++++ b/isovar/variant_rna_orfs.py
+@@ -12,7 +12,7 @@
+ 
+ from .dna import reverse_complement_dna
+ from .contig_resolution import resolve_reference_contig, variant_reference_name, variant_source_contig
+-from .coding_interval_support import coding_interval_support
++from .coding_interval_support import AlleleReadTiling
+ from .genetic_code import genetic_code_by_id, translate_cdna
+ from .protein_sequence_creator import ProteinSequenceCreator
+ from .protein_window_comparison import compare_protein_windows, reference_window_stop
+@@ -120,15 +120,15 @@ def _translate(sequence, table, starts_at_reference_start):
+     return amino, stop
+ 
+ 
+-def _interval_support(sequence, start, end, reverse, evidence):
+-    """Exact single-read spans and fragment tiling are separate measurements."""
+-    oriented = reverse_complement_dna(sequence.sequence) if reverse else sequence.sequence
+-    return coding_interval_support(
+-        sequence.reads, oriented, len(sequence.suffix) if reverse else len(sequence.prefix),
+-        (start, end), '-' if reverse else '+', evidence.support)
++def _tiling(sequence, strand):
++    """Place an assembled sequence's reads on its transcript-oriented cDNA."""
++    if strand == '-':
++        return AlleleReadTiling(sequence.reads, reverse_complement_dna(sequence.sequence),
++                                len(sequence.suffix), strand)
++    return AlleleReadTiling(sequence.reads, sequence.sequence, len(sequence.prefix), strand)
+ 
+ 
+-def _candidate(sequence, context, locus, reference, model_id, rna_id, evidence, creator):
++def _candidate(sequence, tiling, context, locus, reference, model_id, rna_id, evidence, creator):
+     framed = match_variant_sequence_to_reference_context(
+         sequence, context, creator.min_transcript_prefix_length,
+         creator.max_transcript_mismatches, creator.count_mismatches_after_variant)
+@@ -172,14 +172,12 @@ def _candidate(sequence, context, locus, reference, model_id, rna_id, evidence,
+         reference_window, protein, (mutation_start, mutation_end), reference_stop=reference_stop, **comparison_options)
+     focal_comparison = compare_protein_windows(
+         counter_protein, protein, (mutation_start, mutation_end), reference_stop=counter_stop, **comparison_options)
+-    oriented = reverse_complement_dna(sequence.sequence) if reference.strand == '-' else sequence.sequence
+-    oriented_prefix = len(sequence.suffix) if reference.strand == '-' else len(sequence.prefix)
+-    shift = oriented_prefix - begin
+-    if oriented[shift:shift + len(cdna)] != cdna:
++    shift = tiling.variant_start - begin
++    if tiling.sequence[shift:shift + len(cdna)] != cdna:
+         raise ValueError('Framed RNA does not map back to the original assembly')
+     coding_end = offset + 3 * (len(protein) + int(stop))
+-    support = _interval_support(sequence, shift + offset, shift + coding_end,
+-                                reference.strand == '-', evidence)
++    # Exact single-read spans and fragment tiling are separate measurements.
++    support = tiling.interval_support((shift + offset, shift + coding_end), evidence.support)
+     return dict(
+         candidate_id=content_identifier('orf_candidate', [model_id, rna_id, cdna, offset, table, protein]),
+         model_id=model_id, rna_candidate_id=rna_id, orf_id=reference.orf_id,
+@@ -272,6 +270,7 @@ def reconstruct_variant_orfs(variant, read_evidence, reference_orfs, *, sample_i
+     models, candidates = [], []
+     size = max(creator._cdna_sequence_length, creator.min_transcript_prefix_length)
+     seen_models = set()
++    tilings = {}  # the reads of an RNA sequence are placed once per strand, not once per ORF model
+     for reference in references:
+         model = reference.to_dict()
+         model_id = content_identifier('orf_model', model)
+@@ -284,7 +283,10 @@ def reconstruct_variant_orfs(variant, read_evidence, reference_orfs, *, sample_i
+         accepted = []
+         if context is not None:
+             for sequence in matching_sequences:
+-                candidate = _candidate(sequence, context, locus, reference, model_id,
++                key = id(sequence), reference.strand
++                if key not in tilings:
++                    tilings[key] = _tiling(sequence, reference.strand)
++                candidate = _candidate(sequence, tilings[key], context, locus, reference, model_id,
+                                        sequence_ids[id(sequence)], evidence, creator)
+                 if candidate is not None:
+                     accepted.append(candidate)
+diff --git a/tests/test_coding_interval_support.py b/tests/test_coding_interval_support.py
+index dbb293eb..195d4ff2 100644
+--- a/tests/test_coding_interval_support.py
++++ b/tests/test_coding_interval_support.py
+@@ -3,7 +3,7 @@
+ import pytest
+ 
+ from isovar.allele_read import AlleleRead
+-from isovar.coding_interval_support import coding_interval_support
++from isovar.coding_interval_support import AlleleReadTiling, coding_interval_support
+ from isovar.dna import reverse_complement_dna
+ from isovar.rna_evidence import EvidenceSets
+ 
+@@ -44,3 +44,59 @@ def test_single_and_merged_subsets_can_share_a_fragment():
+     result = coding_interval_support([one, pair], "ATGCAAG", 3, (0, 7), "+", EvidenceSets(["s", "r"]).support)
+     assert result["allele_observation_span_support"]["fragments"] == 1
+     assert result["single_read_span_support"]["fragments"] == result["paired_template_span_support"]["fragments"] == 1
++
++
++def test_mismatch_excludes_a_read_only_from_intervals_that_contain_it():
++    target = "ATGCAAGGCTAA"
++    clean = AlleleRead("ATG", "C", "AA", "template")
++    mismatched = AlleleRead("ATG", "C", "AAGGCTAC", "template")  # disagrees at the last base
++    other = AlleleRead("ATG", "C", "AAGGCTAC", "other")
++    tiling = AlleleReadTiling([clean, mismatched, other], target, 3, "+")
++    support = EvidenceSets(["s", "r"]).support
++    inside = tiling.interval_support((0, 9), support)
++    assert inside["fragment_depth"] == [2] * 9
++    assert inside["allele_observation_span_support"]["reads"] == 2
++    whole = tiling.interval_support((0, 12), support)
++    assert whole["fragment_depth"] == [1] * 6 + [0] * 6
++    assert whole["allele_observation_span_support"]["reads"] == 0
++    assert not whole["fully_tiled"]
++
++
++def _depths_by_definition(observations, target, variant_start, start, end):
++    """Fragments with a read that covers a base and agrees with the target inside the interval."""
++    covering = [set() for _ in range(start, end)]
++    for name, prefix, allele, suffix, _ in observations:
++        text, first = prefix + allele + suffix, variant_start - len(prefix)
++        inside = [offset for offset in range(start, end) if first <= offset < first + len(text)]
++        if all(text[offset - first] == target[offset] for offset in inside):
++            for offset in inside:
++                covering[offset - start].add(name)
++    return [len(names) for names in covering]
++
++
++@pytest.mark.parametrize("strand", ["+", "-"])
++def test_one_tiling_answers_every_interval_like_a_fresh_measurement(strand):
++    target = "ATGCAAGGCTAA"
++    observations = [("a", "ATG", "C", "AAGGCTAA", 1), ("a", "G", "C", "AAGTC", 2), ("b", "TG", "C", "AAGGC", 1),
++                    ("c", "", "C", "AAGGCTAAGG", 1), ("b", "TTATG", "C", "A", 2), ("legacy", "ATG", "C", "TAG", 1)]
++    reads = []
++    for index, (name, prefix, allele, suffix, count) in enumerate(observations):
++        if strand == "-":
++            prefix, allele, suffix = map(reverse_complement_dna, (suffix, allele, prefix))
++        alignments = () if name == "legacy" else [(("group", name, 0), (0, index, "8M", False))]
++        reads.append(AlleleRead(prefix, allele, suffix, name, source_read_count=count, source_alignments=alignments))
++    tiling = AlleleReadTiling(reads, target, 3, strand)
++    for start in range(len(target) + 1):
++        for end in range(start, len(target) + 1):
++            shared, fresh = EvidenceSets(["s", "r"]), EvidenceSets(["s", "r"])
++            result = tiling.interval_support((start, end), shared.support)
++            assert result == coding_interval_support(reads, target, 3, (start, end), strand, fresh.support)
++            assert result["fragment_depth"] == _depths_by_definition(observations, target, 3, start, end)
++
++
++@pytest.mark.parametrize("arguments", [("ATGC", 5, "+"), ("ATGC", 1, "?")])
++def test_invalid_tiling_is_rejected(arguments):
++    with pytest.raises(ValueError):
++        AlleleReadTiling([], *arguments)
++    with pytest.raises(ValueError):
++        AlleleReadTiling([], "ATGC", 1, "+").interval_support((3, 2), EvidenceSets(["s", "r"]).support)
+diff --git a/tests/test_variant_rna_orfs.py b/tests/test_variant_rna_orfs.py
+index 340aa232..9bff9b8e 100644
+--- a/tests/test_variant_rna_orfs.py
++++ b/tests/test_variant_rna_orfs.py
+@@ -256,3 +256,29 @@ def test_colo829_dynll2_original_rna_separates_merged_and_single_read_spans():
+     assert candidate['coding_support']['minimum_fragment_depth'] == 24
+     assert candidate['sequence_extent'] == 'partial_coding_candidate'
+     assert not candidate['translation_observed']
++
++
++def test_coding_models_share_one_placement_of_each_rna_sequence(noncoding_rna, monkeypatch):
++    """Support is per model, but placing the reads on an RNA sequence is not (#707)."""
++    from isovar import variant_rna_orfs
++
++    built = []
++
++    class CountedTiling(variant_rna_orfs.AlleleReadTiling):
++        def __init__(self, *args):
++            built.append(args)
++            super().__init__(*args)
++
++    monkeypatch.setattr(variant_rna_orfs, 'AlleleReadTiling', CountedTiling)
++    _, reference, observations = noncoding_rna
++    variant, evidence = observations(split=True)
++    models = [replace(reference.record, orf_id=f'orf{i}').bind(reference.transcript) for i in range(4)]
++    alone = assess(variant, evidence, models[:1])
++    per_model = len(built)
++    assert per_model == len(alone['rna_candidates']) > 0
++    del built[:]
++    together = assess(variant, evidence, models)
++    assert len(built) == per_model
++    assert len(together['protein_candidates']) == 4 * len(alone['protein_candidates'])
++    supports = {json.dumps(p['coding_support'], sort_keys=True) for p in together['protein_candidates']}
++    assert supports == {json.dumps(p['coding_support'], sort_keys=True) for p in alone['protein_candidates']}

@@ -1,0 +1,100 @@
+diff --git a/.travis.yml b/.travis.yml
+index 7e39338..4b271a4 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -6,7 +6,7 @@ notifications:
+ language: python
+ 
+ python:
+-  - "3.7"
++  - "3.5"
+ 
+ before_install:
+     - wget http://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh
+diff --git a/pyGeno/configuration.py b/pyGeno/configuration.py
+index 8bf7d9e..586c375 100644
+--- a/pyGeno/configuration.py
++++ b/pyGeno/configuration.py
+@@ -34,9 +34,9 @@ def prettyVersion() :
+ 	return "pyGeno %s Branch: %s, Name: %s, Release Level: %s, Version: %s, Build time: %s" % version()
+ 
+ def checkPythonVersion() :
+-	"""pyGeno needs python 2.7+"""
++	"""pyGeno needs python 3.5+"""
+ 	
+-	if sys.version_info[0] < 2 or (sys.version_info[0] > 2  and sys.version_info[1] < 7) :
++	if sys.version_info[0] < 3 or (sys.version_info[0] > 3  and sys.version_info[1] < 5) :
+ 		return False
+ 	return True
+ 
+@@ -83,7 +83,7 @@ def pyGeno_init() :
+ 	global pyGeno_DATA_PATH
+ 	
+ 	if not checkPythonVersion() :
+-		raise PythonVersionError("==> FATAL: pyGeno only works with python 2.7 and above, please upgrade your python version")
++		raise PythonVersionError("==> FATAL: pyGeno only works with python 3.5 and above, please upgrade your python version")
+ 
+ 	if not os.path.exists(pyGeno_SETTINGS_DIR) :
+ 		os.makedirs(pyGeno_SETTINGS_DIR)
+diff --git a/pyGeno/doc/source/index.rst b/pyGeno/doc/source/index.rst
+index 5dd9de8..12eaf35 100644
+--- a/pyGeno/doc/source/index.rst
++++ b/pyGeno/doc/source/index.rst
+@@ -13,7 +13,7 @@ pyGeno: A Python package for precision medicine and proteogenomics
+    :target: http://depsy.org/package/python/pyGeno
+ .. image:: https://img.shields.io/badge/License-Apache%202.0-blue.svg
+     :target: https://opensource.org/licenses/Apache-2.0
+-.. image:: https://img.shields.io/badge/python-2.7-blue.svg 
++.. image:: https://img.shields.io/badge/python-3.5-blue.svg 
+ 
+ pyGeno's `lair is on Github`_.
+ 
+diff --git a/pyGeno/doc/source/installation.rst b/pyGeno/doc/source/installation.rst
+index bafbf9e..9dac82d 100644
+--- a/pyGeno/doc/source/installation.rst
++++ b/pyGeno/doc/source/installation.rst
+@@ -25,7 +25,7 @@ If you're more adventurous, the bleeding edge version is available from github (
+ Windows
+ -------
+ 
+-* Goto: https://www.python.org/downloads/ and download the installer for the lastest version of python 2.7
++* Goto: https://www.python.org/downloads/ and download the installer for the lastest version of python 3.5
+ * Double click on the installer to begin installation
+ * Click on the windows start menu
+ * Type *"cmd"* and click on it to launch the command line interface
+@@ -34,7 +34,7 @@ Windows
+ 	 cd C:\Python27\Scripts
+ 
+ * Now type: pip install pyGeno
+-* Now click on the windows start menu. In the python 2.7 menu you can either launch *Python (Command line)* or *IDLE (Python GUI)*
++* Now click on the windows start menu. In the python 3.5 menu you can either launch *Python (Command line)* or *IDLE (Python GUI)*
+ * You can now go to: http://pygeno.iric.ca/quickstart.html and type the commands into either one of them
+ 
+ **UPGRADE:** to upgrade pyGeno to the latest version, launch *cmd* and type::
+diff --git a/pyGeno/doc/source/quickstart.rst b/pyGeno/doc/source/quickstart.rst
+index 5833be3..06c0c70 100644
+--- a/pyGeno/doc/source/quickstart.rst
++++ b/pyGeno/doc/source/quickstart.rst
+@@ -28,7 +28,9 @@ pyGeno comes with a few datawraps, to get the list you can use:
+ 	       |~~~:> Human.GRCh37.75.tar.gz
+ 	       |~~~:> Human.GRCh37.75_Y-Only.tar.gz
+ 	       |~~~:> Human.GRCh38.78.tar.gz
++	       |~~~:> Human.GRCh38.98.tar.gz
+ 	       |~~~:> Mouse.GRCm38.78.tar.gz
++	       |~~~:> Mouse.GRCm38.98.tar.gz
+ 
+ To get a list of remote datawraps that pyGeno can download for you, do:
+ 
+diff --git a/setup.py b/setup.py
+index 6995031..d743a44 100644
+--- a/setup.py
++++ b/setup.py
+@@ -41,7 +41,7 @@
+ 
+         'License :: OSI Approved :: Apache Software License',
+ 
+-        'Programming Language :: Python :: 3.7',
++        'Programming Language :: Python :: 3.5',
+     ],
+ 
+     keywords='proteogenomics genomics proteomics annotations medicine research personalized gene sequence protein',

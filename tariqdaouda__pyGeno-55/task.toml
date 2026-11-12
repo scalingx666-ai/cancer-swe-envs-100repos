@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/tariqdaouda__pyGeno-55"
+description = "Make 3.5 the official python version"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "pyGeno",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "tariqdaouda/pyGeno"
+ref = "ca4647a997f64a813354e2b34584d3e52c0f0f57"
+reference = "https://github.com/tariqdaouda/pyGeno/pull/55"
+source_access = "auto"
+built_at = "2026-11-12T05:37:26.966198+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1f92c6909f364e09e62ed5f8994c73b47cb71b7d86100b9e7acf5f91266b820a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2020-04-02T04:56:22Z"
+diff_format = "unified"
+context_files = [
+    ".travis.yml",
+    "pyGeno/configuration.py",
+    "pyGeno/doc/source/index.rst",
+    "pyGeno/doc/source/installation.rst",
+    "pyGeno/doc/source/quickstart.rst",
+    "setup.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 18
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.836614+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:a9acd6d488dfdf5ad42b9b57fd1fff60a86ddc293610a2c5dc5d269162a3a85e"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

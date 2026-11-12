@@ -1,0 +1,78 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__gatk-9474"
+description = "master merge 2026-11-05 [VS-2057]"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gatk",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/gatk"
+ref = "78cfb052975db18794c3a4abb924fe1bca34931c"
+reference = "https://github.com/broadinstitute/gatk/pull/9474"
+source_access = "auto"
+built_at = "2026-11-12T04:16:45.041000+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b6e53e4c33ced483416344cdce7c5e7ae4e96f2f58ad3629528f9e88b9675cbb"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-10T17:38:35Z"
+diff_format = "unified"
+context_files = [
+    "scripts/m2_cromwell_tests/run_m2_wdl.sh",
+    "scripts/variantstore/wdl/GvsUtils.wdl",
+    "src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/AltSiteRecord.java",
+    "src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollector.java",
+    "src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModel.java",
+    "src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngine.java",
+    "src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/CollectF1R2CountsIntegrationTest.java",
+    "src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollectorUnitTest.java",
+    "src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngineUnitTest.java",
+    "src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelIntegrationTest.java",
+    "src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelUnitTest.java",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 498
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.776465+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:35fbaae02e463346fb37e6e460fde859fa5f7a2bc1f4ee0d2018544f769b1467"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

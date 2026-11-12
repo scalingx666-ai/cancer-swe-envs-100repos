@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/HKU-BAL__Clair3-483"
+description = "Release/v2.0.5"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "Clair3",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "HKU-BAL/Clair3"
+ref = "9d1dd3f2475072b6255900e406c34c6b0545fc88"
+reference = "https://github.com/HKU-BAL/Clair3/pull/483"
+source_access = "auto"
+built_at = "2026-11-12T05:37:10.478414+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c6140a2629e2f8cce9446562182e23644cdfc704d4670e1baa29a302c44e6dff"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-28T02:31:57Z"
+diff_format = "unified"
+context_files = [
+    ".dockerignore",
+    "README.md",
+    "docs/quick_demo/illumina_quick_demo.md",
+    "docs/quick_demo/ont_quick_demo.md",
+    "docs/quick_demo/pacbio_hifi_quick_demo.md",
+    "scripts/clair3_hifi_quick_demo.sh",
+    "scripts/clair3_ilmn_quick_demo.sh",
+    "scripts/clair3_ont_quick_demo.sh",
+    "shared/version.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 108
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.743991+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:c6e707fe55aedd7d77de0b650bd5e20ba5888efe4b85890f149e836d2e553b53"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

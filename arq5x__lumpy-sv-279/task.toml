@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/arq5x__lumpy-sv-279"
+description = "Only include paired-end sequencing reads in discordants file"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lumpy-sv",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "arq5x/lumpy-sv"
+ref = "178d7a6745d2ed01c2789e5ff1d2b072ed3587dd"
+reference = "https://github.com/arq5x/lumpy-sv/pull/279"
+source_access = "auto"
+built_at = "2026-11-12T05:37:24.794149+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:342db15c66193b694afd5ad178a86ce68221bea4269f283f81fa2d7394428251"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2018-11-27T15:53:22Z"
+diff_format = "unified"
+context_files = [
+    "src/filter/filter.c",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 130
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.761429+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:75061408dcf147de85a62b302d461b480a4753ddea8a5c83949cf8f22b9549bb"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

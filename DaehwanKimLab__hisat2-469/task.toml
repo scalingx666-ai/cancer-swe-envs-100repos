@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/DaehwanKimLab__hisat2-469"
+description = "Native ARM/aarch64 build support (NEON via sse2neon)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "hisat2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "DaehwanKimLab/hisat2"
+ref = "99583d7536b9ee017ac07de8834017a3bf99a2fe"
+reference = "https://github.com/DaehwanKimLab/hisat2/pull/469"
+source_access = "auto"
+built_at = "2026-11-12T05:36:42.071048+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ae5ab430660180ce14b006d714362faefefc939b099ab2a1900b32ef2b93e23b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-07-31T02:26:00Z"
+diff_format = "unified"
+context_files = [
+    "CMakeLists.txt",
+    "Makefile",
+    "aligner_sw.h",
+    "processor_support.h",
+    "sse_util.h",
+    "third_party/README.md",
+    "third_party/sse2neon.h",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 11331
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.740709+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:7abcf625dbd2f7d6bd0b44b712f796e18f283b1dfc1100c36b5d96a602e56302"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

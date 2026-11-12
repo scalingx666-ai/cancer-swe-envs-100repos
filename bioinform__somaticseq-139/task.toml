@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/bioinform__somaticseq-139"
+description = "Use pybedtools"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "somaticseq",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "bioinform/somaticseq"
+ref = "29e56c142eab50d30e0251a95074403383cea6e2"
+reference = "https://github.com/bioinform/somaticseq/pull/139"
+source_access = "auto"
+built_at = "2026-11-12T05:38:01.764170+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4caf5071215b7b26bfb6838e5f70a59036731edb20f728c582188d6cd8eb5934"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-03-18T21:32:34Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfiles/somaticseq.base-1.7.dockerfile",
+    "pyproject.toml",
+    "setup.py",
+    "somaticseq/_version.py",
+    "somaticseq/genomic_file_parsers/genomic_file_handlers.py",
+    "somaticseq/vcf_modifier/bed_util.py",
+    "tests/unit/vcf_modifier/test_bed_utils.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 252
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.763788+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:261468866a89111689a40953147a103fa9ea28d1f1804ca8ed8f83044f2d7dfc"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

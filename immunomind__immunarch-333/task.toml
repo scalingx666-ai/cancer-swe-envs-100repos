@@ -1,0 +1,83 @@
+version = "1.0"
+
+[task]
+name = "default/immunomind__immunarch-333"
+description = "Immunarch 0.9.0 release"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "immunarch",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "immunomind/immunarch"
+ref = "bc90fed75a32c5ea007d85c632138a411710ba23"
+reference = "https://github.com/immunomind/immunarch/pull/333"
+source_access = "auto"
+built_at = "2026-11-12T05:55:52.695132+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:afebf953672686bc4a047cdac0b84273b152c2393213c7cf6755c24c7eed3666"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-12-16T12:29:34Z"
+diff_format = "unified"
+context_files = [
+    "DESCRIPTION",
+    "NAMESPACE",
+    "R/align_lineage.R",
+    "R/diversity.R",
+    "R/io-parsers.R",
+    "R/io-utility.R",
+    "R/io.R",
+    "R/phylip.R",
+    "R/tools.R",
+    "man/repClonalFamily.Rd",
+    "man/repLoad.Rd",
+    "tests/testthat/test-align-lineage.R",
+    "tests/testthat/test-clonal-family.R",
+    "tests/testthat/test-germline.R",
+    "tests/testthat/test-somatic-hypermutation.R",
+    "vignettes/web_only/BCRpipeline.Rmd",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 584
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.796942+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:1ae482d37335e758b2c02cb125c3a61ad5a71fdf861919e1334ecea4974cdc5b"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

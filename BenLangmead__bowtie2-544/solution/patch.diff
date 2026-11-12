@@ -1,0 +1,919 @@
+diff --git a/aligner_bt.h b/aligner_bt.h
+index 8056b7ab..e35c699e 100644
+--- a/aligner_bt.h
++++ b/aligner_bt.h
+@@ -546,7 +546,8 @@ class BtBranchTracer {
+ public:
+ 
+ 	explicit BtBranchTracer() :
+-		prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT), doTri_() { }
++		prob_(), bs_(), seenPaths_(DP_CAT), sawcell_(DP_CAT), doTri_(),
++		resetPending_(false), resetNdiag_(0), resetRflen_(0) { }
+ 
+ 	/**
+ 	 * Add a branch to the queue.
+@@ -642,7 +643,10 @@ class BtBranchTracer {
+ 	
+ 	/**
+ 	 * Initialize the tracer with respect to a new read.  This involves
+-	 * resetting all the state relating to the set of cells already visited
++	 * resetting all the state relating to the set of cells already visited.
++	 * The reset itself is deferred to the next initBt(), since most
++	 * reference windows are never backtraced with this tracer;
++	 * seenPaths_ and sawcell_ are read only from initBt() on.
+ 	 */
+ 	void initRef(
+ 		const char*         rd,     // in: read sequence
+@@ -660,7 +664,22 @@ class BtBranchTracer {
+ 		size_t              nceil)  // in: N ceiling
+ 	{
+ 		prob_.initRef(rd, qu, rdlen, rf, rflen, trflen, refid, refoff, fw, rect, cper, &sc, nceil);
+-		const size_t ndiag = rflen + rdlen - 1;
++		resetNdiag_ = rflen + rdlen - 1;
++		// An eager reset clears every per-column set below the largest rflen
++		// seen since the last backtrace, so keep the largest.
++		if(!resetPending_ || rflen > resetRflen_) {
++			resetRflen_ = rflen;
++		}
++		resetPending_ = true;
++	}
++
++	/**
++	 * Perform the reset of seenPaths_ and sawcell_ that the last initRef()
++	 * (and any initRef() calls before it since the last initBt()) deferred.
++	 */
++	void resetSeen() {
++		const size_t ndiag = resetNdiag_;
++		const size_t rflen = resetRflen_;
+ 		seenPaths_.resize(ndiag);
+ 		for(size_t i = 0; i < ndiag; i++) {
+ 			seenPaths_[i].clear();
+@@ -677,6 +696,7 @@ class BtBranchTracer {
+ 			sawcell_[i].setCat(DP_CAT);
+ 			sawcell_[i].clear(); // clear the set
+ 		}
++		resetPending_ = false;
+ 	}
+ 	
+ 	/**
+@@ -691,6 +711,9 @@ class BtBranchTracer {
+ 		bool           doTri,  // in: triangle-shaped mini-fills?
+ 		RandomSource&  rnd)    // in: random gen, to choose among equal paths
+ 	{
++		if(resetPending_) {
++			resetSeen();
++		}
+ 		prob_.initBt(row, col, fill, usecp, escore);
+ 		Edit e; e.reset();
+ 		unsorted_.clear();
+@@ -939,6 +962,10 @@ class BtBranchTracer {
+ 	ELList<CpQuad> tri_;        // triangle to fill when doing mini-fills
+ 	EList<size_t>  ndep_;       // # triangles mini-filled at various depths
+ 
++	bool           resetPending_; // seenPaths_/sawcell_ reset owed by initRef
++	size_t         resetNdiag_;   // # diagonals of the last initRef's window
++	size_t         resetRflen_;   // largest rflen since the last reset
++
+ #ifndef NDEBUG
+ 	ESet<size_t>  seen_;        // seedn branch ids; should never see same twice
+ #endif
+diff --git a/aligner_result.cpp b/aligner_result.cpp
+index 6697b97c..2c1a2ade 100644
+--- a/aligner_result.cpp
++++ b/aligner_result.cpp
+@@ -924,53 +924,162 @@ void AlnRes::printQuals(
+ }
+ 
+ /**
+- * Add all of the cells involved in the given alignment to the database.
++ * Append the runs of res's cells to runs and set a's key and bounds.  Returns
++ * false iff res covers no rows.
++ *
++ * The cells are the ones the per-cell walk this replaces visits: row i, from
++ * the first row not soft-trimmed on the left for readExtentRows() rows, covers
++ * columns [left, right).  right is left + 1 plus the number of read gaps among
++ * the edits at pos i+1 that directly follow the edits consumed so far (none on
++ * the last row); the next row's left is right, or right - 1 if an edit at pos
++ * i is a reference gap.  Edits are consumed in list order, those at pos i while
++ * on row i.  So a row before the next edit's pos - 1, and every row once the
++ * next edit's pos is behind the current row, covers one cell one column right
++ * of the row above's: those rows are emitted in bulk, and the rows next to an
++ * edit run the per-cell walk's code unchanged.
+  */
+-void RedundantAlns::add(const AlnRes& res) {
+-	assert(!cells_.empty());
+-	TRefOff left = res.refoff(), right;
++bool RedundantAlns::makeRuns(const AlnRes& res, EList<Run>& runs, Aln& a) {
+ 	const size_t len = res.readExtentRows();
++	if(len == 0) {
++		return false;
++	}
++	TRefOff left = res.refoff(), right;
+ 	const size_t alignmentStart = res.trimmedLeft(true);
+-	if(!res.fw()) {
++	const size_t end = alignmentStart + len;
++	const bool fw = res.fw();
++	if(!fw) {
+ 		const_cast<AlnRes&>(res).invertEdits();
+ 	}
+ 	const EList<Edit>& ned = res.ned();
++	const size_t nned = ned.size();
+ 	size_t nedidx = 0;
+-	assert_leq(len, cells_.size());
+-	// For each row...
+-	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
+-		size_t diff = 1;  // amount to shift to right for next round
+-		right = left + 1;
+-		while(nedidx < ned.size() && ned[nedidx].pos == i) {
+-			if(ned[nedidx].isRefGap()) {
+-				// Next my_left will be in same column as this round
+-				diff = 0;
++	Run cur;
++	cur.dlo = cur.dhi = 0;
++	cur.r0 = cur.r1 = 0;
++	bool open = false;
++	int64_t dmin = 0, dmax = 0;
++	a.run0 = runs.size();
++	size_t i = alignmentStart;
++	while(i < end) {
++		// Rows [i, stop) cover one cell each, on the diagonal of left at row i
++		size_t stop = end;
++		if(nedidx < nned) {
++			size_t pos = ned[nedidx].pos;
++			if(pos >= i) {
++				stop = (pos > i) ? pos - 1 : i;
++				if(stop > end) {
++					stop = end;
++				}
+ 			}
+-			nedidx++;
+ 		}
+-		if(i < alignmentStart + len - 1) {
+-			// See how many inserts there are before the next read
+-			// character
+-			size_t nedidx_next = nedidx;
+-			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
+-			{
+-				if(ned[nedidx_next].isReadGap()) {
+-					right++;
++		int64_t dlo, dhi;
++		size_t rfirst = i, rlast;
++		if(stop > i) {
++			dlo = (int64_t)left - (int64_t)i;
++			dhi = dlo + 1;
++			rlast = stop - 1;
++			left += (TRefOff)(stop - i);
++			i = stop;
++		} else {
++			size_t diff = 1;  // amount to shift to right for next round
++			right = left + 1;
++			while(nedidx < nned && ned[nedidx].pos == i) {
++				if(ned[nedidx].isRefGap()) {
++					// Next my_left will be in same column as this round
++					diff = 0;
++				}
++				nedidx++;
++			}
++			if(i < end - 1) {
++				// See how many inserts there are before the next read
++				// character
++				size_t nedidx_next = nedidx;
++				while(nedidx_next < nned && ned[nedidx_next].pos == i+1)
++				{
++					if(ned[nedidx_next].isReadGap()) {
++						right++;
++					}
++					nedidx_next++;
+ 				}
+-				nedidx_next++;
+ 			}
++			dlo = (int64_t)left - (int64_t)i;
++			dhi = (int64_t)right - (int64_t)i;
++			rlast = i;
++			left = right + diff - 1;
++			i++;
+ 		}
+-		for(TRefOff j = left; j < right; j++) {
+-			// Add to db
+-			RedundantCell c(res.refid(), res.fw(), j, i);
+-			ASSERT_ONLY(bool ret =) cells_[i].insert(c);
+-			assert(ret);
++		if(open && dlo == cur.dlo && dhi == cur.dhi) {
++			cur.r1 = rlast; // rows are consecutive: extend the open run
++			continue;
+ 		}
+-		left = right + diff - 1;
+-	}
+-	if(!res.fw()) {
++		if(open) {
++			runs.push_back(cur);
++			if(cur.dlo < dmin) dmin = cur.dlo;
++			if(cur.dhi > dmax) dmax = cur.dhi;
++		} else {
++			dmin = dlo;
++			dmax = dhi;
++		}
++		cur.dlo = dlo;
++		cur.dhi = dhi;
++		cur.r0 = rfirst;
++		cur.r1 = rlast;
++		open = true;
++	}
++	runs.push_back(cur);
++	if(cur.dlo < dmin) dmin = cur.dlo;
++	if(cur.dhi > dmax) dmax = cur.dhi;
++	if(!fw) {
+ 		const_cast<AlnRes&>(res).invertEdits();
+ 	}
++	a.rfid = res.refid();
++	a.fw = fw;
++	a.dlo = dmin;
++	a.dhi = dmax;
++	a.r0 = alignmentStart;
++	a.r1 = end - 1;
++	a.nrun = runs.size() - a.run0;
++	return true;
++}
++
++/**
++ * Return true iff the two run lists, each in ascending row order, share a
++ * cell: some pair of runs shares a row and a diagonal.
++ */
++bool RedundantAlns::runsOverlap(
++	const Run* a,
++	size_t na,
++	const Run* b,
++	size_t nb)
++{
++	size_t i = 0, j = 0;
++	while(i < na && j < nb) {
++		if(a[i].r1 < b[j].r0) {
++			i++;
++		} else if(b[j].r1 < a[i].r0) {
++			j++;
++		} else {
++			if(a[i].dlo < b[j].dhi && b[j].dlo < a[i].dhi) {
++				return true;
++			}
++			if(a[i].r1 < b[j].r1) {
++				i++;
++			} else {
++				j++;
++			}
++		}
++	}
++	return false;
++}
++
++/**
++ * Add all of the cells involved in the given alignment to the database.
++ */
++void RedundantAlns::add(const AlnRes& res) {
++	Aln a;
++	if(makeRuns(res, runs_, a)) {
++		alns_.push_back(a);
++	}
+ }
+ 
+ /**
+@@ -978,57 +1087,28 @@ void RedundantAlns::add(const AlnRes& res) {
+  * one of the cells in the database.
+  */
+ bool RedundantAlns::overlap(const AlnRes& res) {
+-	assert(!cells_.empty());
+-	TRefOff left = res.refoff(), right;
+-	const size_t len = res.readExtentRows();
+-	const size_t alignmentStart = res.trimmedLeft(true);
+-	if(!res.fw()) {
+-		const_cast<AlnRes&>(res).invertEdits();
++	if(alns_.empty()) {
++		return false;
+ 	}
+-	const EList<Edit>& ned = res.ned();
+-	size_t nedidx = 0;
+-	// For each row...
+-	bool olap = false;
+-	assert_leq(len, cells_.size());
+-	for(size_t i = alignmentStart; i < alignmentStart + len; i++) {
+-		size_t diff = 1;  // amount to shift to right for next round
+-		right = left + 1;
+-		while(nedidx < ned.size() && ned[nedidx].pos == i) {
+-			if(ned[nedidx].isRefGap()) {
+-				// Next my_left will be in same column as this round
+-				diff = 0;
+-			}
+-			nedidx++;
+-		}
+-		if(i < alignmentStart + len - 1) {
+-			// See how many inserts there are before the next read
+-			// character
+-			size_t nedidx_next = nedidx;
+-			while(nedidx_next < ned.size() && ned[nedidx_next].pos == i+1)
+-			{
+-				if(ned[nedidx_next].isReadGap()) {
+-					right++;
+-				}
+-				nedidx_next++;
+-			}
+-		}
+-		for(TRefOff j = left; j < right; j++) {
+-			// Add to db
+-			RedundantCell c(res.refid(), res.fw(), j, i);
+-			if(cells_[i].contains(c)) {
+-				olap = true;
+-				break;
+-			}
+-		}
+-		if(olap) {
+-			break;
+-		}
+-		left = right + diff - 1;
++	qruns_.clear();
++	Aln q;
++	if(!makeRuns(res, qruns_, q)) {
++		return false;
+ 	}
+-	if(!res.fw()) {
+-		const_cast<AlnRes&>(res).invertEdits();
++	const size_t nalns = alns_.size();
++	for(size_t k = 0; k < nalns; k++) {
++		const Aln& a = alns_[k];
++		// One branch on all the bounds: each test alone is unpredictable
++		bool cand = (a.dlo < q.dhi) & (q.dlo < a.dhi) &
++		            (a.rfid == q.rfid) & (a.fw == q.fw) &
++		            (a.r0 <= q.r1) & (q.r0 <= a.r1);
++		if(cand &&
++		   runsOverlap(runs_.ptr() + a.run0, a.nrun, qruns_.ptr(), q.nrun))
++		{
++			return true;
++		}
+ 	}
+-	return olap;
++	return false;
+ }
+ 
+ /**
+diff --git a/aligner_result.h b/aligner_result.h
+index 9bfc7492..4434bc0a 100644
+--- a/aligner_result.h
++++ b/aligner_result.h
+@@ -1650,29 +1650,34 @@ struct RedundantCell {
+  * whether one alignment is redundant (has a DP cell in common with) with a set
+  * of others.
+  *
+- * Adding cells to and checking cell against this data structure can get rather
+- * slow when there are many alignments in play.  Dividing the burden over
+- * read-position bins helps some.
++ * The cells of an alignment are stored as runs: maximal stretches of
++ * consecutive rows whose cells cover the same range of diagonals (diagonal =
++ * column - row).  A gapless alignment is one run; each gap adds a run or two.
++ * Two alignments share a cell iff they have the same reference id and
++ * orientation and some pair of their runs shares a row and a diagonal, so
++ * the database answers exactly what a set of RedundantCells per row would.
+  */
+ class RedundantAlns {
+ 
+ public:
+ 
+-	RedundantAlns(int cat = DP_CAT) : cells_(cat) { }
++	RedundantAlns(int cat = DP_CAT) : alns_(cat), runs_(cat), qruns_(cat) { }
+ 
+ 	/**
+ 	 * Empty the cell database.
+ 	 */
+-	void reset() { cells_.clear(); }
++	void reset() {
++		alns_.clear();
++		runs_.clear();
++	}
+ 
+ 	/**
+-	 * Initialize and set the list of sets to equal the read length.
++	 * Empty the cell database in preparation for a read of length npos.
+ 	 */
+ 	void init(size_t npos) {
+-		cells_.resize(npos);
+-		for(size_t i = 0; i < npos; i++) {
+-			cells_[i].clear();
+-		}
++		(void)npos;
++		alns_.clear();
++		runs_.clear();
+ 	}
+ 
+ 	/**
+@@ -1688,7 +1693,46 @@ class RedundantAlns {
+ 
+ protected:
+ 
+-	EList<ESet<RedundantCell> > cells_;
++	/**
++	 * Rows r0..r1 (inclusive), each with the cells of diagonals [dlo, dhi).
++	 */
++	struct Run {
++		int64_t dlo;
++		int64_t dhi;
++		size_t  r0;
++		size_t  r1;
++	};
++
++	/**
++	 * One stored alignment: its key, the bounding rows and diagonals of its
++	 * cells, and its runs, runs_[run0 .. run0+nrun).
++	 */
++	struct Aln {
++		TRefId  rfid;
++		int64_t dlo;
++		int64_t dhi;
++		size_t  r0;
++		size_t  r1;
++		size_t  run0;
++		size_t  nrun;
++		bool    fw;
++	};
++
++	/**
++	 * Append the runs of res's cells to runs and set a's key and bounds.
++	 * Returns false iff res covers no rows.
++	 */
++	static bool makeRuns(const AlnRes& res, EList<Run>& runs, Aln& a);
++
++	/**
++	 * Return true iff the two run lists, each in ascending row order, share
++	 * a cell.
++	 */
++	static bool runsOverlap(const Run* a, size_t na, const Run* b, size_t nb);
++
++	EList<Aln> alns_;  // stored alignments
++	EList<Run> runs_;  // their runs
++	EList<Run> qruns_; // runs of the alignment being queried
+ };
+ 
+ typedef uint64_t TNumAlns;
+diff --git a/aligner_swsse_ee_u8.cpp b/aligner_swsse_ee_u8.cpp
+index 86c0c38e..df26a5b2 100644
+--- a/aligner_swsse_ee_u8.cpp
++++ b/aligner_swsse_ee_u8.cpp
+@@ -122,6 +122,12 @@ void SwAligner::buildQueryProfileEnd2EndSseU8(bool fw) {
+ 						// Inside the gap barrier
+ 						*gbarWords = 0xff;
+ 					}
++				} else {
++					// Padding past the last row, which is inside the gap
++					// barrier, so no real cell depends on these rows.
++					// Barring them keeps F at 0 there, which lets the fill
++					// skip the column fix-up when no real row needs it.
++					*gbarWords = 0xff;
+ 				}
+ 				if(refc == 0 && j == len-1) {
+ 					// Remember which 128-bit word and which smaller word has
+@@ -886,11 +892,51 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
+ 	SSERegI *pvELoad  = d.mat_.evec(0, 0);
+ 	SSERegI *pvEStore = d.mat_.evecUnsafe(0, 1);
+ 	SSERegI *pvFStore = d.mat_.fvec(0, 0);
+-	SSERegI *pvFTmp   = NULL;
+-	
++
+ 	assert_gt(sc_->gapbar, 0);
+ 	size_t nfixup = 0;
+-	
++
++	// F (reference gap) values flow down a column, and in the striped layout
++	// the first pass over a column only carries them down within each lane.
++	// Rather than Farrar's lazy-F loop, which carries them one lane further
++	// per pass until nothing changes, the carries are propagated across all
++	// lanes at once with a prefix scan (max-plus, saturating).  A carry passes
++	// through a lane at the cost of iter gap extensions, unless a row in the
++	// lane is inside the gap barrier, which sets F to 0 and so blocks it.
++	// vpass1 holds that cost for the lane below each lane; vpass2, 4, ... are
++	// its sums over 2, 4, ... consecutive lanes, for the scan's steps.  The
++	// barrier vectors are the same for every reference character.
++	SSERegI vpass1, vpass2, vpass4, vpass8;
++#if NBYTES_PER_REG == 32
++	SSERegI vpass16;
++#endif
++	{
++		const SSERegI *pvBar = d.profbuf_.ptr() + 1;
++		SSERegI vbar = sse_setzero_siall();
++		for(size_t j = 0; j < iter; j++) {
++			vbar = sse_or_siall(vbar, pvBar[2 * j]);
++		}
++		size_t passPen = iter * (size_t)sc_->refGapExtend();
++		if(passPen > 0xff) {
++			passPen = 0xff;
++		}
++		SSERegI vpass;
++		sse_fill_u8((int)passPen, vpass);
++		vpass  = sse_or_siall(vpass, vbar);
++		vpass1 = sse_slli_siall(vpass, NBYTES_PER_WORD);
++		vpass2 = sse_adds_epu8(vpass1, sse_slli_siall(vpass1, 1 * NBYTES_PER_WORD));
++		vpass4 = sse_adds_epu8(vpass2, sse_slli_siall(vpass2, 2 * NBYTES_PER_WORD));
++		vpass8 = sse_adds_epu8(vpass4, sse_slli_siall(vpass4, 4 * NBYTES_PER_WORD));
++#if NBYTES_PER_REG == 32
++		vpass16 = sse_adds_epu8(vpass8, sse_slli_siall(vpass8, 8 * NBYTES_PER_WORD));
++#endif
++	}
++
++	// The final row of H vectors of the previous column, kept in a register
++	// from one column to the next; before the first column, the staged
++	// initial column (vlo).
++	SSERegI vhlast = vlo;
++
+ 	// Fill in the table as usual but instead of using the same gap-penalty
+ 	// vector for each iteration of the inner loop, load words out of a
+ 	// pre-calculated gap vector parallel to the query profile.  The pre-
+@@ -919,10 +965,9 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
+ 		// Set all cells to low value
+ 		vf = sse_xor_siall(vf, vf);
+ 
+-		// Load H vector from the final row of the previous column
+-		vh = sse_load_siall(pvHLoad + colstride - ROWSTRIDE);
++		// H vector from the final row of the previous column
+ 		// Shift 2 bytes down so that topmost (least sig) cell gets 0
+-		vh = sse_slli_siall(vh, NBYTES_PER_WORD);
++		vh = sse_slli_siall(vhlast, NBYTES_PER_WORD);
+ 		// Fill topmost (least sig) cell with high value
+ 		vh = sse_or_siall(vh, vhilsw);
+ 		
+@@ -991,88 +1036,77 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
+ 			assert_all_lt(vf, vhi);
+ 			vf = sse_max_epu8(vf, vtmp);
+ 		}
+-		pvScore -= (iter*2) - 1; // reset veto vector
+-	        vs1 = sse_load_siall(pvScore);
+-
+-		// pvHStore, pvELoad, pvEStore have all rolled over to the next column
+-		pvFTmp = pvFStore;
+-		pvFStore -= colstride; // reset to start of column
+-		vtmp = sse_load_siall(pvFStore);
+-		
+-		// vf from last row gets shifted down by one to overlay the first row
+-		// rfgape has already been subtracted from it.
++		// vf holds, in each lane, the F value the first pass carries out of
++		// the lane's last row: max(F - rfgape, H - rfgapo).  Lane L's first
++		// row receives the carry of lane L-1, or of any lane above it less the
++		// cost of passing through the lanes in between.  vf becomes that
++		// carry for every lane: a prefix scan in log2(lanes) steps.
+ 		vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+-		
+-		vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
+-		vf = sse_max_epu8(vtmp, vf);
+-		vtmp = sse_subs_epu8(vf, vtmp);
+-		vtmp = sse_cmpeq_epi8(vtmp, vzero);
+-		int cmp = sse_movemask_epi8(vtmp);
+-	
+-		// Load after computing cmp, so the result is ready by the time it is tested in while
+-		pvHStore -= colstride; // reset to start of column
+-		vh = sse_load_siall(pvHStore);
+-		pvHLoad = pvHStore;    // new pvHLoad = pvHStore
+-		
+-#if 0
+-#else
+-		pvEStore -= colstride; // reset to start of column
+-		ve = sse_load_siall(pvEStore);
+-#endif
+-		
+-		// If any element of vtmp is greater than H - gap-open...
+-		j = 0;
+-		while(cmp != SSE_MASK_ALL) {
+-			// Store this vf
+-			sse_store_siall(pvFStore, vf);
+-			pvFStore += ROWSTRIDE;
+-			
+-			// Update vh w/r/t new vf
+-			vh = sse_max_epu8(vh, vf);
+-			
+-			// Save vH values
+-			sse_store_siall(pvHStore, vh);
+-			pvHStore += ROWSTRIDE;
+-			
+-			// Update E in case it can be improved using our new vh
+-#if 0
+-#else
+-			vh = sse_subs_epu8(vh, rdgapo);
+-			vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
+-			ve = sse_max_epu8(ve, vh);
+-			sse_store_siall(pvEStore, ve);
+-			pvEStore += ROWSTRIDE;
+-#endif
+-			pvScore += 2;
+-			
+-			assert_lt(j, iter);
+-			if(++j == iter) {
+-				pvScore -= iter*2;
+-				j = 0;
+-				pvFStore -= colstride;
+-				pvHStore -= colstride;
+-				pvEStore -= colstride;
+-				vf = sse_slli_siall(vf, NBYTES_PER_WORD);
+-			}
+-			vs1 = sse_load_siall(pvScore);
+-			vtmp = sse_load_siall(pvFStore);   // load next vf ASAP
+ 
+-			// Update F with another gap extension
+-			vf = sse_subs_epu8(vf, rfgape);
+-			vf = sse_subs_epu8(vf, vs1); // veto some ref gap extensions
+-			vf = sse_max_epu8(vtmp, vf);
+-			vtmp = sse_subs_epu8(vf, vtmp);
+-			vtmp = sse_cmpeq_epi8(vtmp, vzero);
+-			cmp = sse_movemask_epi8(vtmp);
++		// The first pass leaves F at 0 in each lane's first row, and a carry
++		// can enter a lane only through that row.  So if no lane's first row
++		// gains from the carry of the lane above it (after the gap barrier),
++		// no row of the column can gain from any carry: F, H and the next
++		// column's E are already final.  This is the termination test of
++		// Farrar's lazy-F loop, and the usual case when gaps are barred or
++		// costly.
++		vtmp = sse_subs_epu8(vf, sse_load_siall(pvScore - (iter*2) + 1));
++		vtmp = sse_cmpeq_epi8(vtmp, vzero);
++		if(sse_movemask_epi8(vtmp) == SSE_MASK_ALL) {
++			pvHLoad = pvHStore - colstride;
++			vhlast = sse_load_siall(pvHStore - ROWSTRIDE);
++		} else {
++			vtmp = sse_subs_epu8(sse_slli_siall(vf, 1 * NBYTES_PER_WORD), vpass1);
++			vf = sse_max_epu8(vf, vtmp);
++			vtmp = sse_subs_epu8(sse_slli_siall(vf, 2 * NBYTES_PER_WORD), vpass2);
++			vf = sse_max_epu8(vf, vtmp);
++			vtmp = sse_subs_epu8(sse_slli_siall(vf, 4 * NBYTES_PER_WORD), vpass4);
++			vf = sse_max_epu8(vf, vtmp);
++			vtmp = sse_subs_epu8(sse_slli_siall(vf, 8 * NBYTES_PER_WORD), vpass8);
++			vf = sse_max_epu8(vf, vtmp);
++	#if NBYTES_PER_REG == 32
++			vtmp = sse_subs_epu8(sse_slli_siall(vf, 16 * NBYTES_PER_WORD), vpass16);
++			vf = sse_max_epu8(vf, vtmp);
++	#endif
+ 
+-			// Load after computing cmp, so the result is afailable by the time it is tested
+-			vh = sse_load_siall(pvHStore);     // load next vh 
+-#if 0
+-#else
+-			ve = sse_load_siall(pvEStore);     // load next ve
+-#endif
+-			
+-			nfixup++;
++			// One more pass down the column extends each lane's carry through its
++			// rows and folds it into F, then H, then the next column's E: the
++			// values the lazy-F loop converges to, in exactly iter steps.  The
++			// carry reaching row j has lost j gap extensions, or everything if a
++			// row up to j is inside the gap barrier; vpen accumulates that
++			// penalty (saturating) apart from the carry, so that each row's value
++			// is one subtraction from the carry rather than a chain of them.
++				const SSERegI *pvBar = pvScore - (iter*2) + 1; // gap barrier, row 0
++				SSERegI *pvF = pvFStore - colstride;            // this column
++				SSERegI *pvE = pvELoad;                         // next column
++				// The first column's pvHLoad started in the staging vectors, so
++				// take this column's H from pvHStore instead.
++				pvHLoad = pvHStore - colstride;
++				SSERegI *pvH = pvHLoad;                         // this column
++				SSERegI vpen = sse_setzero_siall();
++				for(j = 0; j < iter; j++) {
++					vs1 = sse_load_siall(pvBar);
++					pvBar += 2;
++					vpen = sse_adds_epu8(vpen, vs1); // veto some ref gap extensions
++					vtmp = sse_load_siall(pvF);
++					vtmp = sse_max_epu8(vtmp, sse_subs_epu8(vf, vpen));
++					sse_store_siall(pvF, vtmp);
++					pvF += ROWSTRIDE;
++					vh = sse_load_siall(pvH);
++					vh = sse_max_epu8(vh, vtmp);
++					sse_store_siall(pvH, vh);
++					pvH += ROWSTRIDE;
++					vhlast = vh;
++					// Update E in case it can be improved using our new vh
++					ve = sse_load_siall(pvE);
++					vh = sse_subs_epu8(vh, rdgapo);
++					vh = sse_subs_epu8(vh, vs1); // veto some read gap opens
++					ve = sse_max_epu8(ve, vh);
++					sse_store_siall(pvE, ve);
++					pvE += ROWSTRIDE;
++					vpen = sse_adds_epu8(vpen, rfgape);
++				}
++				nfixup += iter;
+ 		}
+ 		
+ #ifndef NDEBUG
+@@ -1099,12 +1133,9 @@ TAlScore SwAligner::alignNucleotidesEnd2EndSseU8(int& flag, bool debug) {
+ 			lrmax = lr;
+ 		}
+ 
+-		// pvELoad and pvHLoad are already where they need to be
+-		
+-		// Adjust the load and store vectors here.  
+-		pvHStore = pvHLoad + colstride;
+-		pvEStore = pvELoad + colstride;
+-		pvFStore = pvFTmp;
++		// pvHLoad (this column's H), pvELoad (next column's E), pvHStore and
++		// pvFStore (next column) and pvEStore (the column after) are already
++		// where the next column needs them.
+ 	}
+ 	
+ 	// Update metrics
+diff --git a/scripts/test/test_redundant.py b/scripts/test/test_redundant.py
+new file mode 100644
+index 00000000..22aeaa33
+--- /dev/null
++++ b/scripts/test/test_redundant.py
+@@ -0,0 +1,203 @@
++"""Tests for the check that rejects redundant alignments.
++
++When bowtie2 looks for more than one alignment per read (-k, -a), it
++rejects a new alignment that shares a dynamic-programming cell with one it
++has already found for the read: the same read position aligned to the same
++reference position on the same strand. The check matters when two
++separate dynamic-programming windows, framed around seed hits on
++different diagonals, both reach the same cells: for example across a
++long gap, or when a mate found by rescue was already found as an anchor.
++
++The first test aligns reads to a reference holding several copies of one
++segment, some with a gap or mismatches relative to the read and one
++reverse complemented, and checks that each copy is reported exactly once.
++The second checks, on the lambda phage example, that no two alignments
++(or, for pairs, no two pairs) reported for a read share a cell.
++
++Run from the repository root after `make`:
++
++	python3 -m pytest scripts/test/test_redundant.py
++"""
++
++import random
++
++import pytest
++
++import bt2_helpers as h
++
++SEG_LEN = 300     # length of the repeated segment
++GAP_AT = 150      # offset in the segment of the gap in two of the copies
++READ_LEN = 150
++READ_OFFSETS = (40, 75, 110)  # read start offsets in the segment
++SHORT_GAP = 3     # bases missing from the 'del' copy
++LONG_GAP = 20     # extra bases in the 'ins' copy
++
++
++def _copies(seg, extra):
++	"""The copies of seg placed in the reference, as (name, sequence, kind).
++
++	kind is how the copy relates to seg: 'same', 'del' (SHORT_GAP bases
++	missing at GAP_AT, so reads spanning it have an insertion), 'ins'
++	(LONG_GAP extra bases at GAP_AT, so reads have a deletion), 'mm' (two
++	mismatches) or 'rc' (reverse complement). The deletion is long enough
++	that seed hits on its two sides start separate DP windows."""
++	return [
++		('same', seg),
++		('del', seg[:GAP_AT] + seg[GAP_AT + SHORT_GAP:]),
++		('ins', seg[:GAP_AT] + extra + seg[GAP_AT:]),
++		('mm', h.mutate(seg, [GAP_AT - 20, GAP_AT + 20])),
++		('rc', h.revcomp(seg)),
++	]
++
++
++@pytest.fixture(scope='module')
++def repeat_ref(bt2, tmp_path_factory):
++	"""Index of one chromosome holding five copies of a random segment,
++	separated by random spacers, plus the reads and the start of each copy."""
++	rng = random.Random(20261024)
++	seg = h.random_dna(SEG_LEN, rng)
++	extra = h.random_dna(LONG_GAP, rng)
++	chrom, starts = h.random_dna(300, rng), {}
++	for kind, copy in _copies(seg, extra):
++		starts[kind] = len(chrom)
++		chrom += copy + h.random_dna(300, rng)
++	d = tmp_path_factory.mktemp('repeat_ref')
++	fasta = h.write_fasta(str(d / 'ref.fa'), [('rep', chrom)])
++	prefix = str(d / 'ref')
++	bt2.build_index(fasta, prefix, extra=['--seed', '0'])
++	reads = []
++	for off in READ_OFFSETS:
++		r = seg[off:off + READ_LEN]
++		reads.append(('fw%d' % off, r, 'I' * READ_LEN))
++		reads.append(('rc%d' % off, h.revcomp(r), 'I' * READ_LEN))
++	fq = h.write_fastq(str(d / 'reads.fq'), reads)
++	return prefix, fq, starts
++
++
++def expected_hits(name, starts):
++	"""The (1-based leftmost position, reverse) of the read's alignment to
++	each copy. Every read spans GAP_AT, so the gaps fall inside it."""
++	off = int(name[2:])
++	read_rc = name.startswith('rc')
++	hits = set()
++	for kind in ('same', 'del', 'ins', 'mm'):
++		hits.add((starts[kind] + off + 1, read_rc))
++	hits.add((starts['rc'] + SEG_LEN - off - READ_LEN + 1, not read_rc))
++	return hits
++
++
++def cells(rec):
++	"""The DP cells of an alignment, as (row, column) pairs. Rows count read
++	positions from the left end of SEQ; columns are reference positions.
++
++	This follows the cells RedundantAlns records: a read position covers one
++	column, an inserted read base (I) covers the column of the read base
++	after it, and deleted reference bases (D) extend the read position
++	before them to the right."""
++	out = set()
++	row, col = 0, rec.pos - 1
++	for n, op in h.cigar_ops(rec.cigar):
++		if op == 'S':
++			row += n
++		elif op in 'M=X':
++			for _ in range(n):
++				out.add((row, col))
++				row += 1
++				col += 1
++		elif op == 'I':
++			for _ in range(n):
++				out.add((row, col))
++				row += 1
++		elif op == 'D':
++			for _ in range(n):
++				out.add((row - 1, col))
++				col += 1
++		else:
++			raise AssertionError('unexpected CIGAR op %s in %s' % (op, rec.cigar))
++	return out
++
++
++def assert_no_shared_cells(recs):
++	for i in range(len(recs)):
++		for j in range(i + 1, len(recs)):
++			a, b = recs[i], recs[j]
++			if a.rname != b.rname or a.is_reverse != b.is_reverse:
++				continue
++			shared = cells(a) & cells(b)
++			assert not shared, 'alignments share %d cells:\n%s\n%s' % (
++				len(shared), a.line, b.line)
++
++
++def gaps(cigar):
++	"""The gaps of a CIGAR string, e.g. '108M3I39M' -> ((3, 'I'),). Where a
++	gap sits can shift with the sequence around it, so only its length and
++	type are compared."""
++	return tuple((n, op) for n, op in h.cigar_ops(cigar) if op in 'ID')
++
++
++# The gaps of each read's five alignments, sorted
++EXPECTED_GAPS = sorted([(), (), (), ((SHORT_GAP, 'I'),), ((LONG_GAP, 'D'),)])
++
++
++@pytest.mark.parametrize('align_mode', ['--end-to-end', '--local'])
++@pytest.mark.parametrize('k_mode', ['-k 50', '-a'])
++def test_one_alignment_per_copy(bt2, repeat_ref, align_mode, k_mode):
++	"""Each read is reported exactly once per copy: once with no edits, once
++	with a short insertion, once with a long deletion, once with two
++	mismatches and once on the other strand. Finding the same alignment again
++	from another seed, or a variant of it that shares a cell, is rejected."""
++	prefix, fq, starts = repeat_ref
++	_, recs, _ = bt2.align(['--quiet', align_mode, '-x', prefix, '-U', fq] +
++		k_mode.split())
++	groups = h.by_name(recs)
++	assert len(groups) == 2 * len(READ_OFFSETS)
++	for name, rs in groups.items():
++		assert not any(r.is_unmapped for r in rs), name
++		assert sorted((r.pos, r.is_reverse) for r in rs) == \
++			sorted(expected_hits(name, starts)), (name, [r.line for r in rs])
++		assert sorted(gaps(r.cigar) for r in rs) == EXPECTED_GAPS, name
++		assert all(h.cigar_query_length(r.cigar) == READ_LEN for r in rs), name
++		assert_no_shared_cells(rs)
++
++
++def assert_no_shared_pair(recs):
++	"""Concordant pairs are reported as consecutive mate 1, mate 2 records.
++	A mate may appear in more than one pair, but no two pairs may share a
++	cell in both mates. Among the alignments of one mate outside concordant
++	pairs, no two may share a cell."""
++	conc = [r for r in recs if r.flag & h.PROPER_PAIR]
++	assert len(conc) % 2 == 0
++	for mate in (h.FIRST_IN_PAIR, h.SECOND_IN_PAIR):
++		assert_no_shared_cells([r for r in recs if not r.flag & h.PROPER_PAIR
++			and r.flag & mate and not r.is_unmapped])
++	pairs = [(conc[i], conc[i + 1]) for i in range(0, len(conc), 2)]
++	for i in range(len(pairs)):
++		for j in range(i + 1, len(pairs)):
++			both = True
++			for a, b in zip(pairs[i], pairs[j]):
++				if a.is_unmapped or b.is_unmapped or a.rname != b.rname or \
++						a.is_reverse != b.is_reverse or not cells(a) & cells(b):
++					both = False
++					break
++			assert not both, 'pairs share cells:\n%s\n%s\n%s\n%s' % (
++				pairs[i][0].line, pairs[i][1].line, pairs[j][0].line,
++				pairs[j][1].line)
++
++
++@pytest.mark.parametrize('align_mode', ['--end-to-end', '--local'])
++@pytest.mark.parametrize('paired', [False, True], ids=['unpaired', 'paired'])
++def test_lambda_no_shared_cells(bt2, lambda_index, example_reads, align_mode,
++		paired):
++	"""With -a on the lambda example, no two alignments of a read share a
++	cell. Several reads there align across deletions of 13 to 17 bases, and
++	in paired mode mate rescue finds mates that were also found from their
++	own seeds."""
++	reads = ['-1', example_reads['reads_1'], '-2', example_reads['reads_2']] \
++		if paired else ['-U', example_reads['reads_1']]
++	_, recs, _ = bt2.align(['--quiet', align_mode, '-a', '-x', lambda_index] +
++		reads)
++	for name, rs in h.by_name(recs).items():
++		if paired:
++			assert_no_shared_pair(rs)
++		else:
++			assert_no_shared_cells(rs)

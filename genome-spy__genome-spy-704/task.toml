@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/genome-spy__genome-spy-704"
+description = "test(webgpu-renderer): correct reference image edge coverage"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "genome-spy",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "genome-spy/genome-spy"
+ref = "066c3fbbe35679a1c401c5ba3e13836e4458cc41"
+reference = "https://github.com/genome-spy/genome-spy/pull/704"
+source_access = "auto"
+built_at = "2026-11-12T05:37:55.914040+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ebc0d3a1c552c8e8979001dd6cfbbec2fafd06adef91ea916d862e67e910243b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-06T07:42:45Z"
+diff_format = "unified"
+context_files = [
+    "packages/webgpu-renderer/scripts/comparePathText.mjs",
+    "packages/webgpu-renderer/tests/oracles/msdfgen/pathAtlas.gpu.test.js",
+    "packages/webgpu-renderer/tests/oracles/msdfgen/wasmPathPointProgram.js",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 140
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.788970+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0c72ee14059c15cf8c05334aeab95b91896311ee86427674f2ee64084383a5fc"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

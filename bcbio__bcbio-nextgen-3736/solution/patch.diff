@@ -1,0 +1,18 @@
+diff --git a/.readthedocs.yml b/.readthedocs.yml
+index db566c664..7540b0a6c 100644
+--- a/.readthedocs.yml
++++ b/.readthedocs.yml
+@@ -5,8 +5,12 @@
+ # Required
+ version: 2
+ 
++build:
++  os: ubuntu-22.04
++  tools:
++    python: "3.6"
++
+ python:
+-  version: 3.6
+   install:
+     - requirements: docs/requirements.txt
+ 

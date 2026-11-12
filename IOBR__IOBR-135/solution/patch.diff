@@ -1,0 +1,239 @@
+diff --git a/R/batch_surv.R b/R/batch_surv.R
+index 7639eaef..6fa6ccfc 100644
+--- a/R/batch_surv.R
++++ b/R/batch_surv.R
+@@ -92,6 +92,8 @@ batch_surv <- function(pdata, variable, time = "time", status = "status", best_c
+ 
+   result <- dplyr::bind_rows(result_list)
+   result$ID <- if (best_cutoff) gsub("_binary$", "", valid_vars) else valid_vars
++  # 把 ID 调整到第一列
++  result <- result[, c("ID", setdiff(colnames(result), "ID")), drop = FALSE]
+   result <- result[order(result$P, decreasing = FALSE), , drop = FALSE]
+   rownames(result) <- NULL
+ 
+diff --git a/R/get_cor_matrix.R b/R/get_cor_matrix.R
+index a090b9e4..53f19add 100644
+--- a/R/get_cor_matrix.R
++++ b/R/get_cor_matrix.R
+@@ -157,41 +157,59 @@ get_cor_matrix <- function(data,
+   }
+ 
+   # Create plot
+-  p <- ggplot2::ggplot(heat, ggplot2::aes(x = .data$ID1, y = .data$ID2, fill = .data$cor))
+-
+-  cor_plot <- p +
++  # cor_plot <- p +
++  # ggplot2::geom_tile() +
++  # ggplot2::scale_fill_gradient2(
++  #   low = low_col,
++  #   mid = mid_col,
++  #   high = high_col,
++  #   name = "Coefficient"
++  # ) +
++  cor_plot <- ggplot2::ggplot(
++    heat,
++    ggplot2::aes(x = ID1, y = ID2, fill = cor)
++  ) +
+     ggplot2::geom_tile() +
+     ggplot2::scale_fill_gradient2(
+       low = low_col,
+       mid = mid_col,
+       high = high_col,
+       name = "Coefficient"
+-    ) +
+-    ggplot2::geom_text(
+-      ggplot2::aes(label = .data$stars),
+-      color = "black",
+-      size = font.size.star
+-    ) +
+-    ggplot2::scale_y_discrete(
+-      labels = function(y) stringr::str_wrap(y, width = 40)
+-    ) +
+-    ggplot2::labs(x = NULL, y = NULL) +
+-    ggplot2::theme_bw() +
+-    ggplot2::theme(
+-      axis.text.x = ggplot2::element_text(
+-        angle = -45,
+-        hjust = 0,
+-        size = font.size
+-      ),
+-      axis.text.y = ggplot2::element_text(
+-        angle = 0,
+-        hjust = 1,
+-        size = font.size
+-      ),
+-      axis.title = ggplot2::element_text(
+-        size = font.size + 4
+-      )
++  ) +
++  ggplot2::geom_text(
++    ggplot2::aes(label = .data$stars),
++    color = "black",
++    size = font.size.star
++  ) +
++  ggplot2::scale_x_discrete(
++    labels = function(x) stringr::str_trunc(x, width = 28)
++  ) +
++  ggplot2::scale_y_discrete(
++    labels = function(y) stringr::str_wrap(y, width = 40)
++  ) +
++  ggplot2::labs(x = NULL, y = NULL) +
++  ggplot2::coord_cartesian(clip = "off") +
++  ggplot2::theme_bw() +
++  ggplot2::theme(
++    axis.text.x = ggplot2::element_text(
++      angle = -45,
++      hjust = 0,
++      vjust = 1,
++      size = font.size,
++      margin = ggplot2::margin(t = 8)
++    ),
++    axis.text.y = ggplot2::element_text(
++      angle = 0,
++      hjust = 1,
++      size = font.size
++    ),
++    axis.title = ggplot2::element_text(
++      size = font.size + 4
++    ),
++    plot.margin = ggplot2::margin(
++      t = 10, r = 20, b = 80, l = 20
+     )
++  )
+ 
+   if (!is.null(project)) {
+     cor_plot <- cor_plot + ggplot2::ggtitle(label = project)
+diff --git a/R/iobr_pca.R b/R/iobr_pca.R
+index e10f7fdd..4a192523 100644
+--- a/R/iobr_pca.R
++++ b/R/iobr_pca.R
+@@ -45,7 +45,7 @@ iobr_pca <- function(data, is.matrix = TRUE, scale = TRUE, is.log = FALSE, pdata
+   data <- data[rownames(data) %in% feas, ]
+   #######################################
+   if (is.matrix) data <- t(data)
+-  if (scale) data <- scale(data)
++  if (scale) data <- base::scale(data)
+ 
+   rlang::check_installed("FactoMineR")
+ 
+diff --git a/R/percent_bar.R b/R/percent_bar.R
+index 5b39021d..6a8d3f66 100644
+--- a/R/percent_bar.R
++++ b/R/percent_bar.R
+@@ -83,7 +83,7 @@ percent_bar_plot <- function(input, x, y,
+ 
+   if (add_sum) {
+     df_sum <- as.data.frame(df_sum)
+-    df_sum[, 1] <- paste0(as.character(df_sum[, 1]), "(", df_sum$count, ")")
++    df_sum[, 1] <- paste0(as.character(df_sum[, 1]), "\n(", df_sum$count, ")")
+   }
+ 
+   hjust <- if (axis_angle == 0) 0.5 else 1
+@@ -100,7 +100,7 @@ percent_bar_plot <- function(input, x, y,
+     ggplot2::scale_fill_manual(values = color) +
+     ggplot2::xlab(NULL) +
+     design_mytheme(
+-      axis_text_size = 20, axis_angle = axis_angle, hjust = hjust,
++      axis_text_size = 10, axis_angle = axis_angle, hjust = hjust,
+       legend.size = legend.size, legend.size.text = legend.size.text
+     )
+ 
+diff --git a/R/sig_box.R b/R/sig_box.R
+index 40cd05db..5ded8cb0 100644
+--- a/R/sig_box.R
++++ b/R/sig_box.R
+@@ -108,8 +108,8 @@ sig_box <- function(data,
+     data$signature <- as.numeric(scale(data$signature))
+   }
+ 
+-  # Remove NA groups
+-  data <- data[!is.na(data$variable), ]
++  # Remove NA in grouping variable or signature
++  data <- data[!is.na(data$variable) & !is.na(data$signature), , drop = FALSE]
+ 
+   if (nrow(data) == 0) {
+     cli::cli_abort("No valid data after removing NA values")
+@@ -139,9 +139,16 @@ sig_box <- function(data,
+     ggplot2::ylab(signature) +
+     ggplot2::xlab(variable)
+ 
+-  # Generate comparisons
+-  group_levels <- unique(as.character(data$variable))
+-  comparisons <- utils::combn(group_levels, 2, simplify = FALSE)
++    # Count samples per group
++  group_count <- table(data$variable)
++  valid_groups <- names(group_count[group_count >= 2])
++
++  # Generate comparisons safely
++  if (length(valid_groups) >= 2) {
++    comparisons <- utils::combn(valid_groups, 2, simplify = FALSE)
++  } else {
++    comparisons <- list()
++  }
+ 
+   # Adjust hjust for angled text
+   if (angle_x_text %in% c(30, 45, 60)) {
+@@ -168,24 +175,42 @@ sig_box <- function(data,
+ 
+   # Add statistical comparisons
+   if (show_pairwise_p) {
+-    p <- p + ggpubr::stat_compare_means(
+-      comparisons = comparisons,
+-      size = size_of_pvalue
+-    )
++    if (length(comparisons) > 0) {
++      p <- p + ggpubr::stat_compare_means(
++        comparisons = comparisons,
++        size = size_of_pvalue
++      )
++    }
+   }
+ 
+   if (show_overall_p) {
+-    p <- p + ggpubr::stat_compare_means(size = size_of_pvalue)
++    if (length(valid_groups) >= 2) {
++      stat_data <- data[data$variable %in% valid_groups, , drop = FALSE]
++      p <- p + ggpubr::stat_compare_means(
++        data = stat_data,
++        size = size_of_pvalue
++      )
++    }
+   }
+ 
+   # Calculate and print statistics
+-  res <- ggpubr::compare_means(
+-    stats::reformulate("variable", "signature"),
+-    data = data
+-  )
+-  if (interactive()) print(res)
+-
+-  # Add jitter points if requested
++  res <- NULL
++  if (length(valid_groups) >= 2) {
++    stat_data <- data[data$variable %in% valid_groups, , drop = FALSE]
++
++    res <- tryCatch({
++      ggpubr::compare_means(
++        stats::reformulate("variable", "signature"),
++        data = stat_data
++      )
++    }, error = function(e) {
++      NULL
++    })
++
++    if (interactive() && !is.null(res)) print(res)
++  }
++  
++   # Add jitter points if requested
+   if (jitter) {
+     p <- p + ggplot2::geom_point(
+       shape = 21,
+@@ -195,8 +220,6 @@ sig_box <- function(data,
+     )
+   }
+ 
+-  if (interactive()) print(p)
+-
+   if (return_stat_res) {
+     invisible(res)
+   } else {

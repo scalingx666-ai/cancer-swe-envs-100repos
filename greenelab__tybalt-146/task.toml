@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/greenelab__tybalt-146"
+description = "SKCM High Weight Fix"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "tybalt",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "greenelab/tybalt"
+ref = "1b4ad8f8032c66b60c2397307f8d396099946416"
+reference = "https://github.com/greenelab/tybalt/pull/146"
+source_access = "auto"
+built_at = "2026-11-12T05:39:28.109379+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1522ca74905b99fb31f5db3aec3be8b9d9daf8e0bb19dac2251a79281fd6a501"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-01-31T22:57:13Z"
+diff_format = "unified"
+context_files = [
+    "extract_tybalt_weights.ipynb",
+    "figures/sex_node_gene_scatter.pdf",
+    "figures/skcm_metastasis_node_gene_scatter.pdf",
+    "results/high_weight_genes_node53_skcm.tsv",
+    "results/high_weight_genes_node66_skcm.tsv",
+    "scripts/nbconverted/extract_tybalt_weights.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 225
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.792303+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ccb5015de6c4314ad01ae1907100f40b674af5119cf6fb11cc84cd0c8b00509a"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

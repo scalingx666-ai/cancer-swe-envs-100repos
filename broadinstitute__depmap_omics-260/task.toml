@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__depmap_omics-260"
+description = "Changes on the fly from 25q2 run"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "depmap_omics",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/depmap_omics"
+ref = "7b8e7735df0526b78e077aa7b0753ebeccc1a22e"
+reference = "https://github.com/broadinstitute/depmap_omics/pull/260"
+source_access = "auto"
+built_at = "2026-11-12T05:39:14.063975+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:965e86734ba159325e152bb14199f553ba9249b8aea887ed2701f837f0ae2420"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-07-01T14:12:21Z"
+diff_format = "unified"
+context_files = [
+    "data/25Q2/omics_profile_to_sequencing_id.csv",
+    "depmapomics/constants.py",
+    "depmapomics/copynumbers.py",
+    "depmapomics/dm_omics.py",
+    "depmapomics/mutations.py",
+    "poetry.lock",
+    "pyproject.toml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6456
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.774429+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e1f819b7b3349180c38c3991ff6fdf30745ac372715fb67b79515b5da444acc4"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/Project-MONAI__MONAI-9237"
+description = "Check nnUNet plans network names against allowed modules"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "MONAI",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Project-MONAI/MONAI"
+ref = "2c54111cbde19a9aed396568c77a6baca612f85c"
+reference = "https://github.com/Project-MONAI/MONAI/pull/9237"
+source_access = "auto"
+built_at = "2026-11-12T05:39:17.627092+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:a40e320c83c300ad0ea3075185fbf76432072ee21f58c56992bd4fd91a285977"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-29T22:59:47Z"
+diff_format = "unified"
+context_files = [
+    "docs/source/apps.rst",
+    "monai/apps/nnunet/__init__.py",
+    "monai/apps/nnunet/nnunet_bundle.py",
+    "tests/apps/nnunet/test_nnunet_bundle_network_spec.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 358
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.756997+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:29ccd15655a38def8bedd9564b898d76329ed840f0fc1524a337368c51888600"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

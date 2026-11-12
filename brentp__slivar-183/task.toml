@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/brentp__slivar-183"
+description = "bump deps to work with nim v2"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "slivar",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "brentp/slivar"
+ref = "288c36cb5a83eafd9178eb3bcf670d0aef218640"
+reference = "https://github.com/brentp/slivar/pull/183"
+source_access = "auto"
+built_at = "2026-11-12T05:37:42.714477+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e89c1a4fe3e040d240a009a697b21dc22aceda84c033d06d68699d7404db976b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-02T15:49:18Z"
+diff_format = "unified"
+context_files = [
+    ".gitignore",
+    "nimble.lock",
+    "slivar.nimble",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 71
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.768642+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:016908dcddaca74b49067136a85fb9aef57cfa6c9823e7edcb13dd4f455ba723"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

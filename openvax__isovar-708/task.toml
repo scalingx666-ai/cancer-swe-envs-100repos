@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__isovar-708"
+description = "Reuse read alignment geometry across coding models"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "isovar",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/isovar"
+ref = "ade895c233650787a21f8ddbe8d744c5b99ba8a3"
+reference = "https://github.com/openvax/isovar/pull/708"
+source_access = "auto"
+built_at = "2026-11-12T05:39:35.226111+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:36d9e919838b619a296bd02ae9b5b6f12cc5b7eff8fa5b6d7eb0716aebffd329"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T05:15:41Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "isovar/__init__.py",
+    "isovar/aligned_reference_prefix.py",
+    "isovar/variant_sequence.py",
+    "tests/test_aligned_reading_frame.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 226
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.815027+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:2d77c2dd921db0fe4100b861378301103cff94a2b33505274af5e981a6518028"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

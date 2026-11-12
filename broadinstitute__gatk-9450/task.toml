@@ -1,0 +1,76 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__gatk-9450"
+description = "Update Clinvar to use manually generated updates [VS-2029]"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gatk",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/gatk"
+ref = "018e5930226f2c6638b4f7f122da843c66404362"
+reference = "https://github.com/broadinstitute/gatk/pull/9450"
+source_access = "auto"
+built_at = "2026-11-12T04:17:07.985150+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2f210a493e4c1269749eca3fba46f6e1ee1d39899aba76a3b6a34201cbbb2322"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-09T18:34:59Z"
+diff_format = "unified"
+context_files = [
+    "AGENTS.md",
+    "scripts/variantstore/docs/vat_manual_ClinVar_updating/clinvar_patches.README.md",
+    "scripts/variantstore/docs/vat_manual_ClinVar_updating/clinvar_patches.diff",
+    "scripts/variantstore/docs/vat_manual_ClinVar_updating/summary.md",
+    "scripts/variantstore/docs/vat_manual_ClinVar_updating/validation.md",
+    "scripts/variantstore/variant-annotations-table/GvsCreateVATfromVDS.wdl",
+    "scripts/variantstore/variant-annotations-table/README.md",
+    "scripts/variantstore/wdl/GvsUtils.wdl",
+    "scripts/variantstore/wdl/test/GvsQuickstartVATIntegration.wdl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1883
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.775199+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6302f9f846c83c36c4346c64d0ae08ef53bf267141a549870130ddb45f581e91"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

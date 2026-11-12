@@ -1,0 +1,451 @@
+diff --git a/DESCRIPTION b/DESCRIPTION
+index 510be4a..1ae1fc9 100644
+--- a/DESCRIPTION
++++ b/DESCRIPTION
+@@ -1,6 +1,6 @@
+ Package: fishplot
+ Title: Visualize the evolution of populations of cells over time
+-Version: 0.4
++Version: 0.5
+ Author: Chris Miller
+ Description: Creates timecourse "fish plots" that show changes in the clonal
+     architecture of a population.
+diff --git a/R/draw.R b/R/draw.R
+index a85e2a6..12e7f50 100644
+--- a/R/draw.R
++++ b/R/draw.R
+@@ -9,16 +9,16 @@
+ #' @param ramp.angle A numeric value between 0 and 1 that indicates how steeply the polygon should expand from it's origin to the first measured point
+ #' @param border A numeric width for the border line around this polygon
+ #' @param col.border A color for the border line
+-#' 
++#'
+ #' @return No return value, outputs on graphics device
+-#' @examples 
++#' @examples
+ #' \dontrun{
+-#' drawClustPolygon(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1) 
++#' drawClustPolygon(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1)
+ #' }
+-#' 
++#'
+ drawClustPolygon <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+-                             border=1,col.border=NULL, ramp.angle=0.5){
+-    
++                             border=1,col.border=NULL, ramp.angle=0.5, annot="", annot.angle, annot.col){
++
+     xst = xpos[1] - pad.left*(0.6^nest.level)
+     yst = (ytop[1]+ybtm[1])/2
+ 
+@@ -31,6 +31,11 @@ drawClustPolygon <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+     y = c(yst, yangle.btm, ybtm, rev(ytop), yangle.top, yst)
+ 
+     polygon(x=x, y=y, col=color, border=col.border, lwd=border)
++    
++    #  Annotate the clones by driver mutations
++    if(annot!=""){
++        annotClone(xst, yst, annot, annot.angle, annot.col)
++    }
+ }
+ 
+ #' Draw a single cluster using bezier curves
+@@ -43,15 +48,15 @@ drawClustPolygon <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+ #' @param pad.left A numeric amount of extra padding to add to the left side of the shape
+ #' @param border A numeric width for the border line around this polygon
+ #' @param col.border A color for the border line
+-#' 
++#'
+ #' @return No return value, outputs on graphics device
+ #' @examples
+ #' \dontrun{
+-#' drawClustBezier(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1) 
++#' drawClustBezier(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1)
+ #' }
+-#' 
++#'
+ drawClustBezier <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+-                            border=1, col.border=NULL){
++                            border=1, col.border=NULL, annot="", annot.angle, annot.col){
+ 
+   ##the flank value is used to add extra control points
+   ##to the L and R of each real point, which helps to anchor the
+@@ -72,6 +77,9 @@ drawClustBezier <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+   polygon(x = c(top$x,rev(btm$x)),
+           y = c(top$y,rev(btm$y)),
+           col=color, border=col.border, lwd=border)
++  if(annot!=""){
++      annotClone(xst[2], yst[2], annot, annot.angle, annot.col)
++  }
+ 
+   #view control points for testing
+   #points(c(xst,xpos,xpos), c(yst,ytop,ybtm), pch=18,cex=0.5)
+@@ -88,15 +96,15 @@ drawClustBezier <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+ #' @param pad.left A numeric amount of extra padding to add to the left side of the shape
+ #' @param border A numeric width of the border line around this polygon
+ #' @param col.border A color for the border line
+-#' 
++#'
+ #' @return No return value, outputs on graphics device
+ #' @examples
+ #' \dontrun{
+-#' drawClustSpline(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1) 
++#' drawClustSpline(xpos=c(0,30,75,150), ytop=c(100,51,51,99), ybtm=c(0,49,49,1), color="red", nest.level=1)
+ #' }
+ drawClustSpline <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+-                            border=1, col.border=NULL){
+-
++                            border=1, col.border=NULL, annot="", annot.angle, annot.col){
++  
+   ##the flank value is used to add extra control points
+   ##to the L and R of each real point, which helps to anchor the
+   ##curves more firmly to the actual numbers
+@@ -118,23 +126,36 @@ drawClustSpline <- function(xpos, ytop, ybtm, color, nest.level, pad.left=0,
+   xst = c(xst-flank*2,xst,xst+flank*2)
+   yst = c(yst,yst,yst)
+ 
+-    
+   #top line
+   top = spline(c(xst,xpos),c(yst,ytop),n=100)
+   btm = spline(c(xst,xpos),c(yst,ybtm),n=100)
+   polygon(x = c(top$x,rev(btm$x)),
+           y = c(top$y,rev(btm$y)),
+           col=color, border=col.border, lwd=border)
+-
++  
++  #  Annotate the clones by driver mutations
++  if(annot!=""){
++      annotClone(xst[2], yst[2], annot, annot.angle, annot.col)
++  }
++  
+   ## #view control points for testing
+   ## points(c(xst,xpos,xpos), c(yst,ytop,ybtm), pch=18,cex=0.5)
+ }
+ 
+ 
++#' Annotate the clones by driver mutations
++#' @param x graphical x position of the clone origin
++#' @param y graphical y position of the clone origin
++#' @param annot annotation/driver mutations
++
++annotClone <- function(x, y, annot, angle=0, col = "black") {
++  text(x, y, annot, pos = 4, cex = 0.5, col = col, xpd = NA, srt = angle, offset = 0.5)
++}
++
+ #' Create the gradient background image for the plot
+ #'
+ #' @param col A vector of three colors to use for the gradient
+-#' 
++#'
+ #' @return returns the location of the temporary png file that will get embedded into the eventual output
+ #'
+ createBackgroundImage <- function(col=NULL){
+@@ -192,15 +213,15 @@ checkCol <- function(fish){
+ #' @param ramp.angle A numeric value between 0 and 1 that indicates how steeply the shape should expand from it's leftmost origin to the first measured point. Only used when shape="polygon".
+ #' @param bg.type A string giving the background type - either "gradient" (default) or "solid". Default is "gradient".
+ #' @param bg.col A string or vector of strings giving the background color. For type "solid", one color expected. For type "gradient", a vector of three colors is expected.
+-#' 
++#'
+ #' @return No return value, outputs on graphics device
+-#' @examples 
++#' @examples
+ #' \dontrun{
+ #' fishPlot(fish,shape="polygon",title.btm="633734",
+ #'            vlines=c(0,150), vlab=c("day 0","day 150"), cex.title=0.5)
+ #' }
+ #' @export
+-#' 
++#'
+ fishPlot <- function(fish,shape="polygon", vlines=NULL, col.vline="#FFFFFF99", vlab=NULL,
+                      border=0.5, col.border="#777777", pad.left=0.2, ramp.angle=0.5,
+                      title=NULL, title.btm=NULL, cex.title=NULL, cex.vlab=0.7,
+@@ -208,7 +229,7 @@ fishPlot <- function(fish,shape="polygon", vlines=NULL, col.vline="#FFFFFF99", v
+ 
+   #make sure we have the right number of colors
+   checkCol(fish)
+-  
++
+   pad = (max(fish@timepoints)-min(fish@timepoints))*pad.left;
+ 
+   #set up the plot
+@@ -220,16 +241,16 @@ fishPlot <- function(fish,shape="polygon", vlines=NULL, col.vline="#FFFFFF99", v
+ 
+   lim=par()
+   bckImage = png::readPNG(createBackgroundImage(bg.col))
+-  ##create raster background image for smooth gradient  
++  ##create raster background image for smooth gradient
+   if(bg.type=="gradient"){
+     rasterImage(bckImage, lim$usr[1], lim$usr[3], lim$usr[2], lim$usr[4])
+-  } 
++  }
+   ##add background color to plot
+   if(bg.type=="solid"){
+     rect(par("usr")[1], par("usr")[3], par("usr")[2], par("usr")[4], col=bg.col)
+   }
+   #(if neither is set, bg will just be white)
+-  
++
+   ##draw the clusters one at a time, being sure that parents go before children
+   for(parent in sort(unique(fish@parents))){
+     for(i in which(fish@parents==parent)){
+@@ -242,19 +263,25 @@ fishPlot <- function(fish,shape="polygon", vlines=NULL, col.vline="#FFFFFF99", v
+       if(shape=="bezier"){
+         drawClustBezier(fish@xpos[[i]], fish@ytop[[i]], fish@ybtm[[i]],
+                         fish@col[i], fish@nest.level[i],
+-                        pad.left=pad.left, border=border ,col.border=col.border)
++                        pad.left=pad.left, border=border, col.border=col.border,
++                        annot = fish@clone.annots[i], annot.angle=fish@clone.annots.angle,
++                        annot.col=fish@clone.annots.col)
+       } else {
+         if(shape=="spline"){
+           drawClustSpline(fish@xpos[[i]], fish@ytop[[i]], fish@ybtm[[i]],
+                           fish@col[i], fish@nest.level[i],
+-                          pad.left=pad.left, border=border, col.border=col.border)
++                          pad.left=pad.left, border=border, col.border=col.border,
++                          annot = fish@clone.annots[i], annot.angle=fish@clone.annots.angle,
++                          annot.col=fish@clone.annots.col)
+         } else {
+           if(!shape=="polygon"){
+             print(paste("unknown shape \"",shape,"\". Using polygon representation"))
+           }
+           drawClustPolygon(fish@xpos[[i]], fish@ytop[[i]], fish@ybtm[[i]],
+                            fish@col[i], fish@nest.level[i], ramp.angle=ramp.angle,
+-                           pad.left=pad.left, border=border, col.border=col.border)
++                           pad.left=pad.left, border=border, col.border=col.border,
++                           annot = fish@clone.annots[i], annot.angle=fish@clone.annots.angle,
++                        annot.col=fish@clone.annots.col)
+         }
+       }
+     }
+@@ -307,7 +334,7 @@ drawLegend <- function(fish, xpos=0, ypos=-5, nrow=NULL, cex=1){
+   if(is.null(nrow)){
+     nrow = ceiling(length(fish@clone.labels)/8)
+   }
+-  
++
+   ##reorder for multi-row layout
+   ncol = ceiling(length(fish@clone.labels)/nrow)
+   lab = as.vector(suppressWarnings(t(matrix(fish@clone.labels,nrow=ncol))))[1:length(fish@clone.labels)]
+diff --git a/R/object.R b/R/object.R
+index d36eba1..3f40e50 100644
+--- a/R/object.R
++++ b/R/object.R
+@@ -7,7 +7,9 @@ initFishClass <- function(){
+                                         col="character", timepoints="numeric",
+                                         frac.table="matrix", parents="numeric",
+                                         nest.level="numeric", inner.space="list",
+-                                        outer.space="numeric", clone.labels="character"))
++                                        outer.space="numeric", clone.labels="character",
++                                        clone.annots="character", clone.annots.angle="numeric",
++                                        clone.annots.col="character"))
+ }
+ 
+ ##------------------------------------------------------------------------
+@@ -17,10 +19,10 @@ initFishClass <- function(){
+ #' @param parents An integer vector specifying parental relationships between clones
+ #' @param nest.level An integer vector specifying how deeply a given clone is nested in the overall hierarchy
+ #' @param clone.labels An integer vector specifying how deeply a given clone is nested in the overall hierarchy
+-#'
++#' @param clone.annots A character vector of annotations (mutation) to label to each clone in the plot
+ #' @return No return value - stops execution with an error if invalid inputs are detected
+ #'
+-validateInputs <- function(frac.table, parents, nest.level, clone.labels){
++validateInputs <- function(frac.table, parents, nest.level, clone.labels, clone.annots){
+   clones =  1:dim(frac.table)[1]
+   timepts = 1:dim(frac.table)[2]
+ 
+@@ -72,6 +74,11 @@ validateInputs <- function(frac.table, parents, nest.level, clone.labels){
+   if(length(clone.labels) != nrow(frac.table)){
+     stop(paste("number of clone.labels provided must be equal to the number of clones"))
+   }
++  
++  if(length(clone.annots) != nrow(frac.table)){
++    stop(paste("number of clone.annots provided must be equal to the number of clones"))
++  }
++
+ }
+ 
+ 
+@@ -125,6 +132,9 @@ getAllNestLevels <- function(parents){
+ #' @param timepoints An numeric vector specifying the timepoints for each column of the matrix
+ #' @param col A vector of colors to use when plotting each clone
+ #' @param clone.labels A character vector of names to assign to each clone when plotting a legend
++#' @param clone.annots A character vector of annotations (mutation) to label to each clone in the plot
++#' @param clone.annots.angle A numeric angle in degrees (0-360) giving the angle at which to plot the annotations
++#' @param clone.annots.col A string giving the color with which to draw the clone annotations
+ #' @param fix.missing.clones A boolean value, telling whether to "correct" clones that have zero values at timepoints between non-zero values. (the clone must still have been present if it came back). Default FALSE.
+ #'
+ #' @return A fish object with the relevant slots filled
+@@ -141,7 +151,7 @@ getAllNestLevels <- function(parents){
+ #' parents = c(0,1,1,3)
+ #' fish = createFishObject(frac.table,parents,timepoints=timepoints)
+ #'
+-createFishObject <- function(frac.table,parents,timepoints=NULL,col=NULL,clone.labels=NULL,fix.missing.clones=FALSE){
++createFishObject <- function(frac.table,parents,timepoints=NULL,col=NULL,clone.labels=NULL,clone.annots=NULL,clone.annots.angle=0,clone.annots.col="black",fix.missing.clones=FALSE){
+ 
+   nest.level = getAllNestLevels(parents)
+ 
+@@ -161,6 +171,11 @@ createFishObject <- function(frac.table,parents,timepoints=NULL,col=NULL,clone.l
+   if(is.null(clone.labels)){
+     clone.labels=as.character(1:nrow(frac.table))
+   }
++  
++  #default clone annotations are just empty strings
++  if(is.null(clone.annots)){
++    clone.annots=rep("",nrow(frac.table))
++  }
+ 
+   if(fix.missing.clones){
+     frac.table = fixDisappearingClones(frac.table,nest.level)
+@@ -168,13 +183,13 @@ createFishObject <- function(frac.table,parents,timepoints=NULL,col=NULL,clone.l
+   
+   
+   #sanity checks on input data
+-  validateInputs(frac.table, parents, nest.level, clone.labels)
++  validateInputs(frac.table, parents, nest.level, clone.labels, clone.annots)
+ 
+   #create the object
+   fish = new("fishObject", ytop=list(), ybtm=list(), col=c("NULL"),
+     timepoints=as.numeric(colnames(frac.table)), frac.table=frac.table,
+     parents=parents, nest.level=nest.level, inner.space=list(), outer.space=c(0),
+-    clone.labels=clone.labels)
++    clone.labels=clone.labels, clone.annots=clone.annots, clone.annots.angle=clone.annots.angle, clone.annots.col=clone.annots.col)
+ 
+   #set default colors to start
+   fish = setCol(fish,col)
+diff --git a/R/zzz.R b/R/zzz.R
+index dce1e43..29feaac 100644
+--- a/R/zzz.R
++++ b/R/zzz.R
+@@ -22,5 +22,5 @@
+ }
+ 
+ .onAttach <- function(libname, pkgname) {
+-    packageStartupMessage("Using fishPlot version 0.4")
++    packageStartupMessage("Using fishPlot version 0.5")
+ }
+diff --git a/tests/test.R b/tests/test.R
+index 8e83db0..5c39322 100644
+--- a/tests/test.R
++++ b/tests/test.R
+@@ -4,16 +4,17 @@ library(fishplot)
+ timepoints=c(0,30,75,150)
+ 
+ frac.table = matrix(
+-    c(100, 45, 00, 00,
+-      02, 00, 00, 00,
+-      02, 00, 02, 01,
+-      98, 00, 95, 40),
+-    ncol=length(timepoints))
++  c(100, 45, 00, 00,
++    02, 00, 00, 00,
++    02, 00, 02, 01,
++    98, 00, 95, 40),
++  ncol=length(timepoints))
+ 
+ parents = c(0,1,1,3)
+ 
+-
+-fish = createFishObject(frac.table,parents,timepoints=timepoints, clone.labels=c("Founding", "Subclone 1","Subclone 2","Subclone 3" ))
++fish = createFishObject(frac.table,parents,
++                        timepoints=timepoints, 
++                        clone.labels=c("Founding", "Subclone 1","Subclone 2","Subclone 3"))
+ fish = layoutClones(fish)
+ 
+ sample.times = c(0,150)
+@@ -24,7 +25,6 @@ fishPlot(fish,shape="spline",title.btm="633734",
+ drawLegend(fish)
+ dev <- dev.off()
+ 
+-
+ #recreate figure one from the manuscript
+ 
+ pdf("figure1.pdf",height=6,width=8)
+@@ -53,9 +53,9 @@ text(-100,130,"A",xpd=T,font=2)
+ parents = c(0,1,2,1)
+ timepoints=c(0,120)
+ frac.table = matrix(
+-    c(100, 98, 46, 01,
+-      100, 44, 01, 55),
+-    ncol=length(timepoints))
++  c(100, 98, 46, 01,
++    100, 44, 01, 55),
++  ncol=length(timepoints))
+ 
+ fish = createFishObject(frac.table,parents,timepoints=timepoints)
+ fish = layoutClones(fish)
+@@ -90,5 +90,74 @@ fishPlot(fish, shape="spline", vlines=vlines, vlab=vlines, title.btm="AML31",cex
+ ##panel label
+ text(-125,130,"C",xpd=T,font=2)
+ 
+-
+ dev=dev.off()
++
++# testing driver mutation annotations
++pdf("figure2.pdf", width=5, height=8)
++
++layout(mat=t(matrix(c(1,2,3), nrow=1,ncol=3)))
++
++##-------------------------------------------
++##panel A
++timepoints=c(0,30,75,150)
++frac.table = matrix(
++  c(100, 45, 00, 00,
++    02, 00, 00, 00,
++    02, 00, 02, 01,
++    98, 00, 95, 40),
++  ncol=length(timepoints))
++parents = c(0,1,1,3)
++
++fish = createFishObject(frac.table,parents,
++                        timepoints=timepoints, 
++                        clone.labels=c("Founding", "Subclone 1","Subclone 2","Subclone 3"),
++                        clone.annots=c("TP53,MET", "NF1", "", "8q+,6p-"))
++fish = layoutClones(fish)
++
++sample.times = c(0,150)
++
++fishPlot(fish,shape="spline",title.btm="633734",
++         vlines=sample.times, vlab=sample.times, cex.title=0.5, bg.type="solid")
++
++##-------------------------------------------
++##panel B
++
++timepoints=c(0,30,200,423)
++parents = c(0,1,1,3)
++frac.table = matrix(
++  c(100, 38, 24, 00,
++    002, 00, 01, 00,
++    002, 00, 01, 01,
++    100, 00, 98, 30),
++  ncol=length(timepoints))
++
++fish = createFishObject(frac.table,
++                        parents,
++                        timepoints=timepoints,
++                        clone.annots=c("DNMT3A,FLT3", "NPM1", "MET", "ETV6,WNK1-WAC,\nMYO18B"),
++                        clone.annots.col="green", clone.annots.angle=30)
++fish = layoutClones(fish)
++fishPlot(fish, shape="spline", vlines=c(0,423), vlab=c(0,423), title="Sample 150288", cex.title=0.9, cex.vlab=0.8)
++##panel label
++text(-100,130,"A",xpd=T,font=2)
++
++drawLegend(fish)
++
++##-------------------------------------------
++##panel C
++parents = c(0,1,2,1)
++timepoints=c(0,120)
++frac.table = matrix(
++  c(100, 98, 46, 01,
++    100, 44, 01, 55),
++  ncol=length(timepoints))
++
++fish = createFishObject(frac.table,parents,timepoints=timepoints)
++fish = layoutClones(fish)
++fish = setCol(fish,col=c("#1B9E77","#D95F02","#7570B3","#E7298A"))
++fish@clone.annots = c("TP53", "", "BRCA", "")
++fishPlot(fish, shape="polygon", vlab=c("Primary","Post-AI"),
++         vlines=c(0,120), title.btm="BRC32",
++         cex.title=0.7, cex.vlab=0.8,ramp.angle=1, pad.left=0.3)
++
++dev <- dev.off()

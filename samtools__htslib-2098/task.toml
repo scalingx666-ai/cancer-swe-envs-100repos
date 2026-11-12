@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__htslib-2098"
+description = "Fix hfile_s3 reads failing at EOF on a part boundary"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "htslib",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/htslib"
+ref = "7c5e3e7ebcdf90c8f96afd8a06d75ffa5603e417"
+reference = "https://github.com/samtools/htslib/pull/2098"
+source_access = "auto"
+built_at = "2026-11-12T04:18:15.493934+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:27073c218b6ebd3ae7ba9df5fd9ed4807972f9a4f37c7b3431d2722b44b2af02"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-08T14:22:05Z"
+diff_format = "unified"
+context_files = [
+    "hfile_s3.c",
+    "test/mock_http_server.py",
+    "test/test_hfile_libcurl.c",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 109
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.827596+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:53e5b663066be9c6fba70c6419d6e4fd3927b9ac85c72ae2dcf786e896084517"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

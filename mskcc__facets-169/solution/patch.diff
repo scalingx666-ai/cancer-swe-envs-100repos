@@ -1,0 +1,47 @@
+diff --git a/DESCRIPTION b/DESCRIPTION
+index eec915d..f0f1d8f 100644
+--- a/DESCRIPTION
++++ b/DESCRIPTION
+@@ -1,8 +1,8 @@
+ Package: facets
+ Type: Package
+ Title: Cellular Fraction and Copy Numbers from Tumor Sequencing
+-Version: 0.6.1-9000
+-Date: 2020-10-06
++Version: 0.6.1-9001
++Date: 2021-10-08
+ Author: Venkatraman E. Seshan and Ronglai Shen
+ Maintainer: Venkatraman E. Seshan <seshanv@mskcc.org>
+ Description: Algorithm to implement Fraction and Allelic Copy number
+diff --git a/inst/ChangeLog b/inst/ChangeLog
+index b25f730..8cce79f 100644
+--- a/inst/ChangeLog
++++ b/inst/ChangeLog
+@@ -1,4 +1,4 @@
+-10/06/2021: v0.6.1-9000
++10/08/2021: v0.6.1-9001
+ 
+   o Register native API.
+   o Fix partial argument and element names.
+diff --git a/src/000.init.c b/src/000.init.c
+index 0598774..98f7892 100644
+--- a/src/000.init.c
++++ b/src/000.init.c
+@@ -6,14 +6,14 @@
+ void F77_SUB(scansnp)(int *n, double *maploc, double *het, double *keep, double *nbhd);
+ void F77_SUB(t2maxo)(int *n, double *sx, int *ihet, int *iseg, double *ostat, int *nhet, double *rnij, double *rhij, double *delij);
+ 
+-static const R_CallMethodDef CallEntries[] = {
++static const R_FortranMethodDef FortranEntries[] = {
+     {"scansnp", (DL_FUNC) &F77_SUB(scansnp), 5},
+     {"t2maxo",  (DL_FUNC) &F77_SUB(t2maxo),  9},
+     {NULL, NULL, 0}
+ };
+ 
+-void R_init_affxparser(DllInfo *dll)
++void R_init_facets(DllInfo *dll)
+ {
+-    R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
++    R_registerRoutines(dll, NULL, NULL, FortranEntries, NULL);
+     R_useDynamicSymbols(dll, FALSE);
+ }

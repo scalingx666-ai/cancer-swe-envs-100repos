@@ -1,0 +1,34 @@
+diff --git a/mosdepth.nim b/mosdepth.nim
+index ff4655e..5a6553d 100644
+--- a/mosdepth.nim
++++ b/mosdepth.nim
+@@ -181,8 +181,14 @@ iterator regions(bam: hts.Bam, region: region_t, tid: int, targets: seq[
+     if tid != -1:
+       if stop == 0:
+         stop = targets[tid].length
+-      for r in bam.query(tid, int(region.start), int(stop)):
+-        yield r
++      try:
++        for r in bam.query(tid, int(region.start), int(stop)):
++          yield r
++      # if the iterator fails due to an invalid read from the BAM (due to file
++      # corruption or filesystem issues), we want to gracefully exit with a
++      # nonzero return.
++      except hts.BamError:
++        quit getCurrentExceptionMsg()
+     else:
+       stderr.write_line("[mosdepth]", region.chrom, " not found")
+ 
+diff --git a/mosdepth.nimble b/mosdepth.nimble
+index 04eb23a..e92dd8c 100644
+--- a/mosdepth.nimble
++++ b/mosdepth.nimble
+@@ -7,7 +7,7 @@ license       = "MIT"
+ 
+ # Dependencies
+ 
+-requires "hts >= 0.3.29", "docopt == 0.7.1", "nim >= 1.0.0", "https://github.com/brentp/d4-nim >= 0.0.5"
++requires "hts >= 0.3.31", "docopt == 0.7.1", "nim >= 1.0.0", "https://github.com/brentp/d4-nim >= 0.0.5"
+ 
+ bin = @["mosdepth"]
+ skipDirs = @["tests"]

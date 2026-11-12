@@ -1,0 +1,335 @@
+diff --git a/src/calling/variants/calling.rs b/src/calling/variants/calling.rs
+index 9f2c4e4ec..863647aef 100644
+--- a/src/calling/variants/calling.rs
++++ b/src/calling/variants/calling.rs
+@@ -70,12 +70,12 @@ where
+     omit_softclip_bias: bool,
+     omit_homopolymer_artifact_detection: bool,
+     omit_alt_locus_bias: bool,
+-    fragment_end_bias: bool,
+     scenario: grammar::Scenario,
+     outbcf: Option<PathBuf>,
+     aux_info_fields: Vec<Vec<u8>>,
+     contaminations: grammar::SampleInfo<Option<Contamination>>,
+     resolutions: grammar::SampleInfo<grammar::Resolution>,
++    fragment_end_bias: grammar::SampleInfo<bool>,
+     prior: Pr,
+     haplotype_feature_index: HaplotypeFeatureIndex,
+     #[builder(default)]
+@@ -328,6 +328,7 @@ where
+             .prior(self.prior.clone())
+             .contaminations(self.contaminations.clone())
+             .resolutions(self.resolutions.clone())
++            .fragment_end_bias(self.fragment_end_bias.clone())
+             .build()
+             .unwrap()
+     }
+@@ -591,7 +592,7 @@ where
+                 && is_precise,
+             check_strand_bias: !self.omit_strand_bias && is_precise,
+             check_read_position_bias: is_snv_or_mnv && !self.omit_read_position_bias && is_precise,
+-            check_fragment_end_bias: self.fragment_end_bias,
++            check_fragment_end_bias: self.fragment_end_bias.iter().any(|enabled| *enabled),
+             check_softclip_bias: is_snv_or_mnv && !self.omit_softclip_bias && is_precise,
+             check_homopolymer_artifact_detection: false,
+             check_alt_locus_bias: !self.omit_alt_locus_bias,
+@@ -785,7 +786,7 @@ where
+                 // By this, we can avoid marginalization of them, which is
+                 // unnecessarily expensive.
+                 for bias in &mut event.biases {
+-                    bias.learn_parameters(data.pileups());
++                    bias.learn_parameters(data.pileups(), &self.fragment_end_bias);
+                 }
+             }
+ 
+@@ -1121,6 +1122,13 @@ where
+     CF: CandidateFilter,
+ {
+     let sample_infos = SampleInfos::try_from(&scenario)?;
++    // METHOD: the CLI flag enables fragment end bias for all samples,
++    // otherwise it is controlled per sample in the scenario.
++    let fragment_end_bias = if fragment_end_bias {
++        sample_infos.fragment_end_bias.map(|_| true)
++    } else {
++        sample_infos.fragment_end_bias
++    };
+ 
+     // record observation paths
+     let mut sample_observations = scenario.sample_info();
+@@ -1177,11 +1185,11 @@ where
+         .omit_softclip_bias(omit_softclip_bias)
+         .omit_homopolymer_artifact_detection(omit_homopolymer_artifact_detection)
+         .omit_alt_locus_bias(omit_alt_locus_bias)
+-        .fragment_end_bias(fragment_end_bias)
+         .scenario(scenario)
+         .prior(prior)
+         .contaminations(sample_infos.contaminations)
+         .resolutions(sample_infos.resolutions)
++        .fragment_end_bias(fragment_end_bias)
+         .haplotype_feature_index(haplotype_feature_index)
+         .outbcf(output)
+         .aux_info_fields(propagate_info_fields)
+@@ -1203,6 +1211,7 @@ pub(crate) struct SampleInfos {
+     uniform_prior: grammar::SampleInfo<bool>,
+     contaminations: grammar::SampleInfo<Option<Contamination>>,
+     resolutions: grammar::SampleInfo<grammar::Resolution>,
++    fragment_end_bias: grammar::SampleInfo<bool>,
+     germline_mutation_rates: grammar::SampleInfo<Option<f64>>,
+     somatic_effective_mutation_rates: grammar::SampleInfo<Option<f64>>,
+     inheritance: grammar::SampleInfo<Option<Inheritance>>,
+@@ -1215,6 +1224,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
+     fn try_from(scenario: &grammar::Scenario) -> Result<Self> {
+         let mut contaminations = scenario.sample_info();
+         let mut resolutions = scenario.sample_info();
++        let mut fragment_end_bias = scenario.sample_info();
+         let mut sample_names = scenario.sample_info();
+         let mut germline_mutation_rates = scenario.sample_info();
+         let mut somatic_effective_mutation_rates = scenario.sample_info();
+@@ -1238,6 +1248,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
+             uniform_prior = uniform_prior.push(sample_name, sample.has_uniform_prior());
+             contaminations = contaminations.push(sample_name, contamination);
+             resolutions = resolutions.push(sample_name, sample.resolution().to_owned());
++            fragment_end_bias = fragment_end_bias.push(sample_name, *sample.fragment_end_bias());
+             sample_names = sample_names.push(sample_name, sample_name.to_owned());
+             germline_mutation_rates = germline_mutation_rates.push(
+                 sample_name,
+@@ -1286,6 +1297,7 @@ impl<'a> TryFrom<&'a grammar::Scenario> for SampleInfos {
+             uniform_prior: uniform_prior.build(),
+             contaminations: contaminations.build(),
+             resolutions: resolutions.build(),
++            fragment_end_bias: fragment_end_bias.build(),
+             germline_mutation_rates: germline_mutation_rates.build(),
+             somatic_effective_mutation_rates: somatic_effective_mutation_rates.build(),
+             inheritance: inheritance.build(),
+diff --git a/src/grammar/mod.rs b/src/grammar/mod.rs
+index 4ad15d471..2db374610 100644
+--- a/src/grammar/mod.rs
++++ b/src/grammar/mod.rs
+@@ -484,6 +484,10 @@ pub(crate) struct Sample {
+     inheritance: Option<Inheritance>,
+     #[serde(default)]
+     sex: Option<Sex>,
++    /// consider fragment end bias (e.g. FFPE artifacts) for this sample
++    #[serde(default)]
++    #[get = "pub(crate)"]
++    fragment_end_bias: bool,
+ }
+ 
+ impl Sample {
+diff --git a/src/variants/model/bias/mod.rs b/src/variants/model/bias/mod.rs
+index fa8c8aaab..1c1c0a1f4 100644
+--- a/src/variants/model/bias/mod.rs
++++ b/src/variants/model/bias/mod.rs
+@@ -37,11 +37,15 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+     fn is_artifact(&self) -> bool;
+ 
+     fn is_possible(&self, pileups: &[Pileup]) -> bool {
++        self.is_possible_in(pileups.iter())
++    }
++
++    fn is_possible_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
+         if !self.is_artifact() {
+             return true;
+         }
+ 
+-        pileups.iter().any(|pileup| {
++        pileups.into_iter().any(|pileup| {
+             pileup
+                 .read_observations()
+                 .iter()
+@@ -49,7 +53,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+         })
+     }
+ 
+-    fn is_informative(&self, _pileups: &[Pileup]) -> bool {
++    fn is_informative(&self, pileups: &[Pileup]) -> bool {
++        self.is_informative_in(pileups.iter())
++    }
++
++    fn is_informative_in<'a>(&self, _pileups: impl Iterator<Item = &'a Pileup>) -> bool {
+         true
+     }
+ 
+@@ -62,10 +70,14 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+     }
+ 
+     fn is_likely(&self, pileups: &[Pileup]) -> bool {
++        self.is_likely_in(pileups.iter())
++    }
++
++    fn is_likely_in<'a>(&self, pileups: impl Iterator<Item = &'a Pileup>) -> bool {
+         if !self.is_artifact() {
+             true
+         } else {
+-            pileups.iter().any(|pileup| {
++            pileups.into_iter().any(|pileup| {
+                 let strong_all = pileup
+                     .read_observations()
+                     .iter()
+@@ -106,7 +118,11 @@ pub(crate) trait Bias: Default + cmp::PartialEq + std::fmt::Debug {
+     }
+ 
+     /// Learn parameters needed for estimation on current pileup.
+-    fn learn_parameters(&mut self, _pileups: &[Pileup]) {
++    fn learn_parameters(&mut self, pileups: &[Pileup]) {
++        self.learn_parameters_in(pileups.iter());
++    }
++
++    fn learn_parameters_in<'a>(&mut self, _pileups: impl Iterator<Item = &'a Pileup>) {
+         // METHOD: by default, there is nothing to learn, however, a bias can use this to
+         // infer some parameters over which we would otherwise need to integrate (which would hamper
+         // performance too much).
+@@ -231,6 +247,16 @@ impl Artifacts {
+         )
+     }
+ 
++    /// Reset all biases that are not applicable to a sample (currently only fragment end bias,
++    /// which can be configured per sample).
++    pub(crate) fn for_sample(&self, fragment_end_bias: bool) -> Self {
++        let mut artifacts = self.clone();
++        if !fragment_end_bias {
++            artifacts.fragment_end_bias = FragmentEndBias::default();
++        }
++        artifacts
++    }
++
+     pub(crate) fn none() -> Self {
+         ArtifactsBuilder::default()
+             .strand_bias(StrandBias::default())
+@@ -244,31 +270,48 @@ impl Artifacts {
+             .unwrap()
+     }
+ 
+-    pub(crate) fn is_possible(&self, pileups: &[Pileup]) -> bool {
++    /// Iterate over the pileups of those samples for which fragment end bias is considered.
++    fn fragment_end_pileups<'a>(
++        pileups: &'a [Pileup],
++        fragment_end_samples: &'a [bool],
++    ) -> impl Iterator<Item = &'a Pileup> {
++        pileups
++            .iter()
++            .zip(fragment_end_samples)
++            .filter_map(|(pileup, enabled)| enabled.then_some(pileup))
++    }
++
++    pub(crate) fn is_possible(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
+         self.strand_bias.is_possible(pileups)
+             && self.read_orientation_bias.is_possible(pileups)
+             && self.read_position_bias.is_possible(pileups)
+-            && self.fragment_end_bias.is_possible(pileups)
++            && self
++                .fragment_end_bias
++                .is_possible_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
+             && self.softclip_bias.is_possible(pileups)
+             && self.homopolymer_error.is_possible(pileups)
+             && self.alt_locus_bias.is_possible(pileups)
+     }
+ 
+-    pub(crate) fn is_informative(&self, pileups: &[Pileup]) -> bool {
++    pub(crate) fn is_informative(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
+         self.strand_bias.is_informative(pileups)
+             && self.read_orientation_bias.is_informative(pileups)
+             && self.read_position_bias.is_informative(pileups)
+-            && self.fragment_end_bias.is_informative(pileups)
++            && self
++                .fragment_end_bias
++                .is_informative_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
+             && self.softclip_bias.is_informative(pileups)
+             && self.homopolymer_error.is_informative(pileups)
+             && self.alt_locus_bias.is_informative(pileups)
+     }
+ 
+-    pub(crate) fn is_likely(&self, pileups: &[Pileup]) -> bool {
++    pub(crate) fn is_likely(&self, pileups: &[Pileup], fragment_end_samples: &[bool]) -> bool {
+         self.strand_bias.is_likely(pileups)
+             && self.read_orientation_bias.is_likely(pileups)
+             && self.read_position_bias.is_likely(pileups)
+-            && self.fragment_end_bias.is_likely(pileups)
++            && self
++                .fragment_end_bias
++                .is_likely_in(Self::fragment_end_pileups(pileups, fragment_end_samples))
+             && self.softclip_bias.is_likely(pileups)
+             && self.homopolymer_error.is_likely(pileups)
+             && self.alt_locus_bias.is_likely(pileups)
+@@ -314,11 +357,12 @@ impl Artifacts {
+             || self.alt_locus_bias.is_artifact()
+     }
+ 
+-    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup]) {
++    pub(crate) fn learn_parameters(&mut self, pileups: &[Pileup], fragment_end_samples: &[bool]) {
+         self.homopolymer_error.learn_parameters(pileups);
+         self.strand_bias.learn_parameters(pileups);
+         self.read_position_bias.learn_parameters(pileups);
+-        self.fragment_end_bias.learn_parameters(pileups);
++        self.fragment_end_bias
++            .learn_parameters_in(Self::fragment_end_pileups(pileups, fragment_end_samples));
+         self.alt_locus_bias.learn_parameters(pileups);
+     }
+ }
+diff --git a/src/variants/model/modes/generic.rs b/src/variants/model/modes/generic.rs
+index 4b05df215..00f207c83 100644
+--- a/src/variants/model/modes/generic.rs
++++ b/src/variants/model/modes/generic.rs
+@@ -59,6 +59,7 @@ where
+ {
+     resolutions: Option<grammar::SampleInfo<grammar::Resolution>>,
+     contaminations: Option<grammar::SampleInfo<Option<Contamination>>>,
++    fragment_end_bias: Option<grammar::SampleInfo<bool>>,
+     prior: P,
+ }
+ 
+@@ -84,6 +85,15 @@ where
+         self
+     }
+ 
++    pub(crate) fn fragment_end_bias(
++        mut self,
++        fragment_end_bias: grammar::SampleInfo<bool>,
++    ) -> Self {
++        self.fragment_end_bias = Some(fragment_end_bias);
++
++        self
++    }
++
+     pub(crate) fn prior(mut self, prior: P) -> Self {
+         self.prior = prior;
+ 
+@@ -96,6 +106,8 @@ where
+         let posterior = GenericPosterior::new(
+             self.resolutions
+                 .expect("GenericModelBuilder: need to call resolutions() before build()"),
++            self.fragment_end_bias
++                .expect("GenericModelBuilder: need to call fragment_end_bias() before build()"),
+         );
+         let likelihood = GenericLikelihood::new(
+             self.contaminations
+@@ -185,6 +197,7 @@ impl Index<usize> for LikelihoodOperands {
+ #[derive(new, Clone, Debug, Default)]
+ pub(crate) struct GenericPosterior {
+     resolutions: grammar::SampleInfo<grammar::Resolution>,
++    fragment_end_bias: grammar::SampleInfo<bool>,
+ }
+ 
+ impl GenericPosterior {
+@@ -251,7 +264,7 @@ impl GenericPosterior {
+                             *sample,
+                             likelihood::Event {
+                                 allele_freq,
+-                                artifacts: biases.clone(),
++                                artifacts: biases.for_sample(self.fragment_end_bias[*sample]),
+                                 is_discrete,
+                             },
+                         );
+@@ -442,9 +455,9 @@ impl Posterior for GenericPosterior {
+ 
+         // METHOD: filter out biases that are impossible to observe, (e.g. + without any + observation).
+         let possible_biases = event.biases.iter().filter(|bias| {
+-            bias.is_possible(&data.pileups)
+-                && bias.is_informative(&data.pileups)
+-                && bias.is_likely(&data.pileups)
++            bias.is_possible(&data.pileups, &self.fragment_end_bias)
++                && bias.is_informative(&data.pileups, &self.fragment_end_bias)
++                && bias.is_likely(&data.pileups, &self.fragment_end_bias)
+         });
+ 
+         LogProb::ln_sum_exp(

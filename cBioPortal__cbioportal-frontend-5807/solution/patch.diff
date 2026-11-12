@@ -1,0 +1,282 @@
+diff --git a/src/pages/patientView/mutation/PatientViewMutationTable.tsx b/src/pages/patientView/mutation/PatientViewMutationTable.tsx
+index 315adca793b..351d857d195 100644
+--- a/src/pages/patientView/mutation/PatientViewMutationTable.tsx
++++ b/src/pages/patientView/mutation/PatientViewMutationTable.tsx
+@@ -11,6 +11,7 @@ import SampleManager from '../SampleManager';
+ import { Mutation } from 'cbioportal-ts-api-client';
+ import AlleleCountColumnFormatter from 'shared/components/mutationTable/column/AlleleCountColumnFormatter';
+ import AlleleFreqColumnFormatter from './column/AlleleFreqColumnFormatter';
++import MutationStatusColumnFormatter from 'shared/components/mutationTable/column/MutationStatusColumnFormatter';
+ import TumorColumnFormatter from './column/TumorColumnFormatter';
+ import PanelColumnFormatter from 'shared/components/mutationTable/column/PanelColumnFormatter';
+ import { isUncalled } from 'shared/lib/MutationUtils';
+@@ -129,8 +130,7 @@ export default class PatientViewMutationTable extends MutationTable<
+         const allMutations = this.props.dataStore
+             ? this.props.dataStore.allData
+             : this.props.data;
+-        const hasTumorAlleleFreq = AlleleFreqColumnFormatter.isVisible(
+-            this.props.sampleManager,
++        const hasClonalHematopoiesis = MutationStatusColumnFormatter.hasClonalHematopoiesis(
+             allMutations
+         );
+ 
+@@ -152,7 +152,10 @@ export default class PatientViewMutationTable extends MutationTable<
+             tooltip: this.props.alleleFreqHeaderRender
+                 ? undefined
+                 : defaultAlleleFrequencyHeaderTooltip,
+-            visible: hasTumorAlleleFreq,
++            visible: AlleleFreqColumnFormatter.isVisible(
++                this.props.sampleManager,
++                allMutations
++            ),
+         };
+ 
+         this._columns[MutationTableColumnType.NORMAL_ALLELE_FREQ] = {
+@@ -177,9 +180,8 @@ export default class PatientViewMutationTable extends MutationTable<
+             download: (d: Mutation[]) =>
+                 AlleleFreqColumnFormatter.getFrequency(d, 'normal'),
+             tooltip: defaultNormalAlleleFrequencyHeaderTooltip,
+-            // shown by default only when there is no tumor allele frequency,
+-            // e.g. clonal hematopoiesis variants called in the normal sample
+-            visible: !hasTumorAlleleFreq,
++            // clonal hematopoiesis variants are called in the normal (blood) sample
++            visible: hasClonalHematopoiesis,
+             shouldExclude: () =>
+                 !AlleleFreqColumnFormatter.isVisible(
+                     this.props.sampleManager,
+@@ -394,6 +396,11 @@ export default class PatientViewMutationTable extends MutationTable<
+         this._columns[MutationTableColumnType.HGVSG].order = 81;
+         this._columns[MutationTableColumnType.HGVSC].order = 82;
+         this._columns[MutationTableColumnType.MUTATION_STATUS].order = 90;
++        if (hasClonalHematopoiesis) {
++            this._columns[
++                MutationTableColumnType.MUTATION_STATUS
++            ].visible = true;
++        }
+         this._columns[MutationTableColumnType.VALIDATION_STATUS].order = 100;
+         this._columns[MutationTableColumnType.MUTATION_TYPE].order = 110;
+         this._columns[MutationTableColumnType.VARIANT_TYPE].order = 114;
+diff --git a/src/pages/resultsView/mutation/ResultsViewMutationTable.tsx b/src/pages/resultsView/mutation/ResultsViewMutationTable.tsx
+index 687e57b2030..b12549e06d4 100644
+--- a/src/pages/resultsView/mutation/ResultsViewMutationTable.tsx
++++ b/src/pages/resultsView/mutation/ResultsViewMutationTable.tsx
+@@ -8,6 +8,7 @@ import {
+     MutationTableColumn,
+ } from 'shared/components/mutationTable/MutationTable';
+ import CancerTypeColumnFormatter from 'shared/components/mutationTable/column/CancerTypeColumnFormatter';
++import MutationStatusColumnFormatter from 'shared/components/mutationTable/column/MutationStatusColumnFormatter';
+ import TumorAlleleFreqColumnFormatter from 'shared/components/mutationTable/column/TumorAlleleFreqColumnFormatter';
+ import { Mutation, ClinicalAttribute } from 'cbioportal-ts-api-client';
+ import ExonColumnFormatter from 'shared/components/mutationTable/column/ExonColumnFormatter';
+@@ -240,6 +241,22 @@ export default class ResultsViewMutationTable extends MutationTable<
+                 : this.props.data
+         );
+ 
++        // clonal hematopoiesis variants are called in the normal (blood) sample
++        if (
++            MutationStatusColumnFormatter.hasClonalHematopoiesis(
++                this.props.dataStore
++                    ? this.props.dataStore.allData
++                    : this.props.data
++            )
++        ) {
++            this._columns[
++                MutationTableColumnType.MUTATION_STATUS
++            ].visible = true;
++            this._columns[
++                MutationTableColumnType.NORMAL_ALLELE_FREQ
++            ].visible = true;
++        }
++
+         // disable annotation column if non canonical transcript is selected
+         this._columns[MutationTableColumnType.ANNOTATION].shouldExclude = () =>
+             this.props.isCanonicalTranscript === false;
+diff --git a/src/shared/components/mutationTable/MutationTableColumnLegends.tsx b/src/shared/components/mutationTable/MutationTableColumnLegends.tsx
+index f9151c8413d..9c8383a8ad1 100644
+--- a/src/shared/components/mutationTable/MutationTableColumnLegends.tsx
++++ b/src/shared/components/mutationTable/MutationTableColumnLegends.tsx
+@@ -74,8 +74,8 @@ export const MutationStatusColumnLegend: React.FunctionComponent = () => (
+     <ColumnLegend
+         description={
+             <span>
+-                Mutation Status (MS): whether the mutation was called as somatic
+-                or germline.
++                Mutation Status (MS): whether the mutation was called as
++                somatic, germline or clonal hematopoiesis.
+             </span>
+         }
+         categories={[
+@@ -91,6 +91,16 @@ export const MutationStatusColumnLegend: React.FunctionComponent = () => (
+                     <span className={mutationStatusStyles.germline}>G</span>
+                 ),
+             },
++            {
++                value: 'Clonal hematopoiesis',
++                description:
++                    'Acquired in blood cells; detected in the matched normal (blood) sample',
++                swatch: (
++                    <span className={mutationStatusStyles.clonalHematopoiesis}>
++                        CH
++                    </span>
++                ),
++            },
+         ]}
+     />
+ );
+diff --git a/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.spec.tsx b/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.spec.tsx
+index cb2eea8c96c..4cef7f3a753 100644
+--- a/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.spec.tsx
++++ b/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.spec.tsx
+@@ -19,6 +19,10 @@ describe('MutationStatusColumnFormatter', () => {
+         mutationStatus: 'na',
+     });
+ 
++    const chMutation = initMutation({
++        mutationStatus: 'CH',
++    });
++
+     const germlineData = [germlineMutation];
+     const somaticData = [somaticMutation];
+     const naData = [naMutation];
+@@ -26,6 +30,7 @@ describe('MutationStatusColumnFormatter', () => {
+     let germlineComponent: ReactWrapper<any, any>;
+     let somaticComponent: ReactWrapper<any, any>;
+     let naComponent: ReactWrapper<any, any>;
++    let chComponent: ReactWrapper<any, any>;
+ 
+     beforeAll(() => {
+         germlineComponent = mount(
+@@ -37,6 +42,9 @@ describe('MutationStatusColumnFormatter', () => {
+         naComponent = mount(
+             MutationStatusColumnFormatter.renderFunction(naData)
+         );
++        chComponent = mount(
++            MutationStatusColumnFormatter.renderFunction([chMutation])
++        );
+     });
+ 
+     it('gets mutation status data properly', () => {
+@@ -75,6 +83,41 @@ describe('MutationStatusColumnFormatter', () => {
+         testRenderedValues(germlineComponent, 'germline', 'G');
+         testRenderedValues(somaticComponent, 'somatic', 'S');
+         testRenderedValues(naComponent, 'unknown', 'na');
++        testRenderedValues(chComponent, 'clonalHematopoiesis', 'CH');
++        assert.isTrue(chComponent.find(DefaultTooltip).exists());
++    });
++
++    it('recognizes clonal hematopoiesis mutation statuses', () => {
++        [
++            'CH',
++            'ch',
++            'CHIP',
++            'Clonal_Hematopoiesis',
++            'clonal hematopoiesis',
++        ].forEach(status =>
++            assert.isTrue(
++                MutationStatusColumnFormatter.isClonalHematopoiesis(status),
++                status
++            )
++        );
++        ['Somatic', 'Germline', 'na', '', null, undefined].forEach(status =>
++            assert.isFalse(
++                MutationStatusColumnFormatter.isClonalHematopoiesis(status),
++                String(status)
++            )
++        );
++        assert.isTrue(
++            MutationStatusColumnFormatter.hasClonalHematopoiesis([
++                [somaticMutation],
++                [chMutation],
++            ])
++        );
++        assert.isFalse(
++            MutationStatusColumnFormatter.hasClonalHematopoiesis([
++                [somaticMutation],
++                [germlineMutation],
++            ])
++        );
+     });
+ 
+     it('adds tooltips only for germline and somatic mutation statuses', () => {
+diff --git a/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.tsx b/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.tsx
+index 7243d3e30f2..1887e9ac29f 100644
+--- a/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.tsx
++++ b/src/shared/components/mutationTable/column/MutationStatusColumnFormatter.tsx
+@@ -17,6 +17,33 @@ export default class MutationStatusColumnFormatter {
+         return value;
+     }
+ 
++    public static isClonalHematopoiesis(mutationStatus?: string | null) {
++        if (!mutationStatus) {
++            return false;
++        }
++
++        const status = mutationStatus
++            .toLowerCase()
++            .replace(/[\s_-]+/g, ' ')
++            .trim();
++
++        return (
++            status === 'ch' ||
++            status === 'chip' ||
++            status.indexOf('clonal hematopoiesis') > -1
++        );
++    }
++
++    public static hasClonalHematopoiesis(rows: Mutation[][] = []) {
++        return rows.some(row =>
++            row.some(m =>
++                MutationStatusColumnFormatter.isClonalHematopoiesis(
++                    m.mutationStatus
++                )
++            )
++        );
++    }
++
+     public static sortValue(data: Mutation[]) {
+         return MutationStatusColumnFormatter.getData(data);
+     }
+@@ -31,7 +58,12 @@ export default class MutationStatusColumnFormatter {
+         let needTooltip = false;
+ 
+         if (value) {
+-            if (value.toLowerCase().indexOf('somatic') > -1) {
++            if (MutationStatusColumnFormatter.isClonalHematopoiesis(value)) {
++                content = (
++                    <span className={styles.clonalHematopoiesis}>CH</span>
++                );
++                needTooltip = true;
++            } else if (value.toLowerCase().indexOf('somatic') > -1) {
+                 content = <span className={styles.somatic}>S</span>;
+                 needTooltip = true;
+             } else if (value.toLowerCase().indexOf('germline') > -1) {
+diff --git a/src/shared/components/mutationTable/column/mutationStatus.module.scss b/src/shared/components/mutationTable/column/mutationStatus.module.scss
+index 682e4d94a97..48f56ea54cf 100644
+--- a/src/shared/components/mutationTable/column/mutationStatus.module.scss
++++ b/src/shared/components/mutationTable/column/mutationStatus.module.scss
+@@ -16,6 +16,15 @@
+     font-size: small;
+ }
+ 
++.clonalHematopoiesis {
++    background: #e8d9f5;
++    color: #000000;
++    padding-left: 5px;
++    padding-right: 5px;
++    font-weight: bold;
++    font-size: small;
++}
++
+ .unknown {
+     color: #9d9d9d;
+     font-size: xx-small;
+diff --git a/src/shared/components/mutationTable/column/mutationStatus.module.scss.d.ts b/src/shared/components/mutationTable/column/mutationStatus.module.scss.d.ts
+index af7c8d06752..c62342cc4b7 100644
+--- a/src/shared/components/mutationTable/column/mutationStatus.module.scss.d.ts
++++ b/src/shared/components/mutationTable/column/mutationStatus.module.scss.d.ts
+@@ -1,4 +1,5 @@
+ declare const styles: {
++  readonly "clonalHematopoiesis": string;
+   readonly "germline": string;
+   readonly "somatic": string;
+   readonly "unknown": string;

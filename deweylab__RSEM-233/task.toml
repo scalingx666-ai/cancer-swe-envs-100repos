@@ -1,0 +1,91 @@
+version = "1.0"
+
+[task]
+name = "default/deweylab__RSEM-233"
+description = "Remove Boost"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "RSEM",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "deweylab/RSEM"
+ref = "8bc1e2115493c0cdf3c6bee80ef7a21a91b2acce"
+reference = "https://github.com/deweylab/RSEM/pull/233"
+source_access = "auto"
+built_at = "2026-11-12T05:55:49.926204+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:9103fa5e44eedddc822c0a703ed792e6de6aed9d90be699ca96795dc7a77fddb"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-04-03T19:04:27Z"
+diff_format = "unified"
+context_files = [
+    "LenDist.h",
+    "Makefile",
+    "PairedEndHit.h",
+    "SingleHit.h",
+    "boost_compat.h",
+    "buildReadIndex.cpp",
+    "pRSEM/phantompeakqualtools/README.txt",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/Makevars.in",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/bamread.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/bed2vector.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/maqread.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/pc.h",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/peaks.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.2/src/wdl.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/Makevars.in",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/bamread.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/bed2vector.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/maqread.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/pc.h",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/peaks.cpp",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/string_utils.h",
+    "pRSEM/phantompeakqualtools/spp_1.10.1_on_R3.3/src/wdl.cpp",
+    "sampling.h",
+    "simul.h",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1189
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.786622+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:88bef27eb76509f43590b3d70301e540c8e98069fb19a11c64ba2a16478c5180"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

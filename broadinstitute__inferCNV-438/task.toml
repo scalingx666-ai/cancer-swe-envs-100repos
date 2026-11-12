@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__inferCNV-438"
+description = "Allow adding a custom column prefix when using add_to_seurat"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "inferCNV",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/inferCNV"
+ref = "56b97ff9659666065b39faf49c1270dbecdea173"
+reference = "https://github.com/broadinstitute/infercnv/pull/438"
+source_access = "auto"
+built_at = "2026-11-12T05:39:27.951740+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f567d37ca2697e498aeecd0c30d0ebe86dadd2105052a8022951555b7db4e1f3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-07-25T16:19:55Z"
+diff_format = "unified"
+context_files = [
+    "R/seurat_interaction.R",
+    "man/add_to_seurat.Rd",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 42
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.777414+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:49b99ebf554a432856145917993e3ff79131fd24de2a76490b81a0d84c1f74b8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

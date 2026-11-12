@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/PoisonAlien__maftools-954"
+description = "Add a co-gisticChromPlot function gisticChromPlot2v and a helper function yload_gistic"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "maftools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "PoisonAlien/maftools"
+ref = "80b22a48cccb9be696cc164a6b6b5aa6c1ef8ee3"
+reference = "https://github.com/PoisonAlien/maftools/pull/954"
+source_access = "auto"
+built_at = "2026-11-12T04:12:32.442093+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:eb6c8f1d950ab59b21bafcd769dd180a2f8f4089b8a63674db0a6a56d67c8b63"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-07-13T08:55:27Z"
+diff_format = "unified"
+context_files = [
+    "NAMESPACE",
+    "R/coGisticChromPlotV.R",
+    "man/coGisticChromPlotV.Rd",
+    "man/yload_gistic.Rd",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1060
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.754408+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ee492929e283ad6205a68178ddb842ef79f9c6ad6aa0a3a222dcf7f8820d6671"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

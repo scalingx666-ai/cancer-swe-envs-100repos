@@ -1,0 +1,83 @@
+diff --git a/src/utils/FileRecordTools/Records/Record.h b/src/utils/FileRecordTools/Records/Record.h
+index d38f6d3f..c651ac8c 100644
+--- a/src/utils/FileRecordTools/Records/Record.h
++++ b/src/utils/FileRecordTools/Records/Record.h
+@@ -73,7 +73,7 @@ class Record {
+ 	virtual void printNull(string &) const {}
+ 	friend ostream &operator << (ostream &out, const Record &record);
+ 
+-	virtual const Record & operator=(const Record &);
++	const Record & operator=(const Record &);
+ 
+ 	virtual bool isZeroBased() const {return true;};
+ 
+diff --git a/src/utils/NewChromsweep/NewChromsweep.cpp b/src/utils/NewChromsweep/NewChromsweep.cpp
+index f73266e0..bb3df612 100644
+--- a/src/utils/NewChromsweep/NewChromsweep.cpp
++++ b/src/utils/NewChromsweep/NewChromsweep.cpp
+@@ -26,11 +26,11 @@ NewChromSweep::NewChromSweep(ContextIntersect *context)
+      _wasInitialized(false),
+      _currQueryRec(NULL),
+      _runToQueryEnd(_context->getRunToQueryEnd()),
++     _runToDbEnd(false),
+      _lexicoDisproven(false),
+      _lexicoAssumed(false),
+      _lexicoAssumedFileIdx(-1),
+-     _testLastQueryRec(false),
+-     _runToDbEnd(false)
++     _testLastQueryRec(false)
+ {
+ 	_filePrevChrom.resize(_numFiles);
+ 	_runToDbEnd = context->shouldRunToDbEnd();
+diff --git a/src/utils/NewChromsweep/NewChromsweep.h b/src/utils/NewChromsweep/NewChromsweep.h
+index 5a89a784..90392d6b 100644
+--- a/src/utils/NewChromsweep/NewChromsweep.h
++++ b/src/utils/NewChromsweep/NewChromsweep.h
+@@ -90,8 +90,7 @@ class NewChromSweep {
+     string _currQueryChromName;
+     string _prevQueryChromName;
+     bool _runToQueryEnd;
+-	bool _runToDbEnd;
+-
++    bool _runToDbEnd;
+ 
+     virtual void masterScan(RecordKeyVector &retList);
+ 
+diff --git a/src/utils/general/ParseTools.cpp b/src/utils/general/ParseTools.cpp
+index 7850a02a..ad43bcd9 100644
+--- a/src/utils/general/ParseTools.cpp
++++ b/src/utils/general/ParseTools.cpp
+@@ -2,6 +2,7 @@
+ #include <climits>
+ #include <cctype>
+ #include <cstring>
++#include <cstdint>
+ #include <cstdio>
+ #include <cstdlib>
+ #include <sstream>
+diff --git a/src/utils/general/ParseTools.h b/src/utils/general/ParseTools.h
+index e056c149..6b8fe76d 100644
+--- a/src/utils/general/ParseTools.h
++++ b/src/utils/general/ParseTools.h
+@@ -16,11 +16,10 @@
+ #include "string.h"
+ #include <cstdio>
+ #include <cstdlib>
++#include "BedtoolsTypes.h"
+ 
+ using namespace std;
+ 
+-typedef int64_t CHRPOS;
+-
+ bool isNumeric(const string &str);
+ bool isInteger(const string &str);
+ 
+@@ -54,7 +53,7 @@ void int2str(U number, T& buffer, bool appendToBuf = false)
+ 
+ 	bool neg = number < 0;
+ 	if(neg) number = -number;
+-	uint32_t n;
++	unsigned int n;
+ 	for(n = 0; number; number /= 10)
+ 		tmp[12 - ++n] = number % 10 + '0';
+ 	if(neg) tmp[12 - ++n] = '-';

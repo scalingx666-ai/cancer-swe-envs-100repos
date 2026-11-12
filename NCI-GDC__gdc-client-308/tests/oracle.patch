@@ -1,0 +1,25 @@
+diff --git a/.github/workflows/ci.yaml b/.github/workflows/ci.yaml
+index 2f5f31b..6809631 100644
+--- a/.github/workflows/ci.yaml
++++ b/.github/workflows/ci.yaml
+@@ -31,6 +31,7 @@ jobs:
+     env:
+       GDC_CLIENT_ZIP: 'gdc-client.zip'
+       UV_INDEX_URL: "https://pypi.org/simple"
++      UV_PYTHON: ${{ matrix.python }}
+     steps:
+       - uses: actions/checkout@v4
+         with:
+diff --git a/bin/package b/bin/package
+index 266d391..a50cfef 100755
+--- a/bin/package
++++ b/bin/package
+@@ -34,7 +34,7 @@ OSX_FLAGS=""
+ case "$(uname -s)" in
+     *NT*) TARGET_ENVIRONMENT="Windows"; BINARY_NAME="gdc-client.exe" ;;
+     *Linux*) TARGET_ENVIRONMENT="Ubuntu" ;;
+-    *Darwin*) TARGET_ENVIRONMENT="OSX"; OSX_FLAGS="--codesign-identity -" ;;
++    *Darwin*) TARGET_ENVIRONMENT="OSX";;
+     *) echo "Unsupported OS"; exit 1 ;;
+ esac
+ 

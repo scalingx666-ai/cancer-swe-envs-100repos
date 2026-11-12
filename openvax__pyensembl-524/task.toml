@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__pyensembl-524"
+description = "Print numbered releases in CLI tables (2.33.1)"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "pyensembl",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/pyensembl"
+ref = "3219771b395aaa8adf491532cc9bb7ad3ef3dca0"
+reference = "https://github.com/openvax/pyensembl/pull/524"
+source_access = "auto"
+built_at = "2026-11-12T05:37:06.361580+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:756becc5f7f07ede26043ab93503ea175b2f85dfe94e8120fde5ade644462ca8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-08T03:56:23Z"
+diff_format = "unified"
+context_files = [
+    "RELEASE_NOTES.md",
+    "pyensembl/shell.py",
+    "pyensembl/version.py",
+    "tests/test_cli_actions.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 39
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.817522+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:37f46c6a8d0e49d2f9e2e2d109fa4dddb91b93c108375c291f16cb84555873fd"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

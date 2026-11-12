@@ -1,0 +1,80 @@
+version = "1.0"
+
+[task]
+name = "default/immortal71__openoncology-204"
+description = "README: lead with real-patient benchmark, remove compliance overclaims"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "openoncology",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "immortal71/openoncology"
+ref = "84d8a9db621be3937073926fa10252b1ce52cc35"
+reference = "https://github.com/immortal71/openoncology/pull/204"
+source_access = "auto"
+built_at = "2026-11-12T05:56:11.942634+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:073a7be60cf054c216b98a9401d12be2d5f973ab50bb36734fa5c45c71c688f3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-01T15:26:27Z"
+diff_format = "unified"
+context_files = [
+    "BACKLOG.md",
+    "README.md",
+    "preprints/msk_chord_benchmark.md",
+    "preprints/msk_chord_benchmark.pdf",
+    "preprints/warner_review_packet.md",
+    "preprints/warner_review_packet.pdf",
+    "scripts/mskchord/README.md",
+    "scripts/mskchord/run_openoncology_on_mskchord.py",
+    "validation_results/msk_chord_case_stories.json",
+    "validation_results/msk_chord_oncokb_only_run.json",
+    "validation_results/msk_chord_openoncology_run.json",
+    "validation_results/msk_chord_scored_metrics.json",
+    "validation_results/msk_chord_warner_cases.json",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 909
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.795576+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:54f743e00e83834698dc774e3e30f551e649d67a522778c61ab656039ac41d83"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

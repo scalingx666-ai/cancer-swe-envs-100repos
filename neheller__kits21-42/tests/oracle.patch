@@ -1,0 +1,381 @@
+diff --git a/.gitignore b/.gitignore
+index 1ade1c9c2..9e905b74d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -16,4 +16,4 @@ kits21/data/*/*segmentation_samples*
+ 
+ *temp.tmp
+ 
+-examples/submission/dummy_submission/test_docker.tar.gz
+\ No newline at end of file
++examples/submission/dummy_submission/**.tar.gz
+\ No newline at end of file
+diff --git a/examples/submission/dummy_submission/Dockerfile b/examples/submission/dummy_submission/Dockerfile
+index 5ff8b041d..9b38e6d76 100644
+--- a/examples/submission/dummy_submission/Dockerfile
++++ b/examples/submission/dummy_submission/Dockerfile
+@@ -19,6 +19,8 @@ ADD run_inference.py ./
+ RUN groupadd -r myuser -g 433 && \
+     useradd -u 431 -r -g myuser -s /sbin/nologin -c "Docker image user" myuser
+ 
++RUN mkdir /input_nifti && mkdir /output_nifti && chown -R myuser /input_nifti && chown -R myuser /output_nifti
++
+ USER myuser
+ 
+ CMD python3 ./run_inference.py
+diff --git a/examples/submission/dummy_submission/run_inference.py b/examples/submission/dummy_submission/run_inference.py
+index 58bfa2d6d..e10a7957e 100644
+--- a/examples/submission/dummy_submission/run_inference.py
++++ b/examples/submission/dummy_submission/run_inference.py
+@@ -11,26 +11,25 @@
+ import SimpleITK as sitk
+ import nibabel as nib
+ 
+-INPUT_FOLDER = '/input/images/ct/'
+-OUTPUT_FOLDER = '/output/images/kidney-tumor-and-cyst/'
++INPUT_NIFTI = '/input_nifti'
++OUTPUT_NIFTI = '/output_nifti'
++if not os.path.exists(INPUT_NIFTI):
++    os.mkdir(INPUT_NIFTI)
++if not os.path.exists(OUTPUT_NIFTI):
++    os.mkdir(OUTPUT_NIFTI)
+ 
+ 
+-def prep_output_folder():
+-    outpth = Path(OUTPUT_FOLDER)
+-    outpth.mkdir(parents=True, exist_ok=True)
+-
+-
+-def load_file_as_nifti(filename):
++def _load_mha_as_nifti(filepath):
+     reader = sitk.ImageFileReader()
+     reader.SetImageIO("MetaImageIO")
+-    reader.SetFileName(os.path.join(INPUT_FOLDER, filename))
++    reader.SetFileName(str(filepath))
+     image = reader.Execute()
+-    nda = sitk.GetArrayFromImage(image)
++    nda = np.moveaxis(sitk.GetArrayFromImage(image), -1, 0)
+     mha_meta = {
+         "origin": image.GetOrigin(),
+         "spacing": image.GetSpacing(),
+         "direction": image.GetDirection(),
+-        "filename": filename
++        "filename": filepath.name
+     }
+ 
+     affine = np.array(
+@@ -43,17 +42,44 @@ def load_file_as_nifti(filename):
+     return nib.Nifti1Image(nda, affine), mha_meta
+ 
+ 
+-def save_nifti(segmentation_nib, mha_meta):
+-    dummy_segmentation = sitk.GetImageFromArray(np.asanyarray(segmentation_nib.dataobj))
++def _save_mha(segmentation_nib, mha_meta):
++    output_mha = '/output/images/kidney-tumor-and-cyst/'
++    if not Path(output_mha).exists():
++        Path(output_mha).mkdir(parents=True)
++
++    channels_last = np.moveaxis(np.asanyarray(segmentation_nib.dataobj), 0, -1)
++
++    dummy_segmentation = sitk.GetImageFromArray(channels_last)
+     dummy_segmentation.SetOrigin(mha_meta["origin"])
+     dummy_segmentation.SetSpacing(mha_meta["spacing"])
+     dummy_segmentation.SetDirection(mha_meta["direction"])
+ 
+     writer = sitk.ImageFileWriter()
+-    writer.SetFileName(os.path.join(OUTPUT_FOLDER, mha_meta["filename"]))
++    writer.SetFileName(os.path.join(output_mha, mha_meta["filename"]))
+     writer.Execute(dummy_segmentation)
+ 
+ 
++def convert_imaging_to_nifti():
++    input_mha = Path('/input/images/ct/')
++    meta = {}
++    for x in input_mha.glob("*.mha"):
++        x_nii, x_meta = _load_mha_as_nifti(x)
++        meta[x.stem] = x_meta
++        nib.save(x_nii, str(Path(INPUT_NIFTI) / "{}.nii.gz".format(x.stem)))
++
++    return meta
++
++
++def convert_predictions_to_mha(conversion_meta):
++    for uid in conversion_meta:
++        pred_nii_pth = Path(OUTPUT_NIFTI) / "{}.nii.gz".format(uid)
++        if not pred_nii_pth.exists():
++            raise ValueError("No prediction found for file {}.mha".format(uid))
++        pred_nii = nib.load(str(pred_nii_pth))
++        _save_mha(pred_nii, conversion_meta[uid])
++
++
++
+ # =========================================================================
+ # Replace this function with your inference code!
+ def predict(image_nib, model):
+@@ -67,7 +93,8 @@ def predict(image_nib, model):
+ 
+ 
+ def main():
+-    prep_output_folder()
++    # This converts the mha files to nifti just like the official GitHub
++    conversion_meta = convert_imaging_to_nifti()
+ 
+     # =========================================================================
+     # Load model from /model folder!
+@@ -75,16 +102,19 @@ def main():
+     model = None
+     # =========================================================================
+ 
+-    for filename in os.listdir(INPUT_FOLDER):
+-        if filename.endswith(".mha"):
++    for filename in os.listdir(INPUT_NIFTI):
++        if filename.endswith(".nii.gz"):
+             # Load mha as nifti using provided function
+-            image_nib, mha_meta = load_file_as_nifti(filename)
++            image_nib = nib.load(os.path.join(INPUT_NIFTI, filename))
+ 
+             # Run your prediction function
+             segmentation_nib = predict(image_nib, model)
+ 
+-            # Save nifti as mha using provided function
+-            save_nifti(segmentation_nib, mha_meta)
++            # Save nifti just as you otherwise would
++            nib.save(segmentation_nib, Path(OUTPUT_NIFTI) / "{}".format(filename))
++
++    # This converts the nifti predictions to the expected output
++    convert_predictions_to_mha(conversion_meta)
+ 
+ 
+ if __name__ == '__main__':
+diff --git a/examples/submission/nnUNet_submission/Dockerfile b/examples/submission/nnUNet_submission/Dockerfile
+index 427989d33..6d4a6a47c 100644
+--- a/examples/submission/nnUNet_submission/Dockerfile
++++ b/examples/submission/nnUNet_submission/Dockerfile
+@@ -21,6 +21,8 @@ ADD run_inference.py ./
+ RUN groupadd -r myuser -g 433 && \
+     useradd -u 431 -r -g myuser -s /sbin/nologin -c "Docker image user" myuser
+ 
++RUN mkdir /input_nifti && mkdir /output_nifti && chown -R myuser /input_nifti && chown -R myuser /output_nifti
++
+ USER myuser
+ 
+ CMD python3 ./run_inference.py
+diff --git a/examples/submission/nnUNet_submission/run_inference.py b/examples/submission/nnUNet_submission/run_inference.py
+index 15b6f0c7c..b738114c9 100644
+--- a/examples/submission/nnUNet_submission/run_inference.py
++++ b/examples/submission/nnUNet_submission/run_inference.py
+@@ -1,4 +1,78 @@
+ from pathlib import Path
++import os
++
++import numpy as np
++import nibabel as nib
++import SimpleITK as sitk
++
++
++INPUT_NIFTI = '/input_nifti'
++OUTPUT_NIFTI = '/output_nifti'
++if not os.path.exists(INPUT_NIFTI):
++    os.mkdir(INPUT_NIFTI)
++if not os.path.exists(OUTPUT_NIFTI):
++    os.mkdir(OUTPUT_NIFTI)
++
++
++def _load_mha_as_nifti(filepath):
++    reader = sitk.ImageFileReader()
++    reader.SetImageIO("MetaImageIO")
++    reader.SetFileName(str(filepath))
++    image = reader.Execute()
++    nda = np.moveaxis(sitk.GetArrayFromImage(image), -1, 0)
++    mha_meta = {
++        "origin": image.GetOrigin(),
++        "spacing": image.GetSpacing(),
++        "direction": image.GetDirection(),
++        "filename": filepath.name
++    }
++
++    affine = np.array(
++       [[0.0, 0.0, -1*mha_meta["spacing"][2], 0.0],
++        [0.0, -1*mha_meta["spacing"][1], 0.0, 0.0],
++        [-1*mha_meta["spacing"][0], 0.0, 0.0, 0.0],
++        [0.0, 0.0, 0.0, 1.0]]
++    )
++
++    return nib.Nifti1Image(nda, affine), mha_meta
++
++
++def _save_mha(segmentation_nib, mha_meta):
++    output_mha = '/output/images/kidney-tumor-and-cyst/'
++    if not Path(output_mha).exists():
++        Path(output_mha).mkdir(parents=True)
++
++    channels_last = np.moveaxis(np.asanyarray(segmentation_nib.dataobj), 0, -1)
++
++    dummy_segmentation = sitk.GetImageFromArray(channels_last)
++    dummy_segmentation.SetOrigin(mha_meta["origin"])
++    dummy_segmentation.SetSpacing(mha_meta["spacing"])
++    dummy_segmentation.SetDirection(mha_meta["direction"])
++
++    writer = sitk.ImageFileWriter()
++    writer.SetFileName(os.path.join(output_mha, mha_meta["filename"]))
++    writer.Execute(dummy_segmentation)
++
++
++def convert_imaging_to_nifti():
++    input_mha = Path('/input/images/ct/')
++    meta = {}
++    for x in input_mha.glob("*.mha"):
++        x_nii, x_meta = _load_mha_as_nifti(x)
++        meta[x.stem] = x_meta
++        nib.save(x_nii, str(Path(INPUT_NIFTI) / "{}.nii.gz".format(x.stem)))
++
++    return meta
++
++
++def convert_predictions_to_mha(conversion_meta):
++    for uid in conversion_meta:
++        pred_nii_pth = Path(OUTPUT_NIFTI) / "{}.nii.gz".format(uid)
++        if not pred_nii_pth.exists():
++            raise ValueError("No prediction found for file {}.mha".format(uid))
++        pred_nii = nib.load(str(pred_nii_pth))
++        _save_mha(pred_nii, conversion_meta[uid])
++
+ 
+ if __name__ == '__main__':
+     """
+@@ -26,11 +100,14 @@
+     specify it here.
+     """
+ 
++    # This converts the mha files to nifti just like the official GitHub
++    conversion_meta = convert_imaging_to_nifti()
++
+     # this will be changed to /input for the docker
+-    input_folder = '/input/images/ct/'
++    input_folder = INPUT_NIFTI
+ 
+     # this will be changed to /output for the docker
+-    output_folder = '/output/images/kidney-tumor-and-cyst/'
++    output_folder = OUTPUT_NIFTI
+     outpth = Path(output_folder)
+     outpth.mkdir(parents=True, exist_ok=True)
+ 
+@@ -60,5 +137,8 @@
+                   num_threads_preprocessing=2, num_threads_nifti_save=2, segs_from_prev_stage=None, do_tta=do_tta,
+                   mixed_precision=mixed_precision, overwrite_existing=True, all_in_gpu=False, step_size=0.5)
+ 
++    # This converts the nifti predictions to the expected output
++    convert_predictions_to_mha(conversion_meta)
++
+     # done!
+     # (ignore the postprocessing warning!)
+diff --git a/examples/submission/nnUNet_submission/run_inference_ensembling.py b/examples/submission/nnUNet_submission/run_inference_ensembling.py
+index 72cba8915..ba8fd9f5c 100644
+--- a/examples/submission/nnUNet_submission/run_inference_ensembling.py
++++ b/examples/submission/nnUNet_submission/run_inference_ensembling.py
+@@ -1,5 +1,79 @@
+ import shutil
+ from pathlib import Path
++import os
++
++import numpy as np
++import nibabel as nib
++import SimpleITK as sitk
++
++
++INPUT_NIFTI = '/input_nifti'
++OUTPUT_NIFTI = '/output_nifti'
++if not os.path.exists(INPUT_NIFTI):
++    os.mkdir(INPUT_NIFTI)
++if not os.path.exists(OUTPUT_NIFTI):
++    os.mkdir(OUTPUT_NIFTI)
++
++
++def _load_mha_as_nifti(filepath):
++    reader = sitk.ImageFileReader()
++    reader.SetImageIO("MetaImageIO")
++    reader.SetFileName(str(filepath))
++    image = reader.Execute()
++    nda = np.moveaxis(sitk.GetArrayFromImage(image), -1, 0)
++    mha_meta = {
++        "origin": image.GetOrigin(),
++        "spacing": image.GetSpacing(),
++        "direction": image.GetDirection(),
++        "filename": filepath.name
++    }
++
++    affine = np.array(
++       [[0.0, 0.0, -1*mha_meta["spacing"][2], 0.0],
++        [0.0, -1*mha_meta["spacing"][1], 0.0, 0.0],
++        [-1*mha_meta["spacing"][0], 0.0, 0.0, 0.0],
++        [0.0, 0.0, 0.0, 1.0]]
++    )
++
++    return nib.Nifti1Image(nda, affine), mha_meta
++
++
++def _save_mha(segmentation_nib, mha_meta):
++    output_mha = '/output/images/kidney-tumor-and-cyst/'
++    if not Path(output_mha).exists():
++        Path(output_mha).mkdir(parents=True)
++
++    channels_last = np.moveaxis(np.asanyarray(segmentation_nib.dataobj), 0, -1)
++
++    dummy_segmentation = sitk.GetImageFromArray(channels_last)
++    dummy_segmentation.SetOrigin(mha_meta["origin"])
++    dummy_segmentation.SetSpacing(mha_meta["spacing"])
++    dummy_segmentation.SetDirection(mha_meta["direction"])
++
++    writer = sitk.ImageFileWriter()
++    writer.SetFileName(os.path.join(output_mha, mha_meta["filename"]))
++    writer.Execute(dummy_segmentation)
++
++
++def convert_imaging_to_nifti():
++    input_mha = Path('/input/images/ct/')
++    meta = {}
++    for x in input_mha.glob("*.mha"):
++        x_nii, x_meta = _load_mha_as_nifti(x)
++        meta[x.stem] = x_meta
++        nib.save(x_nii, str(Path(INPUT_NIFTI) / "{}.nii.gz".format(x.stem)))
++
++    return meta
++
++
++def convert_predictions_to_mha(conversion_meta):
++    for uid in conversion_meta:
++        pred_nii_pth = Path(OUTPUT_NIFTI) / "{}.nii.gz".format(uid)
++        if not pred_nii_pth.exists():
++            raise ValueError("No prediction found for file {}.mha".format(uid))
++        pred_nii = nib.load(str(pred_nii_pth))
++        _save_mha(pred_nii, conversion_meta[uid])
++
+ 
+ 
+ if __name__ == '__main__':
+@@ -35,11 +109,14 @@
+     specify it here.
+     """
+ 
++    # This converts the mha files to nifti just like the official GitHub
++    conversion_meta = convert_imaging_to_nifti()
++
+     # this will be changed to /input for the docker
+-    input_folder = '/input/images/ct/'
++    input_folder = INPUT_NIFTI
+ 
+     # this will be changed to /output for the docker
+-    output_folder = '/output/images/kidney-tumor-and-cyst/'
++    output_folder = OUTPUT_NIFTI
+     outpth = Path(output_folder)
+     outpth.mkdir(parents=True, exist_ok=True)
+ 
+@@ -97,5 +174,8 @@
+     shutil.rmtree(output_folder_fullres)
+     shutil.rmtree(output_folder_lowres)
+ 
++    # This converts the nifti predictions to the expected output
++    convert_predictions_to_mha(conversion_meta)
++
+     # done!
+ 

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/BMIRDS__deepslide-12"
+description = "Rework util_model"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "deepslide",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "BMIRDS/deepslide"
+ref = "2fa70fd35f02a4ef623dce3c33121f5ad1cc9018"
+reference = "https://github.com/BMIRDS/deepslide/pull/12"
+source_access = "auto"
+built_at = "2026-11-12T04:21:18.163838+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:85b2d98bf0c0db008bfe4661763cd820959b6bd829602415614bf7997054b879"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-09-09T05:49:17Z"
+diff_format = "unified"
+context_files = [
+    "code/utils_model.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 463
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.729649+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:050839042f86563c8129fefd027e063b872316c1f494972b43059972ff58aa91"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

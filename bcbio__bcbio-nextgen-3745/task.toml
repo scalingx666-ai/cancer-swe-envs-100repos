@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/bcbio__bcbio-nextgen-3745"
+description = "Create ci.yml"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bcbio-nextgen",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "bcbio/bcbio-nextgen"
+ref = "855c7ae283194a46646a940b37eb06214b7c4180"
+reference = "https://github.com/bcbio/bcbio-nextgen/pull/3745"
+source_access = "auto"
+built_at = "2026-11-12T05:35:57.939473+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:8b12320f05a9e74293cf983de12bf804c374e9b8b10a749276877de5606efa7c"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-07-16T13:40:37Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/ci.yml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 89
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.763332+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:8a49969401a9a801afd1ee537427076a40f3d3ee3c3da14366fec5bfa61d01cf"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

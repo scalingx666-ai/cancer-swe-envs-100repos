@@ -1,0 +1,77 @@
+version = "1.0"
+
+[task]
+name = "default/nf-core__rnaseq-2001"
+description = "Address review feedback on the 3.28.0 release PR"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "rnaseq",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "nf-core/rnaseq"
+ref = "b4897f259afc11d1c2eb5fa4efa81a7e37b6d13c"
+reference = "https://github.com/nf-core/rnaseq/pull/2001"
+source_access = "auto"
+built_at = "2026-11-12T05:39:23.298010+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:86af5d04e700f5ef25b7b6183395e95a3f8ec6df789b6fa0d12194684ac0b2ce"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T16:46:54Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "CITATIONS.md",
+    "conf/containers_conda_lock_files_amd64.config",
+    "conf/containers_conda_lock_files_arm64.config",
+    "main.nf",
+    "modules.json",
+    "modules/nf-core/eautils/gtf2bed/meta.yml",
+    "subworkflows/local/utils_nfcore_rnaseq_pipeline/main.nf",
+    "subworkflows/local/utils_nfcore_rnaseq_pipeline/tests/main.function.nf.test",
+    "workflows/rnaseq/main.nf",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 78
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.812190+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:071fb7461c65d7b615c3a1cddc94304af57754de86cd7413ac6789caf69b2953"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

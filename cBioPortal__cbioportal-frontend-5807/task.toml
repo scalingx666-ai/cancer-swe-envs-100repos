@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/cBioPortal__cbioportal-frontend-5807"
+description = "Show normal allele freq and mutation status by default for CH mutations"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "cbioportal-frontend",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "cBioPortal/cbioportal-frontend"
+ref = "4f3d7d4d1c42ed7c2feb72c236b0f07990b65bf9"
+reference = "https://github.com/cBioPortal/cbioportal-frontend/pull/5807"
+source_access = "auto"
+built_at = "2026-11-12T05:39:03.283152+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:005a9a6102ad93372fbcf186677bc8c1c146653c9d040299a3c78dce28c861d3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-28T17:31:51Z"
+diff_format = "unified"
+context_files = [
+    "src/pages/patientView/mutation/PatientViewMutationTable.tsx",
+    "src/pages/resultsView/mutation/ResultsViewMutationTable.tsx",
+    "src/shared/components/mutationTable/MutationTableColumnLegends.tsx",
+    "src/shared/components/mutationTable/column/MutationStatusColumnFormatter.spec.tsx",
+    "src/shared/components/mutationTable/column/MutationStatusColumnFormatter.tsx",
+    "src/shared/components/mutationTable/column/mutationStatus.module.scss",
+    "src/shared/components/mutationTable/column/mutationStatus.module.scss.d.ts",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 137
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.781662+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:df7b4093bc8c9efa429c765d635b299e36aeaa691229d8d7993f16612a5aa8b4"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

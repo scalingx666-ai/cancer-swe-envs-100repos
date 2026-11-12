@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__isovar-709"
+description = "Place supporting reads once per RNA sequence, not once per ORF model"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "isovar",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/isovar"
+ref = "bb1eb67af0ed222fc98303249a42e78825487ac3"
+reference = "https://github.com/openvax/isovar/pull/709"
+source_access = "auto"
+built_at = "2026-11-12T05:39:33.935245+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7810704e118dfb429c118529f82430b79312f51a64f0b076653e45beed6d0e26"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T13:24:35Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "isovar/__init__.py",
+    "isovar/coding_interval_support.py",
+    "isovar/variant_rna_orfs.py",
+    "tests/test_coding_interval_support.py",
+    "tests/test_variant_rna_orfs.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 306
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.815535+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ac81e20d6fd1b1763da8c65c30ce40a73fb362b3d2594f0fae69fe8993cacaee"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

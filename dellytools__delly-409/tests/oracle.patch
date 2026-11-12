@@ -1,0 +1,26 @@
+diff --git a/src/cluster.h b/src/cluster.h
+index fd85236..9580351 100644
+--- a/src/cluster.h
++++ b/src/cluster.h
+@@ -608,7 +608,7 @@ namespace torali
+ 	// Append new edge
+ 	TCompEdgeList::iterator compEdgeIt = compEdge.find(compIndex);
+ 	if (compEdgeIt->second.size() < c.graphPruning) {
+-	  TWeightType weight = (TWeightType) ( std::log((double) abs( abs( (_minCoord(bamItNext->pos, bamItNext->mpos, svt) - minCoord) - (_maxCoord(bamItNext->pos, bamItNext->mpos, svt) - maxCoord) ) - abs(bamIt->Median - bamItNext->Median)) + 1) / std::log(2) );
++	  TWeightType weight = (TWeightType) ( std::log2((double) abs( abs( (_minCoord(bamItNext->pos, bamItNext->mpos, svt) - minCoord) - (_maxCoord(bamItNext->pos, bamItNext->mpos, svt) - maxCoord) ) - abs(bamIt->Median - bamItNext->Median)) + 1) );
+ 	  compEdgeIt->second.push_back(TEdgeRecord(bamItIndex, bamItIndexNext, weight));
+ 	}
+       }
+diff --git a/src/util.h b/src/util.h
+index 42abb89..b47c73c 100644
+--- a/src/util.h
++++ b/src/util.h
+@@ -547,7 +547,7 @@ namespace torali
+       for (std::vector<char>::const_iterator s = stvec.begin(); s != stvec.end(); ++s)
+ 	if (*s == *c) ++ctr;
+       TPrecision freq = (TPrecision) ctr / (TPrecision) stvec.size();
+-      ent += (freq) * log(freq)/log(2);
++      ent += (freq) * log2(freq);
+     }
+     return -ent;
+   }

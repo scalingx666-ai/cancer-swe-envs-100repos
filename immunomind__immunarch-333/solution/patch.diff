@@ -1,0 +1,1068 @@
+diff --git a/DESCRIPTION b/DESCRIPTION
+index 71393fc4..bcafa6da 100644
+--- a/DESCRIPTION
++++ b/DESCRIPTION
+@@ -1,7 +1,7 @@
+ Package: immunarch
+ Type: Package
+ Title: Bioinformatics Analysis of T-Cell and B-Cell Immune Repertoires
+-Version: 0.8.0
++Version: 0.9.0
+ Authors@R: c(
+     person("Vadim I.", "Nazarov", , "support@immunomind.io", c("aut", "cre")),
+     person("Vasily O.", "Tsvetkov", , role = "aut"),
+@@ -84,6 +84,6 @@ Suggests:
+     rmarkdown
+ VignetteBuilder: knitr
+ Encoding: UTF-8
+-RoxygenNote: 7.2.1
++RoxygenNote: 7.2.2
+ LazyData: true
+ LazyDataCompression: xz
+diff --git a/NAMESPACE b/NAMESPACE
+index 1db20f3b..6dba8022 100644
+--- a/NAMESPACE
++++ b/NAMESPACE
+@@ -147,10 +147,12 @@ importFrom(dplyr,group_map)
+ importFrom(dplyr,left_join)
+ importFrom(dplyr,mutate)
+ importFrom(dplyr,n)
++importFrom(dplyr,one_of)
+ importFrom(dplyr,pull)
+ importFrom(dplyr,rename)
+ importFrom(dplyr,rowwise)
+ importFrom(dplyr,select)
++importFrom(dplyr,select_)
+ importFrom(dplyr,select_if)
+ importFrom(dplyr,summarise)
+ importFrom(dplyr,tally)
+@@ -290,13 +292,13 @@ importFrom(tibble,tibble)
+ importFrom(tidyr,drop_na)
+ importFrom(tidyr,unite)
+ importFrom(tidyr,unnest)
++importFrom(tidyselect,all_of)
+ importFrom(tidyselect,any_of)
+ importFrom(tidyselect,starts_with)
+ importFrom(utils,capture.output)
+ importFrom(utils,packageVersion)
+ importFrom(utils,read.table)
+ importFrom(utils,setTxtProgressBar)
+-importFrom(utils,str)
+ importFrom(utils,tail)
+ importFrom(utils,txtProgressBar)
+ importFrom(uuid,UUIDgenerate)
+diff --git a/R/align_lineage.R b/R/align_lineage.R
+index 3d89590c..a38ecdee 100644
+--- a/R/align_lineage.R
++++ b/R/align_lineage.R
+@@ -9,7 +9,6 @@
+ #' @importFrom plyr dlply .
+ #' @importFrom purrr map_dfr
+ #' @importFrom rlist list.remove
+-#' @importFrom utils str
+ #' @importFrom ape as.DNAbin clustal
+ #' @importFrom doParallel registerDoParallel stopImplicitCluster
+ #' @importFrom parallel mclapply
+@@ -117,7 +116,7 @@ align_single_df <- function(data,
+         "Found dataframe without required column ",
+         required_column,
+         ";\nexisting columns: ",
+-        utils::str(colnames(data))
++        toString(colnames(data))
+       )
+     }
+   }
+diff --git a/R/diversity.R b/R/diversity.R
+index 9fe80913..0fd027b1 100644
+--- a/R/diversity.R
++++ b/R/diversity.R
+@@ -14,6 +14,7 @@ if (getRversion() >= "2.15.1") {
+ #' @importFrom dplyr mutate group_by_at pull
+ #' @importFrom stats qnorm
+ #' @importFrom rlang sym
++#' @importFrom tidyselect all_of
+ #'
+ #' @description
+ #' This is a utility function to estimate the diversity of species or objects in the given distribution.
+@@ -188,7 +189,6 @@ repDiversity <- function(.data, .method = "chao1", .col = "aa", .max.q = 6, .min
+       .data <- list(Sample = .data)
+     }
+ 
+-
+     .col <- process_col_argument(.col) # ToDo: refactor this and the next branches
+ 
+     vec <- lapply(.data, function(x) {
+@@ -196,7 +196,7 @@ repDiversity <- function(.data, .method = "chao1", .col = "aa", .max.q = 6, .min
+         x <- x %>% lazy_dt()
+       }
+       x %>%
+-        select(.col, IMMCOL$count) %>%
++        select(all_of(.col), IMMCOL$count) %>%
+         group_by_at(vars(.col)) %>%
+         summarise(Div.count = sum(!!sym(IMMCOL$count))) %>%
+         pull(Div.count)
+@@ -350,20 +350,20 @@ rarefaction <- function(.data, .step = NA, .quantile = c(.025, .975),
+   if (is.na(.step)) {
+     .step <- min(sapply(.data, function(x) sum(as.numeric(x)))) %/% 50.
+   }
++  .step <- max(1, .step)
+ 
+   if (is.na(.extrapolation)) {
+     .extrapolation <- max(sapply(.data, function(x) sum(as.numeric(x)))) * 20
+   }
+ 
+   .alpha <- function(n, Xi, m) {
+-    k <- Xi
+     return((1 - m / n)^Xi)
+   }
+ 
+   if (.verbose) {
+     pb <- set_pb(sum(sapply(seq_along(.data), function(i) {
+       bc.vec <- .data[[i]]
+-      bc.sum <- sum(.data[[i]])
++      bc.sum <- sum(bc.vec)
+       sizes <- seq(.step, bc.sum, .step)
+       if (sizes[length(sizes)] != bc.sum) {
+         sizes <- c(sizes, bc.sum)
+@@ -381,9 +381,7 @@ rarefaction <- function(.data, .step = NA, .quantile = c(.025, .975),
+     }
+     n <- sum(bc.vec)
+     sizes <- seq(.step, n, .step)
+-    # if (sizes[length(sizes)] != n) {
+-    #   sizes <- c(sizes, n)
+-    # }
++
+     counts <- table(bc.vec)
+     muc.res <- t(sapply(sizes, function(sz) {
+       freqs <- as.numeric(names(counts))
+@@ -413,7 +411,6 @@ rarefaction <- function(.data, .step = NA, .quantile = c(.025, .975),
+     }))
+ 
+     if (.extrapolation > 0) {
+-      # sizes <- seq(sum(.data[[i]]), .extrapolation + max(sapply(.data, function (x) sum(x))), .step)
+       sizes <- seq(
+         tail(seq(.step, sum(.data[[i]]), .step), 1) + .step,
+         .extrapolation,
+diff --git a/R/io-parsers.R b/R/io-parsers.R
+index 2d574741..d41c53bb 100644
+--- a/R/io-parsers.R
++++ b/R/io-parsers.R
+@@ -399,10 +399,10 @@ parse_mitcr <- function(.filename, .mode) {
+   )
+ }
+ 
+-parse_mixcr <- function(.filename, .mode) {
++parse_mixcr <- function(.filename, .mode, .count = c("clonecount", "readcount")) {
+   .filename <- .filename
+   .id <- "cloneid"
+-  .count <- "clonecount"
++  .count %<>% tolower()
+   .sep <- "\t"
+   .vd.insertions <- "VD.insertions"
+   .dj.insertions <- "DJ.insertions"
+@@ -677,7 +677,7 @@ parse_mixcr <- function(.filename, .mode) {
+     df[[pos_extra_headers[["j3del"]]]] <- sapply(df[["refpoints"]], get_ref_point_position, 18)
+   }
+ 
+-  if (!(.count %in% table.colnames)) {
++  if (!any(.count %in% table.colnames)) {
+     warn_msg <- c("  [!] Warning: can't find a column with clonal counts. Setting all clonal counts to 1.")
+     warn_msg <- c(warn_msg, "\n      Did you apply repLoad to MiXCR file *_alignments.txt?")
+     warn_msg <- c(warn_msg, " If so please consider moving all *.clonotypes.*.txt MiXCR files to")
+@@ -685,8 +685,13 @@ parse_mixcr <- function(.filename, .mode) {
+     warn_msg <- c(warn_msg, "\n      Note: The *_alignments.txt file IS NOT a repertoire file suitable for any analysis.")
+     message(warn_msg)
+ 
++    .count <- .count[1]
+     df[[.count]] <- 1
++  } else if (length(.count) > 1) {
++    # if multiple column name options specified for .count, keep only the first valid
++    .count <- .count[.count %in% table.colnames][1]
+   }
++
+   .freq <- "Proportion"
+   df$Proportion <- df[[.count]] / sum(df[[.count]], na.rm = TRUE)
+ 
+@@ -829,8 +834,6 @@ parse_tcr <- function(.filename, .mode) {
+ }
+ 
+ parse_vdjtools <- function(.filename, .mode) {
+-  skip <- 0
+-
+   # Check for different VDJtools outputs
+   f <- file(.filename, "r")
+   l <- readLines(f, 1)
+@@ -959,19 +962,28 @@ parse_airr <- function(.filename, .mode) {
+     .as_tsv() %>%
+     airr::read_rearrangement()
+ 
+-  df <- df %>%
+-    select(
+-      sequence, v_call, d_call, j_call, junction, junction_aa,
+-      contains("v_germline_end"), contains("d_germline_start"), contains("d_germline_end"),
+-      contains("j_germline_start"), contains("np1_length"), contains("np2_length"),
+-      contains("duplicate_count")
++  df %<>%
++    select_(
++      "sequence", "v_call", "d_call", "j_call", "junction", "junction_aa",
++      ~contains("v_germline_end"), ~contains("d_germline_start"),
++      ~contains("d_germline_end"), ~contains("j_germline_start"),
++      ~contains("np1_length"), ~contains("np2_length"),
++      ~contains("duplicate_count"),
++      "cdr1", "cdr2", "cdr1_aa", "cdr2_aa", "fwr1", "fwr2", "fwr3", "fwr4",
++      "fwr1_aa", "fwr2_aa", "fwr3_aa", "fwr4_aa"
+     )
+ 
+   namekey <- c(
+     duplicate_count = IMMCOL$count, junction = IMMCOL$cdr3nt, junction_aa = IMMCOL$cdr3aa,
+     v_call = IMMCOL$v, d_call = IMMCOL$d, j_call = IMMCOL$j, v_germline_end = IMMCOL$ve,
+     d_germline_start = IMMCOL$ds, d_germline_end = IMMCOL$de, j_germline_start = IMMCOL$js,
+-    np1_length = "unidins", np2_length = IMMCOL$dnj, sequence = IMMCOL$seq
++    np1_length = "unidins", np2_length = IMMCOL$dnj, sequence = IMMCOL$seq,
++    cdr1 = IMMCOL_EXT$cdr1nt, cdr2 = IMMCOL_EXT$cdr2nt,
++    cdr1_aa = IMMCOL_EXT$cdr1aa, cdr2_aa = IMMCOL_EXT$cdr2aa,
++    fwr1 = IMMCOL_EXT$fr1nt, fwr2 = IMMCOL_EXT$fr2nt,
++    fwr3 = IMMCOL_EXT$fr3nt, fwr4 = IMMCOL_EXT$fr4nt,
++    fwr1_aa = IMMCOL_EXT$fr1aa, fwr2_aa = IMMCOL_EXT$fr2aa,
++    fwr3_aa = IMMCOL_EXT$fr3aa, fwr4_aa = IMMCOL_EXT$fr4aa
+   )
+ 
+   names(df) <- namekey[names(df)]
+@@ -993,13 +1005,15 @@ parse_airr <- function(.filename, .mode) {
+     }
+   }
+ 
+-  for (column in IMMCOL$order) {
++  order <- c(IMMCOL$order, IMMCOL_EXT$order[IMMCOL_EXT$order %in% namekey])
++
++  for (column in order) {
+     if (!(column %in% colnames(df))) {
+       df[column] <- NA
+     }
+   }
+ 
+-  df <- df[IMMCOL$order]
++  df <- df[order]
+   total <- sum(df$Clones)
+   df[IMMCOL$prop] <- df[IMMCOL$count] / total
+   df[IMMCOL$seq] <- stringr::str_remove_all(df[[IMMCOL$seq]], "N")
+@@ -1039,21 +1053,50 @@ parse_10x_filt_contigs <- function(.filename, .mode) {
+     .vgenes = "v_gene", .jgenes = "j_gene", .dgenes = "d_gene",
+     .vend = NA, .jstart = NA, .dstart = NA, .dend = NA,
+     .vd.insertions = NA, .dj.insertions = NA, .total.insertions = NA,
+-    .skip = 0, .sep = ",", # .add = c("chain", "raw_clonotype_id", "raw_consensus_id", "barcode", "contig_id")
+-    .add = c("chain", "barcode", "raw_clonotype_id", "contig_id", "c_gene")
++    .skip = 0, .sep = ",",
++    .add = c(
++      "chain", "barcode", "raw_clonotype_id", "contig_id", "c_gene",
++      "cdr1_nt", "cdr1", "cdr2_nt", "cdr2",
++      "fwr1_nt", "fwr1", "fwr2_nt", "fwr2", "fwr3_nt", "fwr3", "fwr4_nt", "fwr4"
++    )
+   )
+ 
++  setnames(df, "cdr1_nt", IMMCOL_EXT$cdr1nt)
++  setnames(df, "cdr2_nt", IMMCOL_EXT$cdr2nt)
++  setnames(df, "cdr1", IMMCOL_EXT$cdr1aa)
++  setnames(df, "cdr2", IMMCOL_EXT$cdr2aa)
++  setnames(df, "fwr1_nt", IMMCOL_EXT$fr1nt)
++  setnames(df, "fwr2_nt", IMMCOL_EXT$fr2nt)
++  setnames(df, "fwr3_nt", IMMCOL_EXT$fr3nt)
++  setnames(df, "fwr4_nt", IMMCOL_EXT$fr4nt)
++  setnames(df, "fwr1", IMMCOL_EXT$fr1aa)
++  setnames(df, "fwr2", IMMCOL_EXT$fr2aa)
++  setnames(df, "fwr3", IMMCOL_EXT$fr3aa)
++  setnames(df, "fwr4", IMMCOL_EXT$fr4aa)
++
+   # Process 10xGenomics filtered contigs files - count barcodes, merge consensues ids, clonotype ids and contig ids
+   df <- df[order(df$chain), ]
+   setDT(df)
+ 
+   if (.mode == "paired") {
+-    df <- df %>%
++    df %<>%
+       lazy_dt() %>%
+-      group_by(barcode, raw_clonotype_id) %>%
++      group_by_colnames("barcode", "raw_clonotype_id") %>%
+       summarise(
++        CDR1.nt = paste0(get("CDR1.nt"), collapse = IMMCOL_ADD$scsep),
++        CDR1.aa = paste0(get("CDR1.aa"), collapse = IMMCOL_ADD$scsep),
++        CDR2.nt = paste0(get("CDR2.nt"), collapse = IMMCOL_ADD$scsep),
++        CDR2.aa = paste0(get("CDR2.aa"), collapse = IMMCOL_ADD$scsep),
+         CDR3.nt = paste0(get("CDR3.nt"), collapse = IMMCOL_ADD$scsep),
+         CDR3.aa = paste0(get("CDR3.aa"), collapse = IMMCOL_ADD$scsep),
++        FR1.nt = paste0(get("FR1.nt"), collapse = IMMCOL_ADD$scsep),
++        FR1.aa = paste0(get("FR1.aa"), collapse = IMMCOL_ADD$scsep),
++        FR2.nt = paste0(get("FR2.nt"), collapse = IMMCOL_ADD$scsep),
++        FR2.aa = paste0(get("FR2.aa"), collapse = IMMCOL_ADD$scsep),
++        FR3.nt = paste0(get("FR3.nt"), collapse = IMMCOL_ADD$scsep),
++        FR3.aa = paste0(get("FR3.aa"), collapse = IMMCOL_ADD$scsep),
++        FR4.nt = paste0(get("FR4.nt"), collapse = IMMCOL_ADD$scsep),
++        FR4.aa = paste0(get("FR4.aa"), collapse = IMMCOL_ADD$scsep),
+         V.name = paste0(get("V.name"), collapse = IMMCOL_ADD$scsep),
+         J.name = paste0(get("J.name"), collapse = IMMCOL_ADD$scsep),
+         D.name = paste0(get("D.name"), collapse = IMMCOL_ADD$scsep),
+@@ -1067,13 +1110,21 @@ parse_10x_filt_contigs <- function(.filename, .mode) {
+       as.data.table()
+   }
+ 
+-  df <- df %>%
++  df %<>%
+     lazy_dt() %>%
+-    group_by(CDR3.nt, V.name, J.name) %>%
++    mutate(
++      CDR3.nt.sorted = sort_string(get("CDR3.nt"), IMMCOL_ADD$scsep),
++      V.name.sorted = sort_string(get("V.name"), IMMCOL_ADD$scsep),
++      J.name.sorted = sort_string(get("J.name"), IMMCOL_ADD$scsep)
++    ) %>%
++    group_by_colnames("CDR3.nt.sorted", "V.name.sorted", "J.name.sorted") %>%
+     summarise(
+       Clones = length(unique(get("barcode"))),
++      CDR3.nt = first(get("CDR3.nt")),
+       CDR3.aa = first(get("CDR3.aa")),
++      V.name = first(get("V.name")),
+       D.name = first(get("D.name")),
++      J.name = first(get("J.name")),
+       chain = first(get("chain")),
+       barcode = paste0(unique(get("barcode")), collapse = IMMCOL_ADD$scsep),
+       raw_clonotype_id = gsub(
+@@ -1081,9 +1132,24 @@ parse_10x_filt_contigs <- function(.filename, .mode) {
+         paste0(unique(get("raw_clonotype_id")), collapse = IMMCOL_ADD$scsep)
+       ),
+       contig_id = paste0(get("contig_id"), collapse = IMMCOL_ADD$scsep),
+-      c_gene = first(get("c_gene"))
++      c_gene = first(get("c_gene")),
++      CDR1.nt = first(get(IMMCOL_EXT$cdr1nt)),
++      CDR2.nt = first(get(IMMCOL_EXT$cdr2nt)),
++      CDR1.aa = first(get(IMMCOL_EXT$cdr1aa)),
++      CDR2.aa = first(get(IMMCOL_EXT$cdr2aa)),
++      FR1.nt = first(get(IMMCOL_EXT$fr1nt)),
++      FR2.nt = first(get(IMMCOL_EXT$fr2nt)),
++      FR3.nt = first(get(IMMCOL_EXT$fr3nt)),
++      FR4.nt = first(get(IMMCOL_EXT$fr4nt)),
++      FR1.aa = first(get(IMMCOL_EXT$fr1aa)),
++      FR2.aa = first(get(IMMCOL_EXT$fr2aa)),
++      FR3.aa = first(get(IMMCOL_EXT$fr3aa)),
++      FR4.aa = first(get(IMMCOL_EXT$fr4aa))
+     ) %>%
+-    as.data.table()
++    as.data.table() %>%
++    subset(
++      select = -c(get("CDR3.nt.sorted"), get("V.name.sorted"), get("J.name.sorted"))
++    )
+ 
+   df$V.end <- NA
+   df$J.start <- NA
+diff --git a/R/io-utility.R b/R/io-utility.R
+index a43d4870..e251960e 100644
+--- a/R/io-utility.R
++++ b/R/io-utility.R
+@@ -76,7 +76,7 @@
+ 
+ 
+ .make_names <- function(.char) {
+-  if (is.na(.char[1])) {
++  if (has_no_data(.char)) {
+     NA
+   } else {
+     tolower(.char)
+@@ -136,8 +136,8 @@
+     .vend, .jstart, .dstart, .dend,
+     .vd.insertions, .dj.insertions, .total.insertions
+   ))
+-  if (!is.na(.add[1])) {
+-    swlist <- c(swlist, rep(col_guess(), length(.add)))
++  if (!has_no_data(.add)) {
++    swlist <- c(swlist, rep(list(col_guess()), length(.add)))
+     names(swlist)[tail(seq_along(swlist), length(.add))] <- .add
+   }
+ 
+diff --git a/R/io.R b/R/io.R
+index aa1507aa..aebedab0 100644
+--- a/R/io.R
++++ b/R/io.R
+@@ -20,7 +20,7 @@ if (getRversion() >= "2.15.1") {
+ #' @importFrom jsonlite read_json
+ #' @importFrom stringr str_split str_detect str_replace_all str_trim
+ #' @importFrom methods as
+-#' @importFrom dplyr contains first
++#' @importFrom dplyr contains first select_ group_by_at one_of
+ #' @importFrom utils read.table
+ #' @importFrom data.table setDF
+ #'
+@@ -59,6 +59,8 @@ if (getRversion() >= "2.15.1") {
+ #'
+ #' @param .coding A logical value. Set TRUE to get coding-only clonotypes (by defaul). Set FALSE to get all clonotypes.
+ #'
++#' @param ... Extra arguments for parsing functions
++#'
+ #' @details
+ #' The metadata has to be a tab delimited file with first column named "Sample".
+ #' It can have any number of additional columns with arbitrary names.
+@@ -135,14 +137,14 @@ if (getRversion() >= "2.15.1") {
+ #' # > names(immdata)
+ #' # [1] "data" "meta"
+ #' @export repLoad
+-repLoad <- function(.path, .mode = "paired", .coding = TRUE) {
++repLoad <- function(.path, .mode = "paired", .coding = TRUE, ...) {
+   exclude_extensions <- c(
+     "so", "exe", "bam", "fasta", "fai", "fastq", "bed", "rds", "report", "vdjca"
+   )
+ 
+   # Process a repertoire file: detect format and load the data
+   # Return: a named list with a repertoire data frame and it's name
+-  .read_repertoire <- function(.path, .mode, .coding) {
++  .read_repertoire <- function(.path, .mode, .coding, ...) {
+     parse_res <- list()
+     cur_format <- .detect_format(.path)
+ 
+@@ -176,7 +178,7 @@ repLoad <- function(.path, .mode = "paired", .coding = TRUE) {
+       if (suppressWarnings(is.na(parse_fun))) {
+         message("unknown format, skipping")
+       } else {
+-        parse_res <- parse_fun(.path, .mode)
++        parse_res <- parse_fun(.path, .mode, ...)
+ 
+         if (is.null(parse_res)) {
+           message("  [!] Warning: zero clonotypes found, skipping")
+@@ -233,7 +235,7 @@ repLoad <- function(.path, .mode = "paired", .coding = TRUE) {
+         } else if (stringr::str_detect(.filepath, "barcode")) {
+           # TODO: add the barcode processing subroutine to split by samples
+         } else {
+-          repertoire <- .read_repertoire(.filepath, .mode, .coding)
++          repertoire <- .read_repertoire(.filepath, .mode, .coding, ...)
+           if (length(repertoire) != 0) {
+             parsed_batch <- c(parsed_batch, repertoire)
+           }
+diff --git a/R/phylip.R b/R/phylip.R
+index 7f63a0ac..b96bba88 100644
+--- a/R/phylip.R
++++ b/R/phylip.R
+@@ -21,10 +21,18 @@
+ #'
+ #' @usage
+ #'
+-#' repClonalFamily(.data, .threads, .nofail)
++#' repClonalFamily(.data, .vis_groups, .threads, .nofail)
+ #'
+ #' @param .data The data to be processed, output of repAlignLineage() function.
+ #'
++#' @param .vis_groups Groups for visualization, used to annotate specific clones on chart
++#' and display them in different colors. This is a named list, where names are for the chart legend,
++#' and list items are clone IDs that belong to the groups. It's not necessary to assign groups to
++#' all clonotypes; unassigned ones will be displayed on the chart as "Clonotype" category.
++#' It's also possible to assign multiple clonotypes to the same group by providing nested lists
++#' or vectors of clone IDs instead of single clone IDs.
++#' Example: .vis_groups = list(A = 817, B = 201, C = list(303, 42))
++#'
+ #' @param .threads Number of threads to use.
+ #'
+ #' @param .nofail Returns NA instead of stopping if PHYLIP is not installed.
+@@ -59,8 +67,11 @@
+ #'   repAlignLineage(.min_lineage_sequences = 2, .align_threads = 2, .nofail = TRUE) %>%
+ #'   repClonalFamily(.threads = 1, .nofail = TRUE)
+ #' @export repClonalFamily
+-repClonalFamily <- function(.data, .threads = parallel::detectCores(), .nofail = FALSE) {
+-  if (!require_system_package("phylip", error_message = paste0(
++repClonalFamily <- function(.data,
++                            .vis_groups = NA,
++                            .threads = parallel::detectCores(),
++                            .nofail = FALSE) {
++  if (!require_system_package(c("phylip", "dnapars"), error_message = paste0(
+     "repLineagePhylogeny requires PHYLIP app to be installed!\n",
+     "Please install it as described here:\n",
+     "https://evolution.genetics.washington.edu/phylip/install.html"
+@@ -68,18 +79,34 @@ repClonalFamily <- function(.data, .threads = parallel::detectCores(), .nofail =
+     return(get_empty_object_with_class("step_failure_ignored"))
+   }
+ 
++  if (has_no_data(.vis_groups)) {
++    vis_groups <- NA
++  } else {
++    # switch keys and values of vis_groups and extract nested lists of clone IDs
++    vis_groups <- list()
++    for (i in seq_along(.vis_groups)) {
++      group_name <- names(.vis_groups)[i]
++      for (clone_id in unlist(.vis_groups[[i]])) {
++        vis_groups_element <- group_name
++        names(vis_groups_element) <- clone_id
++        vis_groups %<>% append(vis_groups_element)
++      }
++    }
++  }
++
+   results <- .data %>%
+     apply_to_sample_or_list(
+       process_dataframe,
+       .with_names = TRUE,
+       .validate = FALSE,
++      vis_groups = vis_groups,
+       .threads = .threads
+     ) %>%
+     add_class("clonal_family")
+   return(results)
+ }
+ 
+-process_dataframe <- function(df, .threads, sample_name = NA) {
++process_dataframe <- function(df, vis_groups, .threads, sample_name = NA) {
+   required_columns <- c("Cluster", "Germline", "Alignment", "Sequences")
+   for (column in required_columns) {
+     if (!(column %in% colnames(df))) {
+@@ -108,34 +135,38 @@ process_dataframe <- function(df, .threads, sample_name = NA) {
+     clusters_list,
+     process_cluster,
+     mc.preschedule = FALSE,
+-    mc.cores = .threads
++    mc.cores = .threads,
++    vis_groups = vis_groups
+   ) %>%
+     convert_nested_to_df()
+   return(results)
+ }
+ 
+-process_cluster <- function(cluster_row) {
++process_cluster <- function(cluster_row, vis_groups) {
+   # alignment, sequences and aa_frame_starts should be extracted from 1-element lists
+   # because of these columns format
+   alignment <- cluster_row[["Alignment"]][[1]]
+   sequences <- cluster_row[["Sequences"]][[1]]
+   cluster_name <- cluster_row[["Cluster"]]
+ 
+-  temp_dir <- file.path(tempdir(check = TRUE), uuid::UUIDgenerate(use.time = FALSE))
++  fsep <- if (.Platform$OS.type == "windows") "\\" else "/"
++  shell <- if (.Platform$OS.type == "windows") "powershell /c " else "sh -c "
++  temp_dir <- file.path(tempdir(check = TRUE), uuid::UUIDgenerate(use.time = FALSE), fsep = fsep)
+   dir.create(temp_dir)
+   # workaround for phylip: it shows "Unexpected end-of-file" for too short sequence labels;
+   # these \t are also used to read outfile as table
+   rownames(alignment) %<>% paste0("\t")
+-  phangorn::write.phyDat(alignment, file.path(temp_dir, "infile"))
++  phangorn::write.phyDat(alignment, file.path(temp_dir, "infile", fsep = fsep))
++  dnapars <- if (Sys.which("phylip") == "") "dnapars" else "phylip dnapars"
+   system(
+-    paste0("sh -c \"cd ", temp_dir, "; phylip dnapars infile\""),
++    paste0(shell, "\"cd ", temp_dir, "; ", dnapars, " infile\""),
+     input = (c("V", 1, 5, ".", "Y"))
+   ) %>%
+     quiet(capture_output = TRUE)
+ 
+-  tree <- ape::read.tree(file.path(temp_dir, "outtree"))
++  tree <- ape::read.tree(file.path(temp_dir, "outtree", fsep = fsep))
+ 
+-  outfile_path <- file.path(temp_dir, "outfile")
++  outfile_path <- file.path(temp_dir, "outfile", fsep = fsep)
+   outfile_table <- read.table(outfile_path,
+     sep = "\t", header = FALSE, na.strings = "", stringsAsFactors = FALSE,
+     fill = TRUE, blank.lines.skip = TRUE
+@@ -290,6 +321,16 @@ process_cluster <- function(cluster_row) {
+       }
+       tree_stats[row, "DistanceAA"] <- sum(seq_aa_chars != ancestor_aa_chars)
+     }
++
++    # assign visualization group for current sequence if specified
++    if (!has_no_data(vis_groups)) {
++      if (tree_stats[row, "Type"] == "Clonotype") {
++        seq_id <- substring(tree_stats[row, "Name"], 4)
++        if (seq_id %in% names(vis_groups)) {
++          tree_stats[row, "Type"] <- vis_groups[[seq_id]]
++        }
++      }
++    }
+   }
+ 
+   for (column in c("Clones", "DistanceNT", "DistanceAA")) {
+diff --git a/R/tools.R b/R/tools.R
+index 5bf9e8d3..382143c6 100644
+--- a/R/tools.R
++++ b/R/tools.R
+@@ -486,10 +486,19 @@ as_numeric_or_fail <- function(.string) {
+   return(result)
+ }
+ 
++sort_string <- function(.string, .delim) {
++  map_chr(strsplit(.string, .delim), ~ paste(sort(.x), collapse = .delim))
++}
++
+ has_no_data <- function(.data) {
+   any(sapply(list(NA, NULL, NaN), identical, .data)) | all(is.na(.data))
+ }
+ 
++# variant of group_by that takes column names as strings
++group_by_colnames <- function(.data, ...) {
++  group_by_at(.data, vars(one_of(...)))
++}
++
+ # apply function to .data if it's a single sample or to each sample if .data is a list of samples
+ apply_to_sample_or_list <- function(.data, .function, .with_names = FALSE, .validate = TRUE, ...) {
+   if (has_no_data(.data)) {
+diff --git a/man/repClonalFamily.Rd b/man/repClonalFamily.Rd
+index 5bf5099e..1f1adb78 100644
+--- a/man/repClonalFamily.Rd
++++ b/man/repClonalFamily.Rd
+@@ -4,11 +4,19 @@
+ \alias{repClonalFamily}
+ \title{Builds a phylogenetic tree using the sequences of a clonal lineage}
+ \usage{
+-repClonalFamily(.data, .threads, .nofail)
++repClonalFamily(.data, .vis_groups, .threads, .nofail)
+ }
+ \arguments{
+ \item{.data}{The data to be processed, output of repAlignLineage() function.}
+ 
++\item{.vis_groups}{Groups for visualization, used to annotate specific clones on chart
++and display them in different colors. This is a named list, where names are for the chart legend,
++and list items are clone IDs that belong to the groups. It's not necessary to assign groups to
++all clonotypes; unassigned ones will be displayed on the chart as "Clonotype" category.
++It's also possible to assign multiple clonotypes to the same group by providing nested lists
++or vectors of clone IDs instead of single clone IDs.
++Example: .vis_groups = list(A = 817, B = 201, C = list(303, 42))}
++
+ \item{.threads}{Number of threads to use.}
+ 
+ \item{.nofail}{Returns NA instead of stopping if PHYLIP is not installed.
+diff --git a/man/repLoad.Rd b/man/repLoad.Rd
+index cb302865..6d9eeaf8 100644
+--- a/man/repLoad.Rd
++++ b/man/repLoad.Rd
+@@ -4,7 +4,7 @@
+ \alias{repLoad}
+ \title{Load immune repertoire files into the R workspace}
+ \usage{
+-repLoad(.path, .mode = "paired", .coding = TRUE)
++repLoad(.path, .mode = "paired", .coding = TRUE, ...)
+ }
+ \arguments{
+ \item{.path}{A character string specifying the path to the input data.
+@@ -33,6 +33,8 @@ Currently "single" works for every format, and "paired" works only for 10X Genom
+ By default, 10X Genomics data will be loaded as paired chain data, and other files will be loaded as single chain data.}
+ 
+ \item{.coding}{A logical value. Set TRUE to get coding-only clonotypes (by defaul). Set FALSE to get all clonotypes.}
++
++\item{...}{Extra arguments for parsing functions}
+ }
+ \value{
+ A list with two named elements:
+diff --git a/tests/testthat/test-align-lineage.R b/tests/testthat/test-align-lineage.R
+new file mode 100644
+index 00000000..3b111f53
+--- /dev/null
++++ b/tests/testthat/test-align-lineage.R
+@@ -0,0 +1,100 @@
++data(bcrdata)
++test_bcr_data <- bcrdata$data %>% top(1000)
++test_input <- test_bcr_data %>%
++  seqCluster(seqDist(test_bcr_data), .fixed_threshold = 3) %>%
++  repGermline(.threads = 1) %>%
++  suppressWarnings()
++
++positive_test_cases <- list(
++  "Not empty result" = list(
++    args = list(
++      .data = test_input,
++      .min_lineage_sequences = 2,
++      .prepare_threads = 1,
++      .align_threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Multiple threads" = list(
++    args = list(
++      .data = test_input,
++      .min_lineage_sequences = 2
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Dataframe only" = list(
++    args = list(
++      .data = test_input[["full_clones"]],
++      .min_lineage_sequences = 2,
++      .prepare_threads = 1,
++      .align_threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result) > 0, TRUE)
++    }
++  )
++)
++
++for (i in seq_along(positive_test_cases)) {
++  # Arrange
++  test_name <- names(positive_test_cases)[i]
++  args <- positive_test_cases[[i]][["args"]]
++  assert_function <- positive_test_cases[[i]][["assert_function"]]
++
++  # Act
++  result <- suppressWarnings(do.call(repAlignLineage, args))
++
++  # Assert
++  test_that(
++    test_name,
++    assert_function(result)
++  )
++}
++
++negative_test_cases <- list(
++  "List of lists" = list(
++    args = list(
++      .data = bcrdata
++    )
++  ),
++  "Missing columns" = list(
++    args = list(
++      .data = test_bcr_data[["full_clones"]],
++      .prepare_threads = 1,
++      .align_threads = 1
++    )
++  ),
++  "Missing Cluster column" = list(
++    args = list(
++      .data = subset(test_input[["full_clones"]], select = -c(get("Cluster"))),
++      .prepare_threads = 1,
++      .align_threads = 1
++    )
++  ),
++  "Missing Germline.sequence column" = list(
++    args = list(
++      .data = subset(test_input[["full_clones"]], select = -c(get("Germline.sequence"))),
++      .prepare_threads = 1,
++      .align_threads = 1
++    )
++  )
++)
++
++for (i in seq_along(negative_test_cases)) {
++  # Arrange
++  test_name <- names(negative_test_cases)[i]
++  args <- negative_test_cases[[i]][["args"]]
++
++  # Act, Assert
++  test_that(
++    test_name,
++    expect_error(suppressWarnings(do.call(repAlignLineage, args)))
++  )
++}
+diff --git a/tests/testthat/test-clonal-family.R b/tests/testthat/test-clonal-family.R
+new file mode 100644
+index 00000000..8c09a65e
+--- /dev/null
++++ b/tests/testthat/test-clonal-family.R
+@@ -0,0 +1,115 @@
++data(bcrdata)
++test_bcr_data <- bcrdata$data %>% top(1000)
++test_input <- test_bcr_data %>%
++  seqCluster(seqDist(test_bcr_data), .fixed_threshold = 3) %>%
++  repGermline(.threads = 1) %>%
++  repAlignLineage(.min_lineage_sequences = 2, .prepare_threads = 1, .align_threads = 1) %>%
++  suppressWarnings()
++
++positive_test_cases <- list(
++  "Not empty result" = list(
++    args = list(
++      .data = test_input,
++      .threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Multiple threads" = list(
++    args = list(
++      .data = test_input,
++      .threads = 8
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Dataframe only" = list(
++    args = list(
++      .data = test_input[["full_clones"]],
++      .threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result) > 0, TRUE)
++    }
++  ),
++  "Vis groups" = list(
++    args = list(
++      .data = test_input,
++      .vis_groups = {
++        clone_ids <- test_input[["full_clones"]] %>%
++          unnest("Sequences") %>%
++          extract2("Clone.ID")
++        list(
++          Group1 = clone_ids[1],
++          Group2 = clone_ids[3],
++          Group3 = list(clone_ids[5], clone_ids[2]),
++          Group4 = c(clone_ids[7], clone_ids[4])
++        )
++      },
++      .threads = 1
++    ),
++    assert_function = function(result) {
++      types <- result[["full_clones"]] %>%
++        unnest("TreeStats") %>%
++        extract2("Type")
++      # check that correct number of clonotypes is assigned to each group
++      expect_equal(tabulate(match(types, "Group1")), 1)
++      expect_equal(tabulate(match(types, "Group2")), 1)
++      expect_equal(tabulate(match(types, "Group3")), 2)
++      expect_equal(tabulate(match(types, "Group4")), 2)
++    }
++  )
++)
++
++for (i in seq_along(positive_test_cases)) {
++  # Arrange
++  test_name <- names(positive_test_cases)[i]
++  args <- positive_test_cases[[i]][["args"]]
++  assert_function <- positive_test_cases[[i]][["assert_function"]]
++
++  # Act
++  result <- do.call(repClonalFamily, args)
++
++  # Assert
++  test_that(
++    test_name,
++    assert_function(result)
++  )
++}
++
++negative_test_cases <- list(
++  "List of lists" = list(
++    args = list(
++      .data = bcrdata
++    )
++  ),
++  "Missing columns" = list(
++    args = list(
++      .data = test_bcr_data[["full_clones"]],
++      .threads = 1
++    )
++  ),
++  "Missing Alignment column" = list(
++    args = list(
++      .data = subset(test_input[["full_clones"]], select = -c(get("Alignment"))),
++      .threads = 1
++    )
++  )
++)
++
++for (i in seq_along(negative_test_cases)) {
++  # Arrange
++  test_name <- names(negative_test_cases)[i]
++  args <- negative_test_cases[[i]][["args"]]
++
++  # Act, Assert
++  test_that(
++    test_name,
++    expect_error(do.call(repClonalFamily, args))
++  )
++}
+diff --git a/tests/testthat/test-germline.R b/tests/testthat/test-germline.R
+index aae7fe0d..124ddd62 100644
+--- a/tests/testthat/test-germline.R
++++ b/tests/testthat/test-germline.R
+@@ -57,7 +57,7 @@ negative_test_cases <- list(
+   ),
+   "Missing column" = list(
+     args = list(
+-      .data = subset(test_bcr_data[["full_clones"]], select = -c(FR1.nt)),
++      .data = subset(test_bcr_data[["full_clones"]], select = -c(get("FR1.nt"))),
+       .threads = 1
+     )
+   )
+diff --git a/tests/testthat/test-somatic-hypermutation.R b/tests/testthat/test-somatic-hypermutation.R
+new file mode 100644
+index 00000000..74aac8f5
+--- /dev/null
++++ b/tests/testthat/test-somatic-hypermutation.R
+@@ -0,0 +1,95 @@
++data(bcrdata)
++test_bcr_data <- bcrdata$data %>% top(1000)
++test_input <- test_bcr_data %>%
++  seqCluster(seqDist(test_bcr_data), .fixed_threshold = 3) %>%
++  repGermline(.threads = 1) %>%
++  repAlignLineage(.min_lineage_sequences = 2, .prepare_threads = 1, .align_threads = 1) %>%
++  repClonalFamily(.threads = 1) %>%
++  suppressWarnings()
++
++positive_test_cases <- list(
++  "Not empty result" = list(
++    args = list(
++      .data = test_input,
++      .threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Multiple threads" = list(
++    args = list(
++      .data = test_input,
++      .threads = 8
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result[["full_clones"]]) > 0, TRUE)
++    }
++  ),
++  "Dataframe only" = list(
++    args = list(
++      .data = test_input[["full_clones"]],
++      .threads = 1
++    ),
++    assert_function = function(result) {
++      expect_equal(immunarch:::has_no_data(result), FALSE)
++      expect_equal(nrow(result) > 0, TRUE)
++    }
++  )
++)
++
++for (i in seq_along(positive_test_cases)) {
++  # Arrange
++  test_name <- names(positive_test_cases)[i]
++  args <- positive_test_cases[[i]][["args"]]
++  assert_function <- positive_test_cases[[i]][["assert_function"]]
++
++  # Act
++  result <- do.call(repSomaticHypermutation, args)
++
++  # Assert
++  test_that(
++    test_name,
++    assert_function(result)
++  )
++}
++
++negative_test_cases <- list(
++  "List of lists" = list(
++    args = list(
++      .data = bcrdata
++    )
++  ),
++  "Missing columns" = list(
++    args = list(
++      .data = test_bcr_data[["full_clones"]],
++      .threads = 1
++    )
++  ),
++  "Missing Sequences column" = list(
++    args = list(
++      .data = subset(test_input[["full_clones"]], select = -c(get("Sequences"))),
++      .threads = 1
++    )
++  ),
++  "Missing Germline.Input column" = list(
++    args = list(
++      .data = subset(test_input[["full_clones"]], select = -c(get("Germline.Input"))),
++      .threads = 1
++    )
++  )
++)
++
++for (i in seq_along(negative_test_cases)) {
++  # Arrange
++  test_name <- names(negative_test_cases)[i]
++  args <- negative_test_cases[[i]][["args"]]
++
++  # Act, Assert
++  test_that(
++    test_name,
++    expect_error(do.call(repSomaticHypermutation, args))
++  )
++}
+diff --git a/vignettes/web_only/BCRpipeline.Rmd b/vignettes/web_only/BCRpipeline.Rmd
+index 5db7e207..d3e1e404 100644
+--- a/vignettes/web_only/BCRpipeline.Rmd
++++ b/vignettes/web_only/BCRpipeline.Rmd
+@@ -44,11 +44,9 @@ The pipeline involves five steps:
+ 
+     This step involves preparation for phylogenetic and somatic hypermutation analysis.
+ 
+-
+ 5. **Phylogenetic analysis.**
+ 
+     This step provides phylogeny reconstruction and trunk length calculation (by running the PHYLIP package).
+-    
+ 
+ 6. **Somatic hypermutation analysis.**
+ 
+@@ -131,9 +129,9 @@ bcrdata$data %>%
+ `.species` - Specifies species from which reference V and J are taken.
+ Available species: "HomoSapiens" (default), "MusMusculus", "BosTaurus", "CamelusDromedarius", "CanisLupusFamiliaris", "DanioRerio", "MacacaMulatta", "MusMusculusDomesticus", "MusMusculusCastaneus", "MusMusculusMolossinus", "MusMusculusMusculus", "MusSpretus", "OncorhynchusMykiss", "OrnithorhynchusAnatinus", "OryctolagusCuniculus", "RattusNorvegicus", "SusScrofa".
+ 
+-`.min_nuc_outside_cdr3` — this parameter sets how many nucleotides should have V or J chain outside of CDR3 to be considered good for further alignment. Reads with too short chains are filtered out
++`.min_nuc_outside_cdr3` - This parameter sets how many nucleotides should have V or J chain outside of CDR3 to be considered good for further alignment. Reads with too short chains are filtered out.
+ 
+-`.align_j_gene` - if the germline sequence does not assemble correctly in the region of the J gene, then set this parameter to True. This will slow down the algorithm, but the assembly of the germline sequence will be more accurate.
++`.threads` - The number of threads to use.
+ 
+ # Aligning sequences within a clonal lineage
+ 
+@@ -169,7 +167,7 @@ The function has several parameters:
+ # take clusters that contain at least 1 sequence
+ bcr_data <- bcrdata$data
+ align_dt <- bcr_data %>%
+-  seqCluster(seqDist(bcr_data, .col = 'CDR3.nt', .group_by_seqLength = TRUE), 
++  seqCluster(seqDist(bcr_data, .col = 'CDR3.nt', .group_by_seqLength = TRUE),
+              .perc_similarity = 0.6) %>%
+   repGermline(.threads = 1) %>%
+   repAlignLineage(.min_lineage_sequences = 6, .align_threads = 2, .nofail = TRUE)
+@@ -219,7 +217,7 @@ sudo apt-get install -y phylip
+ repClonalFamily usage example:
+ 
+ ```{r example 10, results = 'hide'}
+-bcr <-  align_dt %>%
++bcr <- align_dt %>%
+   repClonalFamily(.threads = 2, .nofail = TRUE)
+ #plot visualization of the first tree
+ vis(bcr[["full_clones"]][["TreeStats"]][[1]])
+@@ -242,6 +240,24 @@ f[f$DistanceAA != 0, ]['Type'] = 'mutationAA'
+ vis(f)
+ ```
+ 
++Another way to recolor leaves is to use `.vis_groups` parameter for repClonalFamily. It allows to assign group names for specific clone IDs, or lists of clone IDs:
++
++```{r example 10.4, results = 'hide'}
++#get all clone IDs from align_dt
++clone_ids <- unnest(align_dt[["full_clones"]], "Sequences")[["Clone.ID"]]
++#run repClonalFamily with assigning some of these clones to differently named and colored groups
++bcr_with_groups <- align_dt %>%
++  repClonalFamily(.vis_groups = list(
++                    Group1 = clone_ids[1],
++                    Group2 = clone_ids[3],
++                    Group3 = list(clone_ids[5], clone_ids[2]),
++                    Group4 = c(clone_ids[7], clone_ids[4])
++                   ), .threads = 2, .nofail = TRUE
++                 )
++#display the first tree from repClonalFamily results
++vis(bcr_with_groups[["full_clones"]][["TreeStats"]][[1]])
++```
++
+ We have found 4 clusters:
+ 
+ ```{r example 11, warning = FALSE}
+@@ -324,9 +340,9 @@ shm_data$full_clones[ , cols ]
+ Then you could easily estimate the mutation rate:
+ 
+ ```{r example 19}
+-# estimate mutation rate 
+-shm_data$full_clones %>% 
+-  mutate(Mutation.Rate = Mutations / (nchar(Common.Ancestor) - CDR3.germline.length)) %>% 
++# estimate mutation rate
++shm_data$full_clones %>%
++  mutate(Mutation.Rate = Mutations / (nchar(Common.Ancestor) - CDR3.germline.length)) %>%
+   select(Clone.ID, Mutation.Rate)
+ ```
+ 

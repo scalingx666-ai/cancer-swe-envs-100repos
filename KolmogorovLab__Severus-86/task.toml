@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/KolmogorovLab__Severus-86"
+description = "Fix `--ignore-hp` VCF output crash"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "Severus",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "KolmogorovLab/Severus"
+ref = "1c4219bba28b137148ed313a00d0a61ab78f84da"
+reference = "https://github.com/KolmogorovLab/Severus/pull/86"
+source_access = "auto"
+built_at = "2026-11-12T05:38:12.959169+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6faa93f2954c0f49dae2daa3102f2b2e0a23b09d95f3e7a1b2e12eb7b8f4f6ce"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-08T18:37:21Z"
+diff_format = "unified"
+context_files = [
+    "severus/build_graph.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.747668+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:1161d05eb3dd7f65e40d7f0a5090326cb4e90785a0a58d0207e97a9255aafa13"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__htslib-2101"
+description = "Autumn news 2026"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "htslib",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/htslib"
+ref = "3829a92491f43df726d7af7ec8d6b30561a9727c"
+reference = "https://github.com/samtools/htslib/pull/2101"
+source_access = "auto"
+built_at = "2026-11-12T04:18:12.751054+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:dcdefeb7252aeb92cc77f9ee8f1d68f95aa3bd386ea52e49e3929d5e18fb4788"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-26T16:50:51Z"
+diff_format = "unified"
+context_files = [
+    "NEWS",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 151
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.828504+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:df564660839fdc132c65d91eda0125f8627fb6dce18b5b25f6475b7054ad4804"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

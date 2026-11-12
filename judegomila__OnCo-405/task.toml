@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/judegomila__OnCo-405"
+description = "Weekly refresh: automated pulse, congress abstracts, key-paper citations"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "OnCo",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "judegomila/OnCo"
+ref = "f350e7fd399c119daf2985b7f352d9de81e06d23"
+reference = "https://github.com/judegomila/OnCo/pull/405"
+source_access = "auto"
+built_at = "2026-11-12T05:37:53.283728+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d7e3eac214162f738e28eba1a11df68126bc84c040707679fd29fbbbe4565807"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-12T05:37:15Z"
+diff_format = "unified"
+context_files = [
+    "public/citations/index.json",
+    "public/digests/candidates.json",
+    "public/openalex/papers.json",
+    "public/pulse/auto.json",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 8
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.799905+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:5993c0bd84787c5db007b1a82f0c9f9aaaa2a29f7aac74bf36f7521548cb9a1f"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

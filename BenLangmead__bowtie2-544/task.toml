@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/BenLangmead__bowtie2-544"
+description = "Three dynamic-programming speedups from #536, with tests and a fix-up guard"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bowtie2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "BenLangmead/bowtie2"
+ref = "976e22118540bba9ea842964459a6e2497634d0b"
+reference = "https://github.com/BenLangmead/bowtie2/pull/544"
+source_access = "auto"
+built_at = "2026-11-12T05:36:16.278978+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b0abe5e798fa31d89968bb962f5e513d6043827af52b5566f75c035f9af94987"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-27T22:40:55Z"
+diff_format = "unified"
+context_files = [
+    "aligner_bt.h",
+    "aligner_result.cpp",
+    "aligner_result.h",
+    "aligner_swsse_ee_u8.cpp",
+    "scripts/test/test_redundant.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 755
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.732423+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e744ed72d6f697e80a66f975803597be342be6ad41881f6f259a09a2b2c036f8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,45 @@
+diff --git a/docs/install.rst b/docs/install.rst
+index e7781499f..c719d8873 100644
+--- a/docs/install.rst
++++ b/docs/install.rst
+@@ -250,6 +250,10 @@ ImmuScope model weights:
+ 
+    immuscope-download-weights
+ 
++To overwrite the default download location you may set the ``IMMU_SCOPE_WEIGHTS_DIR``
++environment variable before running the download command. This environment variable
++will also be used by pVACtools to find the weights installation location.
++
+ .. note::
+ 
+    ImmuScope needs to be installed in the same python 3
+diff --git a/pvactools/lib/prediction_class.py b/pvactools/lib/prediction_class.py
+index 95a6bff1a..0ea72d1f4 100644
+--- a/pvactools/lib/prediction_class.py
++++ b/pvactools/lib/prediction_class.py
+@@ -942,19 +942,16 @@ class NetMHCIIVersion:
+ 
+ class ImmuScope_IM(MHCII):
+     immuscope_score_col = 'ImmuScope_IM'
+-    immuscope_weights_dir = '/opt/ImmuScope/weights'
+ 
+     def resolved_immuscope_weights_dir(self):
++        immu_scope_weights_dir = os.environ.get('IMMU_SCOPE_WEIGHTS_DIR')
+         xdg_data_home = os.environ.get('XDG_DATA_HOME')
+-        if xdg_data_home:
+-            user_dir = os.path.join(xdg_data_home, 'ImmuScope', 'weights')
++        if immu_scope_weights_dir:
++            return immu_scope_weights_dir
++        elif xdg_data_home:
++            return os.path.join(xdg_data_home, 'ImmuScope', 'weights')
+         else:
+-            user_dir = os.path.join(os.path.expanduser('~/.local/share'), 'ImmuScope', 'weights')
+-
+-        if os.path.isdir(os.path.join(user_dir, 'IM')):
+-            return user_dir
+-
+-        return self.immuscope_weights_dir
++            return os.path.join(os.path.expanduser('~/.local/share'), 'ImmuScope', 'weights')
+ 
+     def valid_allele_names(self):
+         """Return allele names supported by ImmuScope.

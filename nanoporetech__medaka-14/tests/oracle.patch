@@ -1,0 +1,1446 @@
+diff --git a/.gitignore b/.gitignore
+index 4552b0c4..ccac2c6b 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,5 +1,6 @@
+ bincache/
+ libhts.a
++scripts/mini_align
+ src/vcf2fasta/vcf2fasta
+ submodules/samtools-1.3.1/
+ submodules/samtools-1.3.1.tar.bz2
+diff --git a/MANIFEST.in b/MANIFEST.in
+new file mode 100644
+index 00000000..11c99aa6
+--- /dev/null
++++ b/MANIFEST.in
+@@ -0,0 +1,11 @@
++include src/*.c
++include src/*.h
++include README.md
++include LICENSE.md
++include requirements.txt
++include build.py
++include Makefile
++graft submodules/samtools-1.3.1/htslib-1.3.1
++graft images
++prune build
++prune docs
+diff --git a/Makefile b/Makefile
+index d55d21ef..846e1ed4 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,7 @@
+-.PHONY: docs
++.PHONY: docs clean_samtools
+ 
+ # Builds a cache of binaries which can just be copied for CI
+-BINARIES=samtools minimap2 mini_align vcf2fasta
++BINARIES=samtools minimap2
+ BINCACHEDIR=bincache
+ $(BINCACHEDIR):
+ 	mkdir -p $(BINCACHEDIR)
+@@ -15,21 +15,32 @@ endif
+ binaries: $(addprefix $(BINCACHEDIR)/, $(BINARIES))
+ 
+ SAMVER=1.3.1
+-$(BINCACHEDIR)/samtools: | $(BINCACHEDIR)
+-	# TODO: make this a bit nicer, we're only doing this for tview
++$(BINCACHEDIR)/samtools: submodules/samtools-1.3.1/Makefile | $(BINCACHEDIR)
+ 	@echo Making $(@F)
+-	# tar.bz is not a dependency, since that would cause it to be fetched
+-	#   even when installing from $(BINCACHEDIR)
+-	if [ ! -e submodules/samtools-${SAMVER}.tar.bz2 ]; then \
+-	  cd submodules; \
+-	  wget https://github.com/samtools/samtools/releases/download/${SAMVER}/samtools-${SAMVER}.tar.bz2; \
+-	fi
+-	cd submodules && tar -xjf samtools-${SAMVER}.tar.bz2
+ 	# copy our hack up version of tview
+ 	${SEDI} 's/tv->is_dot = 1;/tv->is_dot = 0;/' submodules/samtools-${SAMVER}/bam_tview.c
+ 	cd submodules/samtools-${SAMVER} && make
+ 	cp submodules/samtools-${SAMVER}/samtools $@
+ 
++
++submodules/samtools-$(SAMVER)/Makefile:
++	cd submodules; \
++		wget https://github.com/samtools/samtools/releases/download/${SAMVER}/samtools-${SAMVER}.tar.bz2; \
++		tar -xjf samtools-${SAMVER}.tar.bz2; \
++		rm samtools-${SAMVER}.tar.bz2
++
++
++libhts.a: submodules/samtools-1.3.1/Makefile
++	# this is required only to add in -fpic so we can build python module
++	@echo Compiling $(@F)
++	cd submodules/samtools-${SAMVER}/htslib-${SAMVER}/ && CFLAGS=-fpic ./configure && make
++	cp submodules/samtools-${SAMVER}/htslib-${SAMVER}/$@ $@
++
++clean_htslib:
++	cd submodules/samtools-${SAMVER} && make clean || exit 0
++	cd submodules/samtools-${SAMVER}/htslib-${SAMVER} && make clean || exit 0
++
++
+ $(BINCACHEDIR)/minimap2: | $(BINCACHEDIR)
+ 	@echo Making $(@F)
+ 	wget https://github.com/lh3/minimap2/releases/download/v2.11/minimap2-2.11_x64-linux.tar.bz2 
+@@ -37,7 +48,8 @@ $(BINCACHEDIR)/minimap2: | $(BINCACHEDIR)
+ 	cp minimap2-2.11_x64-linux/minimap2 $@
+ 	rm -rf minimap2-2.11_x64-linux.tar.bz2 minimap2-2.11_x64-linux
+ 
+-$(BINCACHEDIR)/mini_align: | $(BINCACHEDIR)
++
++scripts/mini_align:
+ 	@echo Making $(@F)
+ 	curl https://raw.githubusercontent.com/nanoporetech/pomoxis/master/scripts/mini_align -o $@
+ 	chmod +x $@
+@@ -52,11 +64,9 @@ $(BINCACHEDIR)/vcf2fasta: | $(BINCACHEDIR)
+ 	cp src/vcf2fasta/$(@F) $@
+ 
+ 
+-libhts.a: $(BINCACHEDIR)/samtools
+-	# this is required only to add in -fpic so we can build python module
+-	@echo Compiling $(@F)
+-	cd submodules/samtools-${SAMVER}/htslib-${SAMVER}/ && CFLAGS=-fpic ./configure && make
+-	cp submodules/samtools-${SAMVER}/htslib-${SAMVER}/$@ $@
++sdist: scripts/mini_align submodules/samtools-1.3.1/Makefile
++	python setup.py sdist
++
+ 
+ 
+ venv: venv/bin/activate
+@@ -67,23 +77,30 @@ venv/bin/activate:
+ 	${IN_VENV} && pip install pip --upgrade
+ 	${IN_VENV} && pip install -r requirements.txt
+ 
+-install: venv libhts.a | $(addprefix $(BINCACHEDIR)/, $(BINARIES))
+-	${IN_VENV} && python setup.py install
++
++install: venv scripts/mini_align | $(addprefix $(BINCACHEDIR)/, $(BINARIES))
++	${IN_VENV} && MEDAKA_BINARIES=1 python setup.py install
++
+ 
+ test: install
+ 	${IN_VENV} && pip install nose
+ 	${IN_VENV} && python setup.py nosetests
+ 
+-clean:
+-	. ${VENV} && python setup.py clean || echo "Failed to run setup.py clean"
++
++clean: clean_htslib
++	${IN_VENV} && python setup.py clean || echo "Failed to run setup.py clean"
+ 	rm -rf libhts.a venv build dist/ medaka.egg-info/ __pycache__ medaka.egg-info
+ 	find . -name '*.pyc' -delete
+ 
++
+ docker: binaries libhts.a
+ 	mkdir for_docker && cp -r medaka scripts bincache setup.py build.py requirements.txt for_docker 
+ 	docker build -t medaka .
+ 	rm -rf for_docker
+ 
++wheels:
++	docker run -v `pwd`:/io quay.io/pypa/manylinux1_x86_64 /io/build-wheels.sh
++
+ # You can set these variables from the command line.
+ SPHINXOPTS    =
+ SPHINXBUILD   = sphinx-build
+diff --git a/README.md b/README.md
+index 52ed6eed..00104eb9 100644
+--- a/README.md
++++ b/README.md
+@@ -13,43 +13,103 @@ sequencing reads against a draft assembly. It outperforms graph-based methods
+ operating on basecalled data, and can be competitive with state-of-the-art
+ signal-based methods whilst being much faster.
+ 
++© 2018 Oxford Nanopore Technologies Ltd.
+ 
+ Features
+ --------
+ 
+   * Requires only basecalled data. (`.fasta` or `.fastq`)
+   * Improved accurary over graph-based methods (e.g. Racon).
+-  * 50X faster than Nanopolish.
+-  * [Benchmarks](https://nanoporetech.github.io/medaka/benchmarks.html)
++  * 50X faster than Nanopolish (and can run on GPUs).
++  * Benchmarks are provided [here](https://nanoporetech.github.io/medaka/benchmarks.html).
+   * Includes extras for implementing and training bespoke correction
+     networks.
+   * Works on Linux (MacOS and Windows support is untested).
+   * Open source (Mozilla Public License 2.0).
+ 
++Tools to enable the creation of draft assemblies can be found in a sister
++project [pomoxis](https://github.com/nanoporetech/pomoxis).
++
+ Documentation can be found at https://nanoporetech.github.io/medaka/.
+ 
+ 
+ Installation
+ ------------
++
++There are currently two installation methods for medaka, detailed below.
++
++**Installation with pip**
+   
+-Medaka should be installed inside a virtual environment. A Makefile is
+-provided to fetch, compile and install all direct dependencies into an
+-environment.
++Medaka can be installed using the python package manager, pip:
++
++    pip install medaka
++
++On Linux platforms this will install a precompiled binary, on MacOS (and other)
++platforms this will fetch and compile a source distribution.
++
++We recommend using medaka within a virtual environment, viz.:
+ 
+-To setup the environment run:
++    virtualenv medaka --python=python3 --prompt "(medaka) "
++    . medaka/bin/activate
++    pip install medaka
++
++Using this method requires the user to provide a
++[samtools](https://github.com/samtools/samtools) and
++[minimap2](https://github.com/lh3/minimap2) binary and place these
++within the `PATH`.
++
++**Installation from source**
++
++Medaka can be installed from its source quite easily on most systems.
++
++ > Before installing medaka it may be required to install some
++ > prerequisite libraries, best installed by a package manager. On Ubuntu
++ > theses are:
++ > * gcc
++ > * zlib1g-dev
++ > * libbz2-dev
++ > * liblzma-dev
++ > * libffi-dev
++ > * libncurses5-dev
++ > * make
++ > * wget
++ > * python3-all-dev
++ > * python-virtualenv
++
++A Makefile is provided to fetch, compile and install all direct dependencies
++into a python virtual environment. To setup the environment run:
+ 
+     git clone https://github.com/nanoporetech/medaka.git
+     cd medaka
+     make install
+     . ./venv/bin/activate
+ 
++Using this method both `samtools` and `minimap2` are built from source and need
++not be provided by the user.
++
++**Using a GPU**
++
++All installation methods will allow medaka to be used with CPU resource only.
++To enable the use of GPU resource it is necessary to install the
++`tensorflow-gpu` package. In outline this can be achieve with:
++
++    pip uninstall tensorflow
++    pip install tensorflow-gpu
++
++However, note that The `tensorflow-gpu` GPU package is compiled against a
++specific version of the NVIDIA CUDA library; users are directed to the 
++[tensorflow installation](https://www.tensorflow.org/install/gpu) pages
++for further information.
++
+ 
+ Usage
+ -----
+ 
+ `medaka` can be run using its default settings through the `medaka_consensus`
+ program. An assembly in `.fasta` format and basecalls in `.fasta` or `.fastq`
+-format are required. 
++format are required. The program uses both `samtools` and `minimap2`. If
++medaka has been installed using the from-source method these will be present
++within the medaka environment, else they will need to be provided by the user.
+ 
+     source ${MEDAKA}  # i.e. medaka/venv/bin/activate
+     NPROC=$(nproc)
+@@ -61,3 +121,32 @@ format are required.
+ The variables `BASECALLS`, `DRAFT`, and `OUTDIR` in the above should be set
+ appropriately. When `medaka_consensus` has finished running, the consensus
+ will be saved to `${OUTDIR}/consensus.fasta`.
++
++Acknowledgements
++----------------
++
++We thank [Joanna Pineda](https://github.com/jopineda) and
++[Jared Simpson](https://github.com/jts) for providing htslib code samples which aided
++greatly development of the optimised feature generation code, and for testing the
++version 0.4 release candidates.
++
++Help
++----
++
++**Licence and Copyright**
++
++© 2018 Oxford Nanopore Technologies Ltd.
++
++`medaka` is distributed under the terms of the Mozilla Public License 2.0.
++
++**Research Release**
++
++Research releases are provided as technology demonstrators to provide early
++access to features or stimulate Community development of tools. Support for
++this software will be minimal and is only provided directly by the developers.
++Feature requests, improvements, and discussions are welcome and can be
++implemented by forking and pull requests. However much as we would
++like to rectify every issue and piece of feedback users may have, the 
++developers may have limited resource for support of this software. Research
++releases may be unstable and subject to rapid iteration by Oxford Nanopore
++Technologies.
+diff --git a/build-wheels.sh b/build-wheels.sh
+new file mode 100755
+index 00000000..e51e85d1
+--- /dev/null
++++ b/build-wheels.sh
+@@ -0,0 +1,35 @@
++#!/bin/bash
++set -e -x
++export MANYLINUX=1
++
++PACKAGE_NAME='medaka'
++
++cd /io
++
++yum install -y zlib-devel bzip2 bzip2-devel xz-devel
++rm -rf libhts.a bincache/*
++make scripts/mini_align clean_htslib libhts.a
++
++
++# Compile wheels
++for minor in 4 5 6; do
++    PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
++    "${PYBIN}/pip" install cffi
++    "${PYBIN}/pip" wheel . -w wheelhouse/
++done
++
++
++# Bundle external shared libraries into the wheels
++for whl in "wheelhouse/${PACKAGE_NAME}"*.whl; do
++    auditwheel repair "${whl}" -w wheelhouse/
++done
++
++
++# Install packages
++for minor in 4 5 6; do
++    PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
++    "${PYBIN}/pip" install "${PACKAGE_NAME}" --no-index -f /io/wheelhouse
++    "${PYBIN}/medaka_counts" --print medaka/test/data/test_reads.bam Consensus_Consensus_Consensus_Consensus_utg000001l:10000-10010
++done
++
++cd wheelhouse && ls | grep -v "${PACKAGE_NAME}.*manylinux" | xargs rm
+diff --git a/docs/development.rst b/docs/development.rst
+index a9cbe7cc..8292e7e1 100644
+--- a/docs/development.rst
++++ b/docs/development.rst
+@@ -70,3 +70,15 @@ Depending on your environment, specifically the versions of `CUDA` and `cuDNN`
+ that one has installed, it may be necessary to compile from source tensorflow;
+ the precompiled versions are naturally linked against specific versions of
+ these libraries.
++
++
++API reference
++-------------
++
++The medaka library comprising feature generation, data labelling, and batching
++code is detailed below.
++
++.. toctree::
++   :maxdepth: 3
++      
++   medaka
+diff --git a/docs/index.rst b/docs/index.rst
+index 338fb024..21868b93 100644
+--- a/docs/index.rst
++++ b/docs/index.rst
+@@ -1,6 +1,8 @@
+ Medaka
+ ======
+ 
++© 2018 Oxford Nanopore Technologies Ltd.
++
+ `medaka` is a tool to create a consensus sequence of nanopore sequencing data.
+ This task is performed using neural networks applied a pileup of individual
+ sequencing reads against a draft assembly. It outperforms graph-based methods
+@@ -10,22 +12,33 @@ signal-based methods whilst being much faster.
+ As input `medaka` accepts reads in either a `.fasta` or a `.fastq` file. It
+ requires a draft assembly as a `.fasta`.
+ 
++`medaka` is distributed under the terms of the Mozilla Public License 2.0.
++
++
+ Features
+ --------
+ 
+-  * Requires only basecalled data.
++  * Requires only basecalled data (`.fasta` or `.fastq`).
+   * Improved accurary over graph-based methods (e.g. Racon).
+-  * 50X faster than Nanopolish.
++  * 50X faster than Nanopolish (and can run on GPUs)..
++  * Benchmarks are provided (see :doc:`benchmarks`).
+   * Includes extras for implementing and training bespoke correction
+     networks.
+   * Works on Linux (MacOS and Windows support is untested).
+   * Open source (Mozilla Public License 2.0).
+ 
+-
+ Tools to enable the creation of draft assembies can be found in a sister
+ project `pomoxis <https://github.com/nanoporetech/pomoxis>`_.
+ 
+ 
++Acknowledgements
++................
++
++We thank `Joanna Pineda <https://github.com/jopineda>`_ and
++`Jared Simpson <https://github.com/jts>`_ for providing htslib code samples
++which aided greatly development of the optimised feature generation code,
++and for testing the version 0.4 release candidates.
++
+ 
+ Table of contents
+ -----------------
+@@ -38,16 +51,7 @@ Table of contents
+    walkthrough
+    development
+    future
+-
+-
+-Full API reference
+-------------------
+-
+-.. toctree::
+-   :maxdepth: 3
+-      
+-   medaka
+-
++   
+ 
+ Indices and tables
+ ------------------
+diff --git a/docs/installation.rst b/docs/installation.rst
+index 0e243441..92d9d3ac 100644
+--- a/docs/installation.rst
++++ b/docs/installation.rst
+@@ -4,26 +4,79 @@
+ Installation
+ ============
+ 
+-Medaka has been tested on Linux, specifically Ubuntu 14 and Ubuntu 16.
++There are currently two installation methods for medaka, detailed below.
+ 
+-Medaka should be installed inside a `virtual environment
+-<https://docs.python.org/3/tutorial/venv.html>`_. A Makefile is provided to
+-fetch, compile and install all direct dependencies into an environment.
++**Installation with pip**
++  
++Medaka can be installed using the python package manager, pip:
+ 
+-To setup the environment run:
++.. code-block:: bash
++
++    pip install medaka
++
++On Linux platforms this will install a precompiled binary, on MacOS (and other)
++platforms this will fetch and compile a source distribution.
++
++We recommend using medaka within a virtual environment, viz.:
++
++.. code-block:: bash
++
++    virtualenv medaka --python=python3 --prompt "(medaka) "
++    . medaka/bin/activate
++    pip install medaka
++
++.. note::
++
++    Using this method requires the user to provide a
++    `samtools <https://github.com/samtools/samtools>`_ and
++    `minimap2 <https://github.com/lh3/minimap2>`_ binary and place these
++    within the `PATH`.
++
++
++**Installation from source**
++
++Medaka can be installed from its source quite easily on most systems.
++
++.. note::
++
++    Before installing medaka it may be required to install some
++    prerequisite libraries, best installed by a package manager. On Ubuntu
++    theses are:
++    
++    gcc zlib1g-dev libbz2-dev liblzma-dev libffi-dev libncurses5-dev make wget
++    python3-all-dev python-virtualenv
++
++A Makefile is provided to fetch, compile and install all direct dependencies
++into a python virtual environment. To setup the environment run:
+ 
+ .. code-block:: bash
+ 
+     git clone https://github.com/nanoporetech/medaka.git
+     cd medaka
+     make install
+-    source ./venv/bin/activate
++    . ./venv/bin/activate
+ 
+-A simple `DOCKERFILE` is provided also should users wish to deploy the code
+-in a container, but this is by no means a requirement.
++Using this method both `samtools` and `minimap2` are built from source and need
++not be provided by the user.
+ 
+-.. _sequence_correction:
+ 
++**Using a GPU**
++
++All installation methods will allow medaka to be used with CPU resource only.
++To enable the use of GPU resource it is necessary to install the
++`tensorflow-gpu` package. In outline this can be achieve with:
++
++.. code-block:: bash
++
++    pip uninstall tensorflow
++    pip install tensorflow-gpu
++
++However, note that The `tensorflow-gpu` GPU package is compiled against a
++specific version of the NVIDIA CUDA library; users are directed to the 
++`tensorflow installation <https://www.tensorflow.org/install/gpu>`_ pages
++for further information.
++
++.. _sequence_correction:
+ 
+ Sequence correction
+ -------------------
+@@ -32,7 +85,9 @@ After installing the software (see :ref:`installation`), `medaka` can be run
+ using its default settings through the `medaka_consensus` program. An
+ assembly in `.fasta` format and basecalls in `.fasta` or `.fastq` format are
+ required (see :ref:`basecalling_and_draft_assembly` for an detailed example
+-of one method of obtaining these):
++of one method of obtaining these). The program uses both `samtools` and `minimap2`.
++If medaka has been installed using the from-source method these will be present
++within the medaka environment, else they will need to be provided by the user.
+ 
+ .. code-block:: bash
+ 
+diff --git a/medaka/__init__.py b/medaka/__init__.py
+index abeeedbf..f0ede3d3 100644
+--- a/medaka/__init__.py
++++ b/medaka/__init__.py
+@@ -1 +1 @@
+-__version__ = '0.4.0'
++__version__ = '0.4.1'
+diff --git a/medaka/common.py b/medaka/common.py
+index 5aec2aeb..ca91eea9 100644
+--- a/medaka/common.py
++++ b/medaka/common.py
+@@ -1,5 +1,6 @@
+ from collections import OrderedDict, namedtuple, defaultdict, Counter
+ from concurrent.futures import ProcessPoolExecutor
++from copy import copy
+ import errno
+ import functools
+ import itertools
+@@ -69,6 +70,11 @@ def last_pos(self):
+         """Zero-based (end inclusive) last reference co-ordinate."""
+         return self._get_pos(-1)
+ 
++    @property
++    def span(self):
++        """Size of sample in terms of reference positions."""
++        return self.last_pos[0] - self.first_pos[0]
++
+     @property
+     def is_empty(self):
+         return self.size == 0
+@@ -101,12 +107,13 @@ def decode_sample_name(name):
+         return d
+ 
+     def chunks(self, chunk_len=1000, overlap=200):
+-        """Create overlapping chunks of
++        """Create overlapping chunks of self.
+         
+         :param chunk_len: chunk length (number of columns)
+         :param overlap: overlap length.
+ 
+-        :yields: chunked `Sample`s.
++        :yields: chunked :py:class:`Sample` instances.
++    
+         """
+         chunker = functools.partial(sliding_window,
+             window=chunk_len, step=chunk_len - overlap, axis=0)
+@@ -711,7 +718,7 @@ def  __init__(self, batches, sparse_labels, n_classes=None, stack=3):
+         self.n_classes = n_classes
+         self.stack = stack
+ 
+-        self.logger = logging.getLogger(__package__)
++        self.logger = copy(logging.getLogger(__package__))
+         self.logger.name = 'Batcher'
+         self._queue = queue.Queue(maxsize=100)
+         self.stopped = threading.Event()
+@@ -771,7 +778,7 @@ def yield_batches_from_hdfs(batches, sparse_labels=True, n_classes=None):
+     :yields: (np.ndarray of inputs, np.ndarray of labels).
+     
+     """
+-    logger = logging.getLogger(__package__)
++    logger = copy(logging.getLogger(__package__))
+     logger.name = 'BatchYd'
+     queue = BatchQueue(batches, sparse_labels, n_classes)
+     try:
+diff --git a/medaka/features.py b/medaka/features.py
+index c3d13bc1..38fdd0bd 100644
+--- a/medaka/features.py
++++ b/medaka/features.py
+@@ -1,6 +1,6 @@
+ from collections import defaultdict, Counter, OrderedDict
+ import concurrent.futures
+-from copy import deepcopy
++from copy import copy, deepcopy
+ import inspect
+ import itertools
+ from functools import partial
+@@ -123,7 +123,7 @@ def __init__(self, ref_mode:str=None, max_hp_len:int=10,
+         self.feature_dtype = np.float32 if (self.normalise is not None or self.log_min is not None) else np.uint64
+         self.with_depth = with_depth
+         self.is_compressed = is_compressed
+-        self.logger = logging.getLogger(__package__)
++        self.logger = copy(logging.getLogger(__package__))
+         self.logger.name = 'Feature'
+         self.dtypes = dtypes
+ 
+@@ -164,7 +164,7 @@ def __init__(self, ref_mode:str=None, max_hp_len:int=10,
+         if self.with_depth:
+             self.decoding = self.decoding + ('depth',)
+         self.encoding = OrderedDict(((a, i) for i, a in enumerate(self.decoding)))
+-        self.logger.info("Creating features with: {}".format(opts))
++        self.logger.debug("Creating features with: {}".format(opts))
+ 
+         self.logger.debug("Label decoding is:\n{}".format('\n'.join(
+             '{}: {}'.format(i, x) for i, x in enumerate(self.decoding)
+@@ -197,7 +197,7 @@ def feature_indices(self):
+         """Location of feature vector components.
+         
+         :returns: dictionary mapping read data type and strand to feature vector
+-        indices (a list over all bases)
++            indices (a list over all bases)
+ 
+         """
+         return {
+@@ -348,15 +348,9 @@ def bam_to_sample(self, reads_bam, region, reference=None, read_fraction=None, f
+                     ref_base = pair.rbase.upper() if pair.rbase is not None else '*'
+                     ref_bases[(current_pos, ins_count)] = (ref_base, pair.rlen)
+ 
++
+             # create feature array
+             aln_cols = len(aln_counters)
+-            if aln_cols == 0:
+-                msg = 'Pileup-feature is zero-length for {} indicating no reads in this region.'.format(region)
+-                self.logger.warning(msg)
+-                return Sample(ref_name=region.ref_name, features=None,
+-                              labels=None, ref_seq=None,
+-                              positions=positions, label_probs=None)
+-
+             feature_len = len(self.encoding)
+             feature_array = np.zeros(shape=(aln_cols, feature_len), dtype=self.feature_dtype)
+             if self.log_min is not None:
+@@ -364,6 +358,14 @@ def bam_to_sample(self, reads_bam, region, reference=None, read_fraction=None, f
+             ref_array = np.empty(shape=(aln_cols), dtype=[('base', int), ('run_length', int)])
+             positions = np.empty(aln_cols, dtype=[('major', int),
+                                                 ('minor', int)])
++
++            if aln_cols == 0:
++                msg = 'Pileup-feature is zero-length for {} indicating no reads in this region.'.format(region)
++                self.logger.warning(msg)
++                return Sample(ref_name=region.ref_name, features=None,
++                              labels=None, ref_seq=None,
++                              positions=positions, label_probs=None)
++
+             depth_array = np.empty(shape=(aln_cols), dtype=int)
+ 
+             # keep track of which features are for fwd/rev reads of each dtype
+diff --git a/medaka/inference.py b/medaka/inference.py
+index 11ab93d8..a6efd998 100755
+--- a/medaka/inference.py
++++ b/medaka/inference.py
+@@ -1,6 +1,6 @@
+ from collections import Counter
++from copy import copy
+ import functools
+-import glob
+ import inspect
+ import itertools
+ import logging
+@@ -20,7 +20,8 @@
+                            write_sample_to_hdf, write_yaml_data,
+                            yield_from_feature_files, gen_train_batch,
+                            _label_batches_path_, _feature_batches_path_,
+-                           yield_batches_from_hdfs, _gap_)
++                           yield_batches_from_hdfs, _gap_,
++                           _feature_decoding_path_, _feature_opt_path_)
+ from medaka.features import SampleGenerator
+ 
+ 
+@@ -74,16 +75,12 @@ def build_model(chunk_size, feature_len, num_classes, gru_size=128, input_dropou
+ 
+     model = Sequential()
+ 
+-    gru1 = GRU(gru_size, activation='tanh', return_sequences=True, name='gru1',
+-               dropout=input_dropout, recurrent_dropout=recurrent_dropout)
+-    gru2 = GRU(gru_size, activation='tanh', return_sequences=True, name='gru2',
+-               dropout=inter_layer_dropout, recurrent_dropout=recurrent_dropout)
+-
+-    # Bidirectional wrapper takes a copy of the first argument and reverses
+-    #   the direction. Weights are independent between components.
+-    model.add(Bidirectional(gru1, input_shape=(chunk_size, feature_len)))
+-
+-    model.add(Bidirectional(gru2, input_shape=(chunk_size, feature_len)))
++    input_shape=(chunk_size, feature_len)
++    for i in [1, 2]:
++        name = 'gru{}'.format(i)
++        gru = GRU(gru_size, activation='tanh', return_sequences=True, name=name,
++                  dropout=input_dropout, recurrent_dropout=recurrent_dropout)
++        model.add(Bidirectional(gru, input_shape=input_shape))
+ 
+     if inter_layer_dropout > 0:
+         model.add(Dropout(inter_layer_dropout))
+@@ -107,7 +104,7 @@ def qscore(y_true, y_pred):
+     return -10.0 * 0.434294481 * K.log(error)
+ 
+ 
+-def run_training(train_name, sample_gen, valid_gen, n_batch_train, n_batch_valid, label_decoding,
++def run_training(train_name, sample_gen, valid_gen, n_batch_train, n_batch_valid, feature_meta,
+                  timesteps, feat_dim, model_fp=None, epochs=5000, batch_size=100, class_weight=None, n_mini_epochs=1):
+     """Run training."""
+     from keras.callbacks import ModelCheckpoint, CSVLogger, TensorBoard, EarlyStopping
+@@ -115,7 +112,7 @@ def run_training(train_name, sample_gen, valid_gen, n_batch_train, n_batch_valid
+     logger = logging.getLogger('Training')
+     logger.info("Got {} batches for training, {} for validation.".format(n_batch_train, n_batch_valid))
+ 
+-    num_classes = len(label_decoding)
++    num_classes = len(feature_meta[_label_decod_path_])
+ 
+     if model_fp is None:
+         model_kwargs = { k:v.default for (k,v) in inspect.signature(build_model).parameters.items()
+@@ -135,26 +132,38 @@ def run_training(train_name, sample_gen, valid_gen, n_batch_train, n_batch_valid
+     logger.info("feat_dim: {}, timesteps: {}, num_classes: {}".format(feat_dim, timesteps, num_classes))
+     model.summary()
+ 
+-    model_details = {_label_decod_path_: label_decoding,
+-                     _model_opt_path_: model_kwargs}
++    model_details = feature_meta.copy()
++    model_details[_model_opt_path_] = model_kwargs
+     write_yaml_data(os.path.join(train_name, 'training_config.yml'), model_details)
+ 
+     opts = dict(verbose=1, save_best_only=True, mode='max')
+ 
++    # define class here to avoid top-level keras import
++    class ModelMetaCheckpoint(ModelCheckpoint):
++        """Custom ModelCheckpoint to add medaka-specific metadata to model files"""
++        def __init__(self, medaka_meta, *args, **kwargs):
++            super(ModelMetaCheckpoint, self).__init__(*args, **kwargs)
++            self.medaka_meta = medaka_meta
++
++        def on_epoch_end(self, epoch, logs=None):
++            super(ModelMetaCheckpoint, self).on_epoch_end(epoch, logs)
++            filepath = self.filepath.format(epoch=epoch + 1, **logs)
++            write_yaml_data(filepath, self.medaka_meta)
++
+     callbacks = [
+         # Best model according to training set accuracy
+-        ModelCheckpoint(os.path.join(train_name, 'model.best.hdf5'),
+-                        monitor='acc', **opts),
++        ModelMetaCheckpoint(model_details, os.path.join(train_name, 'model.best.hdf5'),
++                            monitor='acc', **opts),
+         # Best model according to validation set accuracy
+-        ModelCheckpoint(os.path.join(train_name, 'model.best.val.hdf5'),
++        ModelMetaCheckpoint(model_details, os.path.join(train_name, 'model.best.val.hdf5'),
+                         monitor='val_acc', **opts),
+         # Best model according to validation set qscore
+-        ModelCheckpoint(os.path.join(train_name, 'model.best.val.qscore.hdf5'),
++        ModelMetaCheckpoint(model_details, os.path.join(train_name, 'model.best.val.qscore.hdf5'),
+                         monitor='val_qscore', **opts),
+         # Checkpoints when training set accuracy improves
+-        ModelCheckpoint(os.path.join(train_name, 'model-acc-improvement-{epoch:02d}-{acc:.2f}.hdf5'),
++        ModelMetaCheckpoint(model_details, os.path.join(train_name, 'model-acc-improvement-{epoch:02d}-{acc:.2f}.hdf5'),
+                         monitor='acc', **opts),
+-        ModelCheckpoint(os.path.join(train_name, 'model-val_acc-improvement-{epoch:02d}-{val_acc:.2f}.hdf5'),
++        ModelMetaCheckpoint(model_details, os.path.join(train_name, 'model-val_acc-improvement-{epoch:02d}-{val_acc:.2f}.hdf5'),
+                         monitor='val_acc', **opts),
+         # Stop when no improvement, patience is number of epochs to allow no improvement
+         EarlyStopping(monitor='val_loss', patience=20),
+@@ -195,11 +204,6 @@ def run_training(train_name, sample_gen, valid_gen, n_batch_train, n_batch_valid
+         class_weight=class_weight,
+     )
+ 
+-    # append label_decoding and model building options to the hdf files
+-    for hd5_model_path in glob.glob(os.path.join(train_name, '*.hdf5')):
+-        write_yaml_data(hd5_model_path, model_details)
+-
+-
+ 
+ class VarQueue(list):
+ 
+@@ -319,55 +323,41 @@ def write(self, var_queue):
+             self.writer.write_variant(var_queue[0])
+ 
+ 
+-def run_prediction(sample_gen, output, batch_size=200, threads=1):
++def run_prediction(output, bam, regions, model, model_file, rle_ref, read_fraction, chunk_len, chunk_ovlp,
++                   batch_size=200):
+     """Inference worker."""
+-    from keras.models import load_model
+-    from keras import backend as K
+-
+-    logger = logging.getLogger(__package__)
++    logger = copy(logging.getLogger(__package__))
+     logger.name = 'PWorker'
+ 
+-    logger.info("Setting tensorflow threads to {}.".format(threads))
+-    K.set_session(K.tf.Session(
+-        config=K.tf.ConfigProto(
+-            intra_op_parallelism_threads=threads,
+-            inter_op_parallelism_threads=threads)
+-    ))
+-
+-    model = load_model(sample_gen.model, custom_objects={'qscore': qscore})
+-    time_steps = model.get_input_shape_at(0)[1]
+-    if time_steps != sample_gen.chunk_len:
+-        logger.info("Rebuilding model according to chunk_size: {}->{}".format(time_steps, sample_gen.chunk_len))
+-        feat_dim = model.get_input_shape_at(0)[2]
+-        num_classes = model.get_output_shape_at(-1)[-1]
+-        model = build_model(sample_gen.chunk_len, feat_dim, num_classes)
+-
+-    logger.info("Loading weights from {}".format(sample_gen.model))
+-    model.load_weights(sample_gen.model)
++    def sample_gen():
++        # chain all samples whilst dispensing with generators when done
++        #   (they hold the feature vector in memory until they die)
++        for region in regions:
++            data_gen = SampleGenerator(
++                bam, region, model_file, rle_ref, read_fraction,
++                chunk_len=chunk_len, chunk_overlap=chunk_ovlp)
++            yield from data_gen.samples
++    batches = grouper(sample_gen(), batch_size)
+ 
+-    if logger.level == logging.DEBUG:
+-        model.summary()
+-
+-    logger.info("Initialising pileup.")
+-    n_samples = sample_gen.n_samples
+-    logger.info("Running inference for {} chunks.".format(n_samples))
+-    batches = grouper(sample_gen.samples, batch_size)
++    total_region_mbases = sum(r.size for r in regions) / 1e6
++    logger.info("Running inference for {:.1f}M draft bases.".format(total_region_mbases))
+ 
+     with h5py.File(output, 'a') as pred_h5:
+-        n_samples_done = 0
++        mbases_done = 0
+ 
+         t0 = now()
+         tlast = t0
+         for data in batches:
+             x_data = np.stack((x.features for x in data))
++            # TODO: change to predict_on_batch?
+             class_probs = model.predict(x_data, batch_size=batch_size, verbose=0)
+-
+-            n_samples_done += x_data.shape[0]
++            mbases_done += sum(x.span for x in data) / 1e6
++            mbases_done = min(mbases_done, total_region_mbases)  # just to avoid funny log msg
+             t1 = now()
+             if t1 - tlast > 10:
+                 tlast = t1
+-                msg = '{:.1%} Done ({}/{} samples) in {:.1f}s'
+-                logger.info(msg.format(n_samples_done / n_samples, n_samples_done, n_samples, t1 - t0))
++                msg = '{:.1%} Done ({:.1f}/{:.1f} Mbases) in {:.1f}s'
++                logger.info(msg.format(mbases_done / total_region_mbases, mbases_done, total_region_mbases, t1 - t0))
+ 
+             best = np.argmax(class_probs, -1)
+             for sample, prob, pred in zip(data, class_probs, best):
+@@ -379,13 +369,17 @@ def run_prediction(sample_gen, output, batch_size=200, threads=1):
+                     write_sample_to_hdf(Sample(**sample_d), pred_h5)
+ 
+     logger.info('All done')
+-    return sample_gen.region
++    return None
+ 
+ 
+ def predict(args):
+     """Inference program."""
++    os.environ["TF_CPP_MIN_LOG_LEVEL"]="2"
++    from keras.models import load_model
++    from keras import backend as K
++
+     args.regions = get_regions(args.bam, region_strs=args.regions)
+-    logger = logging.getLogger(__package__)
++    logger = copy(logging.getLogger(__package__))
+     logger.name = 'Predict'
+     logger.info('Processing region(s): {}'.format(' '.join(str(r) for r in args.regions)))
+ 
+@@ -393,18 +387,74 @@ def predict(args):
+     label_decoding = load_yaml_data(args.model, _label_decod_path_)
+     write_yaml_data(args.output, {_label_decod_path_: label_decoding})
+ 
++    logger.info("Setting tensorflow threads to {}.".format(args.threads))
++    K.tf.logging.set_verbosity(K.tf.logging.ERROR)
++    K.set_session(K.tf.Session(
++        config=K.tf.ConfigProto(
++            intra_op_parallelism_threads=args.threads,
++            inter_op_parallelism_threads=args.threads)
++    ))
++
++    def _rebuild_model(model, chunk_len):
++        time_steps = model.get_input_shape_at(0)[1]
++        if chunk_len is None or time_steps != chunk_len:
++            logger.info("Rebuilding model according to chunk_size: {}->{}".format(time_steps, chunk_len))
++            feat_dim = model.get_input_shape_at(0)[2]
++            num_classes = model.get_output_shape_at(-1)[-1]
++            model = build_model(chunk_len, feat_dim, num_classes)
++            logger.info("Loading weights from {}".format(args.model))
++            model.load_weights(args.model)
++
++        if logger.level == logging.DEBUG:
++            model.summary()
++        return model
++
++    model = load_model(args.model, custom_objects={'qscore': qscore})
++
++    # Split overly long regions to maximum size so as to not create
++    #   massive feature matrices, then segregate those which cannot be
++    #   batched.
++    MAX_REGION_SIZE = int(1e6)  # 1Mb
++    long_regions = []
++    short_regions = []
+     for region in args.regions:
+-        chunk_len, chunk_ovlp = args.chunk_len, args.chunk_ovlp
+-        if region.size < args.chunk_len:
+-            chunk_len = region.size // 2
+-            chunk_ovlp = chunk_len // 10 # still need overlap as features will be longer
+-        data_gen = SampleGenerator(
+-            args.bam, region, args.model, args.rle_ref, args.read_fraction,
+-            chunk_len=chunk_len, chunk_overlap=chunk_ovlp)
++        if region.size > MAX_REGION_SIZE:
++            regs = region.split(MAX_REGION_SIZE, args.chunk_ovlp)
++        else:
++            regs = [region]
++        for r in regs:
++            if r.size > args.chunk_len:
++                long_regions.append(r)
++            else:
++                short_regions.append(r)
++    logger.info("Found {} long and {} short regions.".format(
++        len(long_regions), len(short_regions)))
++
++    if len(long_regions) > 0:
++        logger.info("Processing long regions.")
++        model = _rebuild_model(model, args.chunk_len)
+         run_prediction(
+-            data_gen, args.output, batch_size=args.batch_size, threads=args.threads
++            args.output, args.bam, long_regions, model, args.model, args.rle_ref, args.read_fraction,
++            args.chunk_len, args.chunk_ovlp,
++            batch_size=args.batch_size
+         )
+ 
++    # short regions must be done individually since they have differing lengths
++    #   TODO: consider masking (it appears slow to apply wholesale), maybe 
++    #         step down args.chunk_len by a constant factor until nothing remains.
++    if len(short_regions) > 0:
++        logger.info("Processing short regions")
++        model = _rebuild_model(model, None)
++        for region in short_regions:
++            chunk_len = region.size // 2
++            chunk_ovlp = chunk_len // 10 # still need overlap as features will be longer
++            run_prediction(
++                args.output, args.bam, [region], model, args.model, args.rle_ref, args.read_fraction,
++                chunk_len, chunk_ovlp,
++                batch_size=args.batch_size
++            )
++    logger.info("Finished processing all regions.")
++
+ 
+ def process_labels(label_counts, max_label_len=10):
+     """Create map from full labels to (encoded) truncated labels."""
+@@ -442,6 +492,10 @@ def train(args):
+     logger = logging.getLogger('Training')
+     logger.debug("Loading datasets:\n{}".format('\n'.join(args.features)))
+ 
++    # get feature meta data
++    feature_meta = {k: load_yaml_data(args.features[0], k)
++                    for k in (_feature_opt_path_, _feature_decoding_path_)}
++
+     # get counts of labels in training samples
+     label_counts = Counter()
+     for f in args.features:
+@@ -547,7 +601,10 @@ def train(args):
+         '{}: {} ({}, {:9.6f})'.format(i, l, label_counts[i], h(class_weight, i)) for i, l in enumerate(label_decoding)
+     )))
+ 
+-    run_training(train_name, gen_train, gen_valid, n_batch_train, n_batch_valid, label_decoding,
++    feature_meta[_label_decod_path_] = label_decoding
++    feature_meta[_label_counts_path_] = label_counts
++
++    run_training(train_name, gen_train, gen_valid, n_batch_train, n_batch_valid, feature_meta,
+                  timesteps, feat_dim, model_fp=args.model, epochs=args.epochs, batch_size=args.batch_size,
+                  class_weight=class_weight, n_mini_epochs=args.mini_epochs)
+ 
+diff --git a/medaka/medaka.py b/medaka/medaka.py
+index 445c13f1..25468cc7 100644
+--- a/medaka/medaka.py
++++ b/medaka/medaka.py
+@@ -11,7 +11,7 @@
+ from medaka.common import write_yaml_data
+ from medaka.features import create_labelled_samples, create_samples
+ 
+-default_model = os.path.join(resource_filename(__package__, 'data'), 'medaka_model.hdf5') 
++default_model = os.path.join(resource_filename(__package__, 'data'), 'medaka_model.hdf5')
+ 
+ def _log_level():
+     """Parser to set logging level and acquire software version/commit"""
+@@ -128,17 +128,8 @@ def main():
+     sparser.add_argument('--regions', default=None, nargs='+', help='Limit stitching to these reference names')
+     sparser.add_argument('--model_yml', help='Model yml containing label encoding, required only if consensus ended prematurely.')
+ 
+-    # Patch up a model after training
+-    fparser = subparsers.add_parser('fix',
+-        help='Add data to a hdf file.',
+-        parents=[_log_level()],
+-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+-    fparser.set_defaults(func=fix_model_hdf)
+-    fparser.add_argument('hdfs', nargs='+', help='hdf files to add data to.')
+-    fparser.add_argument('yml', help='yml file containing data to add.')
+-
+     args = parser.parse_args()
+-    
++
+     logging.basicConfig(format='[%(asctime)s - %(name)s] %(message)s', datefmt='%H:%M:%S', level=logging.INFO)
+     logger = logging.getLogger(__package__)
+     logger.setLevel(args.log_level)
+@@ -148,13 +139,5 @@ def main():
+     args.func(args)
+ 
+ 
+-def fix_model_hdf(args):
+-    with open(args.yml) as fh:
+-        yml_str = fh.read()
+-    d = yaml.load(yml_str)
+-    for hdf in args.hdfs:
+-        write_yaml_data(hdf, d)
+-
+-
+ if __name__ == '__main__':
+     main()
+diff --git a/medaka/medaka_counts.py b/medaka/medaka_counts.py
+new file mode 100644
+index 00000000..cd47a08f
+--- /dev/null
++++ b/medaka/medaka_counts.py
+@@ -0,0 +1,81 @@
++from medaka.features import FeatureEncoder, pileup_counts
++from medaka.common import Region
++import sys
++
++import numpy as np
++
++import argparse
++from timeit import default_timer as now
++import logging
++
++def main():
++    # Entry point for testing/checking
++    logging.basicConfig(format='[%(asctime)s - %(name)s] %(message)s', datefmt='%H:%M:%S', level=logging.INFO)
++    np.set_printoptions(precision=4, linewidth=100)
++    
++    
++    parser = argparse.ArgumentParser('medaka', formatter_class=argparse.ArgumentDefaultsHelpFormatter)
++    parser.add_argument('bam', help='alignment file.')
++    parser.add_argument('region', help='alignment region to sample.')
++    parser.add_argument('--print', action='store_true', help='print counts.')
++    parser.add_argument('--dtypes', nargs='+', help='perform a multi-datatype tests.')
++    args = parser.parse_args()
++    
++    region = Region.from_string(args.region)
++    
++    kwargs={
++        'log_min': None,
++        'max_hp_len': 1,
++        'is_compressed': False,
++        'consensus_as_ref': False,
++        'ref_mode': None,
++        'with_depth': False,
++    }
++    
++    def _print(samples):
++       if args.print:
++           for p, f in zip(samples.positions, samples.features):
++               print('{}\t{}\t0\t{}\t{}'.format(p[0], p[1], '\t'.join('{:.3f}'.format(x) if x>0.0 else '-' for x in f), sum(f)))
++    
++    dtype_options = [('',)]
++    if args.dtypes is not None:
++        dtype_options.append(args.dtypes)
++    norm_options = (None, 'total', 'fwd_rev')
++    
++    for dtypes in dtype_options:
++        kwargs['dtypes'] = dtypes
++        for norm in norm_options:
++            kwargs['normalise'] = norm
++    
++            print("###########################################################")
++            print(kwargs)
++            encoder = FeatureEncoder(**kwargs)
++        
++            # py-style
++            t0=now()
++            samples = encoder.bam_to_sample(args.bam, region, force_py=True)
++            t1=now()
++            if not samples.is_empty:
++                print(samples.features.shape)
++                _print(samples)
++            else:
++                print("Samples is empty")
++            print("---------------------")
++        
++            # C-style
++            t2=now()
++            samples = encoder.bam_to_sample(args.bam, region)
++            t3=now()
++            if not samples.is_empty:
++                print(samples.features.shape)
++                _print(samples)
++            else:
++                print("Samples is empty")
++        
++            print("pysam time:", t1 - t0)
++            print("hts time:", t3 - t2)
++
++
++if __name__ == '__main__':
++    main()
++
+diff --git a/medaka/vcf.py b/medaka/vcf.py
+index 70027b0c..bdd06583 100644
+--- a/medaka/vcf.py
++++ b/medaka/vcf.py
+@@ -265,7 +265,7 @@ def fetch(self, ref_name=None, start=None, end=None, strict=True):
+         :param strict: if False variants overlapping the region, but not
+             contained enitrely within the region are yielded also.
+ 
+-        yields `Variant`s.
++        :yields: :py:class:`Variant` instances.
+ 
+         """
+         if start is None:
+diff --git a/medaka_counts.py b/medaka_counts.py
+deleted file mode 100644
+index 1cdcc67d..00000000
+--- a/medaka_counts.py
++++ /dev/null
+@@ -1,64 +0,0 @@
+-from medaka.features import FeatureEncoder, pileup_counts
+-from medaka.common import Region
+-import sys
+-
+-import numpy as np
+-
+-from timeit import default_timer as now
+-import logging
+-logging.basicConfig(level=logging.DEBUG)
+-
+-np.set_printoptions(precision=4, linewidth=100)
+-
+-reads_bam = sys.argv[1]
+-reg = sys.argv[2]
+-do_print = sys.argv[3] == 'print'
+-
+-region = Region.from_string(reg)
+-
+-kwargs={
+-    'log_min': None,
+-    'max_hp_len': 1,
+-    'is_compressed': False,
+-    'consensus_as_ref': False,
+-    'ref_mode': None,
+-    'with_depth': False,
+-}
+-
+-def _print(samples):
+-   if do_print:
+-       for p, f in zip(samples.positions, samples.features):
+-           print('{}\t{}\t0\t{}\t{}'.format(p[0], p[1], '\t'.join('{:.3f}'.format(x) if x>0.0 else '-' for x in f), sum(f)))
+-
+-dtype_options = ([''], ['r94', 'r10'])
+-norm_options = (None, 'total', 'fwd_rev')
+-
+-#dtype_options=([''],)
+-#norm_options=(None,)
+-
+-for dtypes in dtype_options:
+-    kwargs['dtypes'] = dtypes
+-    for norm in norm_options:
+-        kwargs['normalise'] = norm
+-
+-        print("###########################################################")
+-        print(kwargs)
+-        encoder = FeatureEncoder(**kwargs)
+-    
+-        # py-style
+-        t0=now()
+-        samples = encoder.bam_to_sample(reads_bam, region, force_py=True)
+-        t1=now()
+-        _print(samples)
+-        print(samples.features.shape)
+-        print("---------------------")
+-    
+-        # C-style
+-        t2=now()
+-        samples = encoder.bam_to_sample(reads_bam, region)
+-        t3=now()
+-        _print(samples)
+-        print(samples.features.shape)
+-    
+-        print("pysam time:", t1 - t0)
+-        print("hts time:", t3 - t2)
+diff --git a/requirements.txt b/requirements.txt
+index 09c436b4..af4b21fb 100644
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -7,5 +7,4 @@ intervaltree
+ keras==2.1.5
+ tensorflow==1.3.0
+ numpy
+-pandas
+ pysam
+diff --git a/setup.py b/setup.py
+index 40af0c41..97e5565c 100644
+--- a/setup.py
++++ b/setup.py
+@@ -1,18 +1,27 @@
+ import os
+ import re
++import sys
+ from glob import glob
+ import shutil
+ from setuptools import setup, find_packages, Extension
+ from setuptools import Distribution, Command
+ from setuptools.command.install import install
+-
+-
++from setuptools.command.build_ext import build_ext
++import subprocess
+ 
+ #TODO: fill in these
+ __pkg_name__ = 'medaka'
+ __author__ = 'syoung'
+ __description__ = 'Neural network sequence error correction.'
+ 
++# Use readme as long description and say its github-flavour markdown
++from os import path
++this_directory = path.abspath(path.dirname(__file__))
++kwargs = {'encoding':'utf-8'} if sys.version_info.major == 3 else {}
++with open(path.join(this_directory, 'README.md'), **kwargs) as f:
++    __long_description__ = f.read()
++__long_description_content_type__ = 'text/markdown'
++
+ __path__ = os.path.dirname(__file__)
+ __pkg_path__ = os.path.join(os.path.join(__path__, __pkg_name__))
+ 
+@@ -37,7 +46,27 @@
+             req.split('/')[-1].split('@')[0]
+         install_requires.append(req)
+ 
+-exes = ['samtools', 'minimap2', 'mini_align', 'vcf2fasta']
++
++data_files = []
++if os.environ.get('MEDAKA_BINARIES') is not None:
++    exes = ['samtools', 'minimap2']
++    data_files.append(
++        ('exes', [
++            'bincache/{}'.format(x, x) for x in exes
++        ])
++    )
++
++
++class HTSBuild(build_ext):
++    # uses the Makefile to build libhts.a, this will get done before the cffi extension
++    def run(self):
++
++        def compile_hts():
++            subprocess.check_call(['make', 'libhts.a'])
++
++        self.execute(compile_hts, [], 'Compiling htslib using Makefile')
++        build_ext.run(self)
++
+ 
+ setup(
+     name='medaka',
+@@ -46,6 +75,9 @@
+     author=__author__,
+     author_email='{}@nanoporetech.com'.format(__author__),
+     description=__description__,
++    long_description=__long_description__,
++    long_description_content_type=__long_description_content_type__,
++    python_requires='>=3.4.*,<3.7',
+     packages=find_packages(),
+     package_data={
+         __pkg_name__:[os.path.join('data','*.hdf5')],
+@@ -53,24 +85,23 @@
+     cffi_modules=["build.py:ffibuilder"],
+     install_requires=install_requires,
+     #place binaries as package data, below we'll copy them to standard path in dist
+-    data_files=[
+-        ('exes', [
+-            'bincache/{}'.format(x, x) for x in exes
+-        ])
+-    ],
++    data_files=data_files,
+     entry_points = {
+         'console_scripts': [
+             '{0} = {0}.{0}:main'.format(__pkg_name__),
++            'medaka_counts = {0}.medaka_counts:main'.format(__pkg_name__),
+             'medaka_data_path = {0}.{1}:{2}'.format(__pkg_name__, 'common', 'print_data_path'),
+         ]
+     },
+-    scripts=['scripts/medaka_consensus'],
++    scripts=['scripts/medaka_consensus', 'scripts/mini_align'],
+     zip_safe=False,
++    cmdclass={
++        'build_ext': HTSBuild
++    },
+ )
+ 
+ 
+ # Nasty hack to get binaries into bin path
+-print("\nCopying utility binaries to your path.")
+ class GetPaths(install):
+     def run(self):
+         self.distribution.install_scripts = self.install_scripts
+@@ -92,4 +123,6 @@ def get_setuptools_script_dir():
+         shutil.copy(exe, dist.install_scripts)
+     return dist.install_libbase, dist.install_scripts
+ 
+-get_setuptools_script_dir()
++if os.environ.get('MED_BINARIES') is not None:
++    print("\nCopying utility binaries to your path.")
++    get_setuptools_script_dir()
+diff --git a/src/medaka_counts.c b/src/medaka_counts.c
+index d5829e13..24b37d8f 100644
+--- a/src/medaka_counts.c
++++ b/src/medaka_counts.c
+@@ -4,6 +4,8 @@
+ #include <stdlib.h>
+ #include "htslib/sam.h"
+ 
++#include "medaka_counts.h"
++
+ #define bam1_seq(b) ((b)->data + (b)->core.n_cigar*4 + (b)->core.l_qname)
+ #define bam1_seqi(s, i) (bam_seqi((s), (i)))
+ #define bam_nt16_rev_table seq_nt16_str
+@@ -50,31 +52,6 @@ char *substring(char *string, int position, int length) {
+    return ptr;
+ }
+ 
+-// medaka-style base encoding
+-const char plp_bases[] = "XacgtACGTdD";
+-const size_t featlen = 11; // len of the above
+-const size_t fwd_del = 10; // position of D
+-const size_t rev_del = 9;  // position of d
+-
+-// convert 16bit IUPAC (+16 for strand) to plp_bases index
+-size_t num2countbase[32] = {
+- 0, 5, 6, 0, 7, 0, 0, 0,
+- 8, 0, 0, 0, 0, 0, 0, 0,
+- 0, 1, 2, 0, 3, 0, 0, 0,
+- 4, 0, 0, 0, 0, 0, 0, 0,
+-}; 
+-
+-
+-// medaka-style feature data
+-typedef struct {
+-    size_t n_cols;  // number of pileup cols
+-    size_t *counts; // the base/del counts
+-    size_t *major;  // reference position
+-    size_t *minor;  // insertion index
+-} _plp_data;
+-
+-typedef _plp_data *plp_data; 
+-
+ 
+ /** Constructs a pileup data structure.
+  *
+diff --git a/src/medaka_counts.h b/src/medaka_counts.h
+index c6ceafa3..4d84d88c 100644
+--- a/src/medaka_counts.h
++++ b/src/medaka_counts.h
+@@ -7,9 +7,71 @@ typedef struct {
+ } _plp_data;
+ 
+ typedef _plp_data *plp_data; 
+-const size_t featlen;
+ 
+-plp_data create_plp_data(size_t n_cols);
++
++// medaka-style base encoding
++static const char plp_bases[] = "XacgtACGTdD";
++static const size_t featlen = 11; // len of the above
++static const size_t fwd_del = 10; // position of D
++static const size_t rev_del = 9;  // position of d
++
++
++// convert 16bit IUPAC (+16 for strand) to plp_bases index
++static size_t num2countbase[32] = {
++ 0, 5, 6, 0, 7, 0, 0, 0,
++ 8, 0, 0, 0, 0, 0, 0, 0,
++ 0, 1, 2, 0, 3, 0, 0, 0,
++ 4, 0, 0, 0, 0, 0, 0, 0,
++}; 
++
++
++/** Constructs a pileup data structure.
++ *
++ *  @param n_cols number of pileup columns.
++ *  @param num_dtypes number of datatypes in pileup.
++ *  @see destroy_plp_data
++ *  @returns a plp_data pointer.
++ *
++ *  The return value can be freed with destroy_plp_data.
++ *
++ */
++plp_data create_plp_data(size_t n_cols, size_t num_dtypes);
++
++
++/** Destroys a pileup data structure.
++ *
++ *  @param data the object to cleanup.
++ *  @returns void.
++ *
++ */
+ void destroy_plp_data(plp_data data);
+-void print_pileup_data(plp_data pileup);
++
++
++/** Prints a pileup data structure.
++ *
++ *  @param pileup a pileup counts structure.
++ *  @param num_dtypes number of datatypes in the pileup.
++ *  @param dtypes datatype prefix strings.
++ *  @returns void
++ *
++ */
++void print_pileup_data(plp_data pileup, size_t num_dtypes, char *dtypes[]);
++
++
++/** Generates medaka-style feature data in a region of a bam.
++ *  
++ *  @param region 1-based region string.
++ *  @param bam_file input aligment file.
++ *  @param num_dtypes number of datatypes in bam.
++ *  @param dtypes prefixes on query names indicating datatype.
++ *  @returns a pileup counts data pointer.
++ *
++ *  The return value can be freed with destroy_plp_data.
++ *
++ *  If num_dtypes is 1, dtypes should be NULL; all reads in the bam will be
++ *  treated equally. If num_dtypes is not 1, dtypes should be an array of
++ *  strings, these strings being prefixes of query names of reads within the
++ *  bam file. Any read not matching the prefixes will cause exit(1).
++ *
++ */ 
+ plp_data calculate_pileup(const char *region, const char *bam_file, size_t num_dtypes, char *dtypes[]); 

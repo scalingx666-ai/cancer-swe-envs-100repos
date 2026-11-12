@@ -1,0 +1,468 @@
+diff --git a/src/main/java/org/cbioportal/application/rest/response/CopyNumberSegDTO.java b/src/main/java/org/cbioportal/application/rest/response/CopyNumberSegDTO.java
+index fea3db98063..dad7bbe8eba 100644
+--- a/src/main/java/org/cbioportal/application/rest/response/CopyNumberSegDTO.java
++++ b/src/main/java/org/cbioportal/application/rest/response/CopyNumberSegDTO.java
+@@ -1,9 +1,14 @@
+ package org.cbioportal.application.rest.response;
+ 
++import com.fasterxml.jackson.annotation.JsonInclude;
+ import io.swagger.v3.oas.annotations.media.Schema;
+ import java.math.BigDecimal;
+ 
+-@Schema(name = "CopyNumberSeg", description = "Represents a copy number segment")
++@Schema(
++    name = "CopyNumberSeg",
++    description =
++        "Represents a copy number segment. The allele-specific fields (tcn, lcn, cellularFraction,"
++            + " purity, ploidy, dipLogR) are only returned with the DETAILED projection.")
+ public class CopyNumberSegDTO {
+   private String uniqueSampleKey;
+   private String uniquePatientKey;
+@@ -16,6 +21,24 @@ public class CopyNumberSegDTO {
+   private Integer numberOfProbes;
+   private BigDecimal segmentMean;
+ 
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private Integer tcn;
++
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private Integer lcn;
++
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private BigDecimal cellularFraction;
++
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private BigDecimal purity;
++
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private BigDecimal ploidy;
++
++  @JsonInclude(JsonInclude.Include.NON_NULL)
++  private BigDecimal dipLogR;
++
+   public String getStudyId() {
+     return studyId;
+   }
+@@ -95,4 +118,52 @@ public BigDecimal getSegmentMean() {
+   public void setSegmentMean(BigDecimal segmentMean) {
+     this.segmentMean = segmentMean;
+   }
++
++  public Integer getTcn() {
++    return tcn;
++  }
++
++  public void setTcn(Integer tcn) {
++    this.tcn = tcn;
++  }
++
++  public Integer getLcn() {
++    return lcn;
++  }
++
++  public void setLcn(Integer lcn) {
++    this.lcn = lcn;
++  }
++
++  public BigDecimal getCellularFraction() {
++    return cellularFraction;
++  }
++
++  public void setCellularFraction(BigDecimal cellularFraction) {
++    this.cellularFraction = cellularFraction;
++  }
++
++  public BigDecimal getPurity() {
++    return purity;
++  }
++
++  public void setPurity(BigDecimal purity) {
++    this.purity = purity;
++  }
++
++  public BigDecimal getPloidy() {
++    return ploidy;
++  }
++
++  public void setPloidy(BigDecimal ploidy) {
++    this.ploidy = ploidy;
++  }
++
++  public BigDecimal getDipLogR() {
++    return dipLogR;
++  }
++
++  public void setDipLogR(BigDecimal dipLogR) {
++    this.dipLogR = dipLogR;
++  }
+ }
+diff --git a/src/main/java/org/cbioportal/legacy/model/CopyNumberSeg.java b/src/main/java/org/cbioportal/legacy/model/CopyNumberSeg.java
+index 0819853777f..4b7e013bb38 100644
+--- a/src/main/java/org/cbioportal/legacy/model/CopyNumberSeg.java
++++ b/src/main/java/org/cbioportal/legacy/model/CopyNumberSeg.java
+@@ -15,7 +15,13 @@ public class CopyNumberSeg extends UniqueKeyBase {
+   @NotNull private Integer start;
+   @NotNull private Integer end;
+   @NotNull private Integer numProbes;
+-  @NotNull private BigDecimal segmentMean;
++  private BigDecimal segmentMean;
++  private Integer tcn;
++  private Integer lcn;
++  private BigDecimal cellularFraction;
++  private BigDecimal purity;
++  private BigDecimal ploidy;
++  private BigDecimal dipLogR;
+ 
+   public Long getSegId() {
+     return segId;
+@@ -104,4 +110,52 @@ public BigDecimal getSegmentMean() {
+   public void setSegmentMean(BigDecimal segmentMean) {
+     this.segmentMean = segmentMean;
+   }
++
++  public Integer getTcn() {
++    return tcn;
++  }
++
++  public void setTcn(Integer tcn) {
++    this.tcn = tcn;
++  }
++
++  public Integer getLcn() {
++    return lcn;
++  }
++
++  public void setLcn(Integer lcn) {
++    this.lcn = lcn;
++  }
++
++  public BigDecimal getCellularFraction() {
++    return cellularFraction;
++  }
++
++  public void setCellularFraction(BigDecimal cellularFraction) {
++    this.cellularFraction = cellularFraction;
++  }
++
++  public BigDecimal getPurity() {
++    return purity;
++  }
++
++  public void setPurity(BigDecimal purity) {
++    this.purity = purity;
++  }
++
++  public BigDecimal getPloidy() {
++    return ploidy;
++  }
++
++  public void setPloidy(BigDecimal ploidy) {
++    this.ploidy = ploidy;
++  }
++
++  public BigDecimal getDipLogR() {
++    return dipLogR;
++  }
++
++  public void setDipLogR(BigDecimal dipLogR) {
++    this.dipLogR = dipLogR;
++  }
+ }
+diff --git a/src/main/java/org/cbioportal/legacy/model/MolecularProfile.java b/src/main/java/org/cbioportal/legacy/model/MolecularProfile.java
+index 769f55743ca..9a524f14a64 100644
+--- a/src/main/java/org/cbioportal/legacy/model/MolecularProfile.java
++++ b/src/main/java/org/cbioportal/legacy/model/MolecularProfile.java
+@@ -14,6 +14,7 @@ public enum MolecularAlterationType {
+     MUTATION_UNCALLED,
+     STRUCTURAL_VARIANT,
+     COPY_NUMBER_ALTERATION,
++    ALLELE_SPECIFIC_COPY_NUMBER,
+     MICRO_RNA_EXPRESSION,
+     MRNA_EXPRESSION,
+     MRNA_EXPRESSION_NORMALS,
+diff --git a/src/main/resources/db-scripts/clickhouse/init/schema.sql b/src/main/resources/db-scripts/clickhouse/init/schema.sql
+index 3bc00fc6991..401472c32a2 100644
+--- a/src/main/resources/db-scripts/clickhouse/init/schema.sql
++++ b/src/main/resources/db-scripts/clickhouse/init/schema.sql
+@@ -226,7 +226,13 @@ CREATE TABLE copy_number_seg (
+     `start` Int64,
+     `end` Int64,
+     `num_probes` Int64,
+-    `segment_mean` Float64
++    `segment_mean` Nullable(Float64),
++    `tcn` Nullable(Int32),
++    `lcn` Nullable(Int32),
++    `cellular_fraction` Nullable(Float64),
++    `purity` Nullable(Float64),
++    `ploidy` Nullable(Float64),
++    `dip_log_r` Nullable(Float64)
+ ) ENGINE = MergeTree ORDER BY (seg_id);
+ 
+ CREATE TABLE copy_number_seg_file (
+@@ -729,44 +735,4 @@ CREATE TABLE users (
+     `enabled` Int32
+ ) ENGINE = MergeTree ORDER BY (email);
+ 
+-CREATE TABLE ascn_seg
+-(
+-    `seg_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `chr` LowCardinality(String),
+-    `start` Int64,
+-    `end` Int64,
+-    `log_ratio` Nullable(Float64),
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64)
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, chr, start);
+-
+-CREATE TABLE ascn_gene_level
+-(
+-    `gene_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `hugo_gene_symbol` String,
+-    `entrez_gene_id` Int64,
+-    `chr` LowCardinality(String),
+-    `gene_start` Int64,
+-    `gene_end` Int64,
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64),
+-    INDEX idx_ascn_gene_level_hugo_symbol hugo_gene_symbol TYPE bloom_filter GRANULARITY 4
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, hugo_gene_symbol);
+-
+ INSERT INTO info (`db_schema_version`, `geneset_version`, `gene_table_version`) VALUES ('3.2.0', 'msigdb_v2025.1.Hs', 'hgnc_v7_2025.10.7');
+diff --git a/src/main/resources/db-scripts/clickhouse/migrate/migrate_schema.sql b/src/main/resources/db-scripts/clickhouse/migrate/migrate_schema.sql
+index c1822b33063..5560d043c5b 100644
+--- a/src/main/resources/db-scripts/clickhouse/migrate/migrate_schema.sql
++++ b/src/main/resources/db-scripts/clickhouse/migrate/migrate_schema.sql
+@@ -143,43 +143,12 @@ DROP TABLE IF EXISTS resource_patient;
+ DROP TABLE IF EXISTS resource_study;
+ 
+ ## db_schema_version: 3.2.0
+-## description: Add allele-specific copy number (ASCN) tables ascn_seg (segment-level) and ascn_gene_level (gene-level)
+-CREATE TABLE IF NOT EXISTS ascn_seg
+-(
+-    `seg_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `chr` LowCardinality(String),
+-    `start` Int64,
+-    `end` Int64,
+-    `log_ratio` Nullable(Float64),
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64)
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, chr, start);
+-
+-CREATE TABLE IF NOT EXISTS ascn_gene_level
+-(
+-    `gene_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `hugo_gene_symbol` String,
+-    `entrez_gene_id` Int64,
+-    `chr` LowCardinality(String),
+-    `gene_start` Int64,
+-    `gene_end` Int64,
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64),
+-    INDEX idx_ascn_gene_level_hugo_symbol hugo_gene_symbol TYPE bloom_filter GRANULARITY 4
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, hugo_gene_symbol);
++## description: Add allele-specific copy number (ASCN) columns to copy_number_seg and make segment_mean nullable
++ALTER TABLE copy_number_seg
++    MODIFY COLUMN `segment_mean` Nullable(Float64),
++    ADD COLUMN IF NOT EXISTS `tcn` Nullable(Int32),
++    ADD COLUMN IF NOT EXISTS `lcn` Nullable(Int32),
++    ADD COLUMN IF NOT EXISTS `cellular_fraction` Nullable(Float64),
++    ADD COLUMN IF NOT EXISTS `purity` Nullable(Float64),
++    ADD COLUMN IF NOT EXISTS `ploidy` Nullable(Float64),
++    ADD COLUMN IF NOT EXISTS `dip_log_r` Nullable(Float64);
+diff --git a/src/main/resources/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMapper.xml b/src/main/resources/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMapper.xml
+index 4eea71b484b..a7f8dbe3b5b 100644
+--- a/src/main/resources/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMapper.xml
++++ b/src/main/resources/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMapper.xml
+@@ -14,6 +14,15 @@
+         copy_number_seg.end AS "end",
+         copy_number_seg.num_probes AS "numProbes",
+         copy_number_seg.segment_mean AS "segmentMean"
++        <if test="projection == 'DETAILED'">
++            ,
++            copy_number_seg.tcn AS "tcn",
++            copy_number_seg.lcn AS "lcn",
++            copy_number_seg.cellular_fraction AS "cellularFraction",
++            copy_number_seg.purity AS "purity",
++            copy_number_seg.ploidy AS "ploidy",
++            copy_number_seg.dip_log_r AS "dipLogR"
++        </if>
+     </sql>
+ 
+     <sql id="from">
+diff --git a/src/test/java/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMyBatisRepositoryTest.java b/src/test/java/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMyBatisRepositoryTest.java
+index d5bb96a5098..61f0aff88af 100644
+--- a/src/test/java/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMyBatisRepositoryTest.java
++++ b/src/test/java/org/cbioportal/legacy/persistence/mybatis/CopyNumberSegmentMyBatisRepositoryTest.java
+@@ -85,6 +85,12 @@ public void getCopyNumberSegmentsInSampleInStudySummaryProjection() throws Excep
+     Assert.assertEquals((Integer) 180057677, copyNumberSeg.getEnd());
+     Assert.assertEquals((Integer) 291, copyNumberSeg.getNumProbes());
+     Assert.assertEquals(new BigDecimal("0.0519"), copyNumberSeg.getSegmentMean());
++    Assert.assertNull(copyNumberSeg.getTcn());
++    Assert.assertNull(copyNumberSeg.getLcn());
++    Assert.assertNull(copyNumberSeg.getCellularFraction());
++    Assert.assertNull(copyNumberSeg.getPurity());
++    Assert.assertNull(copyNumberSeg.getPloidy());
++    Assert.assertNull(copyNumberSeg.getDipLogR());
+ 
+     Assert.assertEquals(1, result1.size());
+     Assert.assertEquals(1, result2.size());
+@@ -167,6 +173,13 @@ public void getCopyNumberSegmentsInSampleInStudyDetailedProjection() throws Exce
+     Assert.assertEquals((Integer) 180057677, copyNumberSeg.getEnd());
+     Assert.assertEquals((Integer) 291, copyNumberSeg.getNumProbes());
+     Assert.assertEquals(new BigDecimal("0.0519"), copyNumberSeg.getSegmentMean());
++    Assert.assertEquals((Integer) 3, copyNumberSeg.getTcn());
++    Assert.assertEquals((Integer) 1, copyNumberSeg.getLcn());
++    Assert.assertEquals(0, new BigDecimal("0.8").compareTo(copyNumberSeg.getCellularFraction()));
++    Assert.assertEquals(0, new BigDecimal("0.7").compareTo(copyNumberSeg.getPurity()));
++    Assert.assertEquals(0, new BigDecimal("2.5").compareTo(copyNumberSeg.getPloidy()));
++    Assert.assertEquals(0, new BigDecimal("0.1").compareTo(copyNumberSeg.getDipLogR()));
++    Assert.assertNull(result.get(1).getTcn());
+   }
+ 
+   @Test
+@@ -255,6 +268,27 @@ public void fetchCopyNumberSegments() throws Exception {
+     Assert.assertEquals(0, result3.size());
+   }
+ 
++  @Test
++  public void fetchCopyNumberSegmentsDetailedProjectionIncludesAscnFields() throws Exception {
++    List<String> studyIds = List.of("study_tcga_pub");
++    List<String> sampleIds = List.of("TCGA-A1-A0SB-01");
++
++    List<CopyNumberSeg> detailed =
++        copyNumberSegmentMyBatisRepository.fetchCopyNumberSegments(
++            studyIds, sampleIds, "1", "DETAILED");
++    List<CopyNumberSeg> summary =
++        copyNumberSegmentMyBatisRepository.fetchCopyNumberSegments(
++            studyIds, sampleIds, "1", "SUMMARY");
++
++    Assert.assertEquals(1, detailed.size());
++    Assert.assertEquals((Integer) 3, detailed.get(0).getTcn());
++    Assert.assertEquals((Integer) 1, detailed.get(0).getLcn());
++    Assert.assertEquals(0, new BigDecimal("2.5").compareTo(detailed.get(0).getPloidy()));
++    Assert.assertEquals(1, summary.size());
++    Assert.assertNull(summary.get(0).getTcn());
++    Assert.assertNull(summary.get(0).getPloidy());
++  }
++
+   @Test
+   public void fetchMetaCopyNumberSegments() throws Exception {
+ 
+diff --git a/src/test/resources/clickhouse_data.sql b/src/test/resources/clickhouse_data.sql
+index d4d5995c265..2a7ada023b2 100644
+--- a/src/test/resources/clickhouse_data.sql
++++ b/src/test/resources/clickhouse_data.sql
+@@ -753,4 +753,3 @@ insert into resource (internal_id, resource_id, cancer_study_id, resource_scope,
+ values (900101,'WSI_SAMPLE',9001,'SAMPLE','WSI-PATIENT','WSI-SAMPLE','https://portal.example.org/wsi/patient/WSI-PATIENT?studyId=wsi_test_study&slideKey=2351e12d4955','H&E, Initial - Specimen 2 / Block 1','{"slide_key":"2351e12d4955","reference_sample_id":"WSI-SAMPLE","part_key":"part:2351e12d4955","part_number":"2","part_type":"FALLOPIAN TUBE","part_description":"Specimen 2","block_key":"block:2351e12d4955","block_number":"1","block_label":"Block 1","stain_name":"H&E, Initial","stain_group":"H&E (Initial)","is_hne":true,"is_ihc":false,"magnification":"20x","file_size_bytes":716956681,"can_serve_tiles":true,"slide_type":"H&E","match_level":"BLOCK","specimen_key":"block::part:2351e12d4955::block:2351e12d4955","serving":{"key":"2351e12d4955","sealed_source":"AQEBAQEBAQEBAQEBMc_tL9dUso8ZSDg1JZIFeeclGKwdmpgGohT4JR793-tUE3oED7qLjtQhP_usT08BCC6kpTQl6az5wJ6AMvgEt1zCZgqnjk2gcXeEODZFCRVg80fRaEk2FQaFx_eROJgD6ajaxtdJ1OJw4aKN06MJD0Hc6zBDxi77WsoS","tile_metadata_json":{"dimensions":{"width":2048,"height":1024},"levels":1,"level_dimensions":[{"width":2048,"height":1024}],"level_downsamples":[1.0],"max_zoom":0,"safe_min_level":0,"tile_size":256,"tile_metadata_schema_version":2,"decode_policy_version":"geometry-v2;tile-max=16777216;thumbnail-max=16777216","max_decode_pixels":16777216,"thumbnail_max_decode_pixels":16777216},"thumbnail_width":128,"thumbnail_height":64,"thumbnail_content_type":"image/jpeg"}}');
+ insert into resource (internal_id, resource_id, cancer_study_id, resource_scope, patient_id, sample_id, url, display_name, metadata)
+ values (900102,'WSI_PATIENT',9001,'PATIENT','WSI-PATIENT',NULL,'https://portal.example.org/wsi/patient/WSI-PATIENT?studyId=wsi_test_study&slideKey=b3286836fc27','H&E, Initial - Specimen 1 / Block 1','{"slide_key":"b3286836fc27","reference_sample_id":"WSI-SAMPLE","part_key":"part:b3286836fc27","part_number":"1","part_type":"SMALL BOWEL","part_description":"Specimen 1","block_key":"block:b3286836fc27","block_number":"1","block_label":"Block 1","stain_name":"H&E, Initial","stain_group":"H&E (Initial)","is_hne":true,"is_ihc":false,"magnification":"20x","file_size_bytes":1014457317,"can_serve_tiles":false,"slide_type":"H&E","match_level":"UNMATCHED","specimen_key":"unmatched::part:b3286836fc27::block:b3286836fc27"}');
+-
+diff --git a/src/test/resources/clickhouse_data_legacy.sql b/src/test/resources/clickhouse_data_legacy.sql
+index 476d1b6377c..750842204cc 100644
+--- a/src/test/resources/clickhouse_data_legacy.sql
++++ b/src/test/resources/clickhouse_data_legacy.sql
+@@ -315,7 +315,7 @@ insert into sample_list_list (list_id,sample_id) values (13,10);
+ insert into sample_list_list (list_id,sample_id) values (13,12);
+ insert into sample_list_list (list_id,sample_id) values (14,15);
+ 
+-insert into copy_number_seg (seg_id,cancer_study_id,sample_id,chr,start,end,num_probes,segment_mean) values (50236594,1,1,'1',324556,180057677,291,0.0519);
++insert into copy_number_seg (seg_id,cancer_study_id,sample_id,chr,start,end,num_probes,segment_mean,tcn,lcn,cellular_fraction,purity,ploidy,dip_log_r) values (50236594,1,1,'1',324556,180057677,291,0.0519,3,1,0.8,0.7,2.5,0.1);
+ insert into copy_number_seg (seg_id,cancer_study_id,sample_id,chr,start,end,num_probes,segment_mean) values (50236595,1,1,'2',224556,327677,391,0.0219);
+ insert into copy_number_seg (seg_id,cancer_study_id,sample_id,chr,start,end,num_probes,segment_mean) values (50236593,1,2,	'2',1402650,190262486,207,0.0265);
+ insert into copy_number_seg (seg_id,cancer_study_id,sample_id,chr,start,end,num_probes,segment_mean) values (50236592,1,3,	'3',1449872,194238390,341,0.0347);
+diff --git a/src/test/resources/schema.sql b/src/test/resources/schema.sql
+index 18c61e78118..d971171d6c9 100644
+--- a/src/test/resources/schema.sql
++++ b/src/test/resources/schema.sql
+@@ -218,7 +218,13 @@ CREATE TABLE copy_number_seg (
+     `start` Int64,
+     `end` Int64,
+     `num_probes` Int64,
+-    `segment_mean` Float64
++    `segment_mean` Nullable(Float64),
++    `tcn` Nullable(Int32),
++    `lcn` Nullable(Int32),
++    `cellular_fraction` Nullable(Float64),
++    `purity` Nullable(Float64),
++    `ploidy` Nullable(Float64),
++    `dip_log_r` Nullable(Float64)
+ ) ENGINE = MergeTree ORDER BY (seg_id);
+ 
+ CREATE TABLE copy_number_seg_file (
+@@ -723,44 +729,4 @@ CREATE TABLE users (
+     `enabled` Int32
+ ) ENGINE = MergeTree ORDER BY (email);
+ 
+-CREATE TABLE ascn_seg
+-(
+-    `seg_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `chr` LowCardinality(String),
+-    `start` Int64,
+-    `end` Int64,
+-    `log_ratio` Nullable(Float64),
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64)
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, chr, start);
+-
+-CREATE TABLE ascn_gene_level
+-(
+-    `gene_id` Int64,
+-    `cancer_study_id` Int64,
+-    `sample_id` Int64,
+-    `hugo_gene_symbol` String,
+-    `entrez_gene_id` Int64,
+-    `chr` LowCardinality(String),
+-    `gene_start` Int64,
+-    `gene_end` Int64,
+-    `tcn` Nullable(Int32),
+-    `lcn` Nullable(Int32),
+-    `cellular_fraction` Nullable(Float64),
+-    `purity` Nullable(Float64),
+-    `ploidy` Nullable(Float64),
+-    `dip_log_r` Nullable(Float64),
+-    INDEX idx_ascn_gene_level_hugo_symbol hugo_gene_symbol TYPE bloom_filter GRANULARITY 4
+-)
+-    ENGINE = MergeTree
+-ORDER BY (cancer_study_id, sample_id, hugo_gene_symbol);
+-
+ INSERT INTO info (`db_schema_version`, `geneset_version`, `gene_table_version`) VALUES ('3.2.0', 'msigdb_v2025.1.Hs', 'hgnc_v7_2025.10.7');

@@ -1,0 +1,281 @@
+diff --git a/conf/hmf_data.config b/conf/hmf_data.config
+index 0b6f8c7a..d61e902f 100644
+--- a/conf/hmf_data.config
++++ b/conf/hmf_data.config
+@@ -51,9 +51,14 @@ params {
+             sage_pon_sbx                   = 'dna/variants/SageGermlinePon.1000x.37.tsv.gz'
+             // REDUX
+             msi_jitter_sites               = 'dna/variants/msi_jitter_sites.37.tsv.gz'
+-            msi_model_coefficients         = 'dna/variants/ms_model_coefficients.hmf_wgs.tsv'
++            msi_model_coefs_illumina       = 'dna/variants/ms_model_coefficients.hmf_wgs.tsv'
++            msi_model_coefs_sbx            = 'dna/variants/ms_model_coefficients.hmf_sbx.tsv'
++            msi_model_coefs_ultima         = 'dna/variants/ms_model_coefficients.hmf_ultima.tsv'
++            msi_model_error_rates_illumina = 'dna/variants/ms_model_error_rates.hmf_wgs.tsv'
++            msi_model_error_rates_sbx      = 'dna/variants/ms_model_error_rates.hmf_sbx.tsv'
++            msi_model_error_rates_ultima   = 'dna/variants/ms_model_error_rates.hmf_ultima.tsv'
+             // Default for when panel specific error rates don't exist
+-            msi_model_error_rates          = 'dna/variants/ms_model_error_rates.tso500.37.tsv'
++            msi_model_error_rates_panel    = 'dna/variants/ms_model_error_rates.tso500.37.tsv'
+             // Sigs
+             sigs_signatures                = 'misc/sigs/snv_cosmic_signatures.csv'
+             // Virus breakend
+@@ -124,9 +129,14 @@ params {
+             sage_pon_sbx                   = 'dna/variants/hmf_wgs_sage_pon.ill_sbx.38.tsv.gz'
+             // REDUX
+             msi_jitter_sites               = 'dna/variants/msi_jitter_sites.38.tsv.gz'
+-            msi_model_coefficients         = 'dna/variants/ms_model_coefficients.hmf_wgs.tsv'
++            msi_model_coefs_illumina       = 'dna/variants/ms_model_coefficients.hmf_wgs.tsv'
++            msi_model_coefs_sbx            = 'dna/variants/ms_model_coefficients.hmf_sbx.tsv'
++            msi_model_coefs_ultima         = 'dna/variants/ms_model_coefficients.hmf_ultima.tsv'
++            msi_model_error_rates_illumina = 'dna/variants/ms_model_error_rates.hmf_wgs.tsv'
++            msi_model_error_rates_sbx      = 'dna/variants/ms_model_error_rates.hmf_sbx.tsv'
++            msi_model_error_rates_ultima   = 'dna/variants/ms_model_error_rates.hmf_ultima.tsv'
+             // Default for when panel specific error rates don't exist; use of GRCh37 is intentional
+-            msi_model_error_rates          = 'dna/variants/ms_model_error_rates.tso500.37.tsv'
++            msi_model_error_rates_panel    = 'dna/variants/ms_model_error_rates.tso500.37.tsv'
+             // Sigs
+             sigs_signatures                = 'misc/sigs/snv_cosmic_signatures.csv'
+             // Virus breakend
+diff --git a/docs/usage.md b/docs/usage.md
+index 62ffa782..7669e109 100644
+--- a/docs/usage.md
++++ b/docs/usage.md
+@@ -885,7 +885,7 @@ params {
+                 target_regions_normalisation = 'cobalt_normalisation.38.tsv'
+ 
+                 // These are not required and left unset by providing an empty list `[]`
+-                msi_model_error_rates        = [] // Currently defaults to TS0500 panel error rates for all custom panels
++                msi_model_error_rates        = [] // Defaults to TSO500 panel error rates for Illumina; required for SBX and Ultima
+                 known_umis                   = [] // Only required for MSK-IMPACT panel
+ 
+                 // Only for panels with RNA-seq. Provide e.g. `isofox_counts = []` for panels without RNA
+diff --git a/lib/Utils.groovy b/lib/Utils.groovy
+index 50955b4a..f807c52d 100644
+--- a/lib/Utils.groovy
++++ b/lib/Utils.groovy
+@@ -600,26 +600,32 @@ class Utils {
+         return fields
+     }
+ 
+-    public static getSequencingPlatformPons(hmf_data, sequencing_platform_string, log) {
++    public static getSequencingPlatformResources(hmf_data, sequencing_platform_string, log) {
+         def sequencing_platform = Utils.getEnumFromString(sequencing_platform_string, Constants.SequencingPlatform)
+         hmf_data.map { d ->
+             if (sequencing_platform == Constants.SequencingPlatform.ILLUMINA) {
+                 return [
+-                    'esvee_breakends': d.esvee_pon_breakends_illumina,
+-                    'esvee_breakpoints': d.esvee_pon_breakpoints_illumina,
+-                    'sage': d.sage_pon_illumina,
++                    'esvee_pon_breakends': d.esvee_pon_breakends_illumina,
++                    'esvee_pon_breakpoints': d.esvee_pon_breakpoints_illumina,
++                    'sage_pon': d.sage_pon_illumina,
++                    'msi_model_coefs': d.msi_model_coefs_illumina,
++                    'msi_model_error_rates': d.msi_model_error_rates_illumina,
+                 ]
+             } else if (sequencing_platform == Constants.SequencingPlatform.SBX) {
+                 return [
+-                    'esvee_breakends': d.esvee_pon_breakends_sbx,
+-                    'esvee_breakpoints': d.esvee_pon_breakpoints_sbx,
+-                    'sage': d.sage_pon_sbx,
++                    'esvee_pon_breakends': d.esvee_pon_breakends_sbx,
++                    'esvee_pon_breakpoints': d.esvee_pon_breakpoints_sbx,
++                    'sage_pon': d.sage_pon_sbx,
++                    'msi_model_coefs': d.msi_model_coefs_sbx,
++                    'msi_model_error_rates': d.msi_model_error_rates_sbx,
+                 ]
+             } else if (sequencing_platform == Constants.SequencingPlatform.ULTIMA) {
+                 return [
+-                    'esvee_breakends': d.esvee_pon_breakends_ultima,
+-                    'esvee_breakpoints': d.esvee_pon_breakpoints_ultima,
+-                    'sage': d.sage_pon_ultima,
++                    'esvee_pon_breakends': d.esvee_pon_breakends_ultima,
++                    'esvee_pon_breakpoints': d.esvee_pon_breakpoints_ultima,
++                    'sage_pon': d.sage_pon_ultima,
++                    'msi_model_coefs': d.msi_model_coefs_ultima,
++                    'msi_model_error_rates': d.msi_model_error_rates_ultima,
+                 ]
+             } else {
+                 log.error "Got bad sequencing platform: ${sequencing_platform}"
+diff --git a/lib/WorkflowMain.groovy b/lib/WorkflowMain.groovy
+index e640b064..9bd52475 100755
+--- a/lib/WorkflowMain.groovy
++++ b/lib/WorkflowMain.groovy
+@@ -370,6 +370,17 @@ class WorkflowMain {
+                 Nextflow.exit(1)
+             }
+ 
++            // Require msi_model_error_rates in panel data for non-Illumina sequencing platforms since the default is Illumina specific
++            def sequencing_platform = Utils.getEnumFromString(params.sequencing_platform, Constants.SequencingPlatform)
++            if (sequencing_platform != Constants.SequencingPlatform.ILLUMINA && ! panel_data_paths['msi_model_error_rates']) {
++                log.error "\n~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n" +
++                    "  The sequencing platform is ${params.sequencing_platform} but the required\n" +
++                    "  'msi_model_error_rates' data path was not configured in the panel data paths for\n" +
++                    "  panel ${params.panel.toLowerCase()} (${params.genome_version}).\n" +
++                    "~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~"
++                Nextflow.exit(1)
++            }
++
+         }
+ 
+         if (run_mode == Constants.RunMode.PURITY_ESTIMATE) {
+diff --git a/workflows/panel_resource_creation.nf b/workflows/panel_resource_creation.nf
+index 57af3fc0..b319f328 100644
+--- a/workflows/panel_resource_creation.nf
++++ b/workflows/panel_resource_creation.nf
+@@ -64,7 +64,7 @@ workflow PANEL_RESOURCE_CREATION {
+     def panel_data = PREPARE_REFERENCE.out.panel_data
+ 
+     // Configure selectable reference data and inputs
+-    def hmf_data_pons = Utils.getSequencingPlatformPons(hmf_data, params.sequencing_platform, log)
++    def hmf_data_seq_platform = Utils.getSequencingPlatformResources(hmf_data, params.sequencing_platform, log)
+     def target_regions_bed = params.target_regions_bed != null ? file(params.target_regions_bed) : []
+     def driver_gene_panel = params.driver_gene_panel != null ? file(params.driver_gene_panel) : []
+ 
+@@ -147,8 +147,8 @@ workflow PANEL_RESOURCE_CREATION {
+         ref_data.genome_dict,
+         hmf_data.unmap_regions,
+         hmf_data.msi_jitter_sites,
+-        hmf_data.msi_model_coefficients,
+-        hmf_data.msi_model_error_rates,
++        hmf_data_seq_platform.msi_model_coefs,
++        hmf_data.msi_model_error_rates_panel,
+         params.sequencing_platform,
+         true,  // targeted_mode
+         params.redux_umi_enabled,
+@@ -237,7 +237,7 @@ workflow PANEL_RESOURCE_CREATION {
+         ref_data.genome_version,
+         ref_data.genome_fai,
+         ref_data.genome_dict,
+-        hmf_data_pons.sage,
++        hmf_data_seq_platform.sage_pon,
+         hmf_data.sage_known_hotspots_somatic,
+         hmf_data.sage_known_hotspots_germline,
+         hmf_data.sage_highconf_regions,
+diff --git a/workflows/targeted.nf b/workflows/targeted.nf
+index ab29d688..f37e27d3 100644
+--- a/workflows/targeted.nf
++++ b/workflows/targeted.nf
+@@ -74,9 +74,12 @@ workflow TARGETED {
+     def panel_data = PREPARE_REFERENCE.out.panel_data
+ 
+     // Configure selectable reference data and inputs
+-    def hmf_data_pons = Utils.getSequencingPlatformPons(hmf_data, params.sequencing_platform, log)
++    def hmf_data_seq_platform = Utils.getSequencingPlatformResources(hmf_data, params.sequencing_platform, log)
+     def driver_gene_panel = params.driver_gene_panel != null ? file(params.driver_gene_panel) : panel_data.driver_gene_panel
+-    def msi_model_error_rates = panel_data.msi_model_error_rates != null ? panel_data.msi_model_error_rates : hmf_data.msi_model_error_rates
++
++    // NOTE(LN): panel_data is a channel so its entries cannot be null checked directly; check the panel config instead
++    def panel_data_paths = params.panel_data_paths[params.panel.toLowerCase()][params.genome_version.toString()]
++    def msi_model_error_rates = panel_data_paths.msi_model_error_rates ? panel_data.msi_model_error_rates : hmf_data.msi_model_error_rates_panel
+ 
+     def isofox_counts = params.isofox_counts != null ? file(params.isofox_counts) : panel_data.isofox_counts
+     def isofox_gc_ratios = params.isofox_gc_ratios != null ? file(params.isofox_gc_ratios) : panel_data.isofox_gc_ratios
+@@ -186,7 +189,7 @@ workflow TARGETED {
+             ref_data.genome_dict,
+             hmf_data.unmap_regions,
+             hmf_data.msi_jitter_sites,
+-            hmf_data.msi_model_coefficients,
++            hmf_data_seq_platform.msi_model_coefs,
+             msi_model_error_rates,
+             params.sequencing_platform,
+             true,  // targeted_mode
+@@ -346,8 +349,8 @@ workflow TARGETED {
+             ref_data.genome_dict,
+             ref_data.genome_img,
+             hmf_data.known_fusions,
+-            hmf_data_pons.esvee_breakends,
+-            hmf_data_pons.esvee_breakpoints,
++            hmf_data_seq_platform.esvee_pon_breakends,
++            hmf_data_seq_platform.esvee_pon_breakpoints,
+             hmf_data.decoy_sequences_image,
+             hmf_data.repeatmasker_annotations,
+             hmf_data.unmap_regions,
+@@ -380,7 +383,7 @@ workflow TARGETED {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             ref_data.genome_dict,
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_known_hotspots_somatic,
+             hmf_data.sage_known_hotspots_germline,
+             hmf_data.sage_highconf_regions,
+@@ -419,7 +422,7 @@ workflow TARGETED {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             panel_data.pon_artefacts,
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_blocklist_regions,
+             hmf_data.sage_blocklist_sites,
+             hmf_data.clinvar_annotations,
+@@ -555,7 +558,7 @@ workflow TARGETED {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             ref_data.genome_dict,
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_known_hotspots_somatic,
+             hmf_data.sage_highconf_regions,
+             hmf_data.ensembl_data_resources,
+diff --git a/workflows/wgts.nf b/workflows/wgts.nf
+index 5e46801d..9c991233 100644
+--- a/workflows/wgts.nf
++++ b/workflows/wgts.nf
+@@ -79,7 +79,7 @@ workflow WGTS {
+     def hmf_data = PREPARE_REFERENCE.out.hmf_data
+ 
+     // Configure selectable reference data and inputs
+-    def hmf_data_pons = Utils.getSequencingPlatformPons(hmf_data, params.sequencing_platform, log)
++    def hmf_data_seq_platform = Utils.getSequencingPlatformResources(hmf_data, params.sequencing_platform, log)
+     def driver_gene_panel = params.driver_gene_panel != null ? file(params.driver_gene_panel) : hmf_data.driver_gene_panel
+     def gridss_config = params.gridss_config != null ? file(params.gridss_config) : hmf_data.gridss_config
+ 
+@@ -188,8 +188,8 @@ workflow WGTS {
+             ref_data.genome_dict,
+             hmf_data.unmap_regions,
+             hmf_data.msi_jitter_sites,
+-            [],  // msi_model_coefficients
+-            [],  // msi_model_error_rates
++            hmf_data_seq_platform.msi_model_coefs,
++            hmf_data_seq_platform.msi_model_error_rates,
+             params.sequencing_platform,
+             false,  // targeted_mode
+             params.redux_umi_enabled,
+@@ -348,8 +348,8 @@ workflow WGTS {
+             ref_data.genome_dict,
+             ref_data.genome_img,
+             hmf_data.known_fusions,
+-            hmf_data_pons.esvee_breakends,
+-            hmf_data_pons.esvee_breakpoints,
++            hmf_data_seq_platform.esvee_pon_breakends,
++            hmf_data_seq_platform.esvee_pon_breakpoints,
+             hmf_data.decoy_sequences_image,
+             hmf_data.repeatmasker_annotations,
+             hmf_data.unmap_regions,
+@@ -382,7 +382,7 @@ workflow WGTS {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             ref_data.genome_dict,
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_known_hotspots_somatic,
+             hmf_data.sage_known_hotspots_germline,
+             hmf_data.sage_highconf_regions,
+@@ -421,7 +421,7 @@ workflow WGTS {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             [],  // sage_pon_artefacts
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_blocklist_regions,
+             hmf_data.sage_blocklist_sites,
+             hmf_data.clinvar_annotations,
+@@ -557,7 +557,7 @@ workflow WGTS {
+             ref_data.genome_version,
+             ref_data.genome_fai,
+             ref_data.genome_dict,
+-            hmf_data_pons.sage,
++            hmf_data_seq_platform.sage_pon,
+             hmf_data.sage_known_hotspots_somatic,
+             hmf_data.sage_highconf_regions,
+             hmf_data.ensembl_data_resources,

@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/ncoudray__DeepPATH-13"
+description = "fixing rstrip and classification order for option 17"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "DeepPATH",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "ncoudray/DeepPATH"
+ref = "dcd8bbb8d97ac54cbc0da80f4165214215f00553"
+reference = "https://github.com/ncoudray/DeepPATH/pull/13"
+source_access = "auto"
+built_at = "2026-11-12T05:36:41.191620+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:e62f59a032954e8f05b47d6143843ab2ab36109a7eadad449bf0fc928f906179"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2018-10-01T20:00:43Z"
+diff_format = "unified"
+context_files = [
+    "DeepPATH_code/00_preprocessing/0d_SortTiles.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 180
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.807425+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:8eed23e45a04cefd6ee3fd6258f700367d7a0d10f9af54080b45a9cff7bf1419"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

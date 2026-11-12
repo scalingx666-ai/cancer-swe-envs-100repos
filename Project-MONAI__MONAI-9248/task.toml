@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/Project-MONAI__MONAI-9248"
+description = "Fix compiled lazy resampling with align_corners=True"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "MONAI",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Project-MONAI/MONAI"
+ref = "0e9fc83b19352fd624ce99d861e1626c6076fbaf"
+reference = "https://github.com/Project-MONAI/MONAI/pull/9248"
+source_access = "auto"
+built_at = "2026-11-12T05:39:16.382198+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:d6e89f04a9f44883dc0d6d46207c4852a48348a3166e61fbae702c423211cf3a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-04T19:22:56Z"
+diff_format = "unified"
+context_files = [
+    "monai/transforms/spatial/functional.py",
+    "tests/transforms/test_affine.py",
+    "tests/transforms/test_spacing.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 64
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.757449+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:4adcadc29f6edd6d5061d1501ab34a560ca4f0f49028e7de89cdf3dd989e9f95"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,77 @@
+version = "1.0"
+
+[task]
+name = "default/pysam-developers__pysam-1411"
+description = "Use the PyUnicode API for str-returning functions instead of computing in bytes and decoding"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pysam",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "pysam-developers/pysam"
+ref = "e06bd6355588b4efb9ba97612fa8e5c53eb9b3dd"
+reference = "https://github.com/pysam-developers/pysam/pull/1411"
+source_access = "auto"
+built_at = "2026-11-12T05:36:06.195262+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0eb22dfb996cf1a341198125012dc5f53170c91bd5cfd8b02e768d82324adec7"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-23T08:11:18Z"
+diff_format = "unified"
+context_files = [
+    "doc/api.rst",
+    "pysam/htslib_util.c",
+    "pysam/htslib_util.h",
+    "pysam/libcalignedsegment.pxd",
+    "pysam/libcalignedsegment.pyi",
+    "pysam/libcalignedsegment.pyx",
+    "pysam/libcutils.pxd",
+    "pysam/libcutils.pyx",
+    "tests/AlignedSegment_bench.py",
+    "tests/AlignedSegment_test.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 365
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.823280+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:b26723a44869c101d3305d7eb6015709c886a131faeac45a93eb93d5552a10ef"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,94 @@
+diff --git a/.git_archival.txt b/.git_archival.txt
+new file mode 100644
+index 0000000..6acb3b4
+--- /dev/null
++++ b/.git_archival.txt
+@@ -0,0 +1,3 @@
++node: $Format:%H$
++node-date: $Format:%cI$
++describe-name: $Format:%(describe:tags=true,match=v[0-9]*)$
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..4f871f5
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1,3 @@
++# GitHub fills in .git_archival.txt when it builds a zip or tarball, so a
++# download without git history still knows its version (setuptools_scm).
++.git_archival.txt  export-subst
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 8cb4db5..534cdef 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+ - The Workbench's run log on Windows shows its lines. Lines ending in `\r\n` were taken for progress-bar redraws and shown blank.
+ - Checking whether a process is still running no longer sends Ctrl+C to the console on Windows, where `os.kill(pid, 0)` sends `CTRL_C_EVENT`. This could interrupt `launch_web.bat --stop`.
+ - The run log no longer garbles a character that is split between two reads of the log.
++- A zip or tarball of the repository downloaded from GitHub knows its version (`.git_archival.txt`). Without git history it was `0+unknown`, and the Workbench showed "v0"; it now shows nothing if the version cannot be found.
+ 
+ ## [1.6.0] - 2026-11-11
+ 
+diff --git a/SigProfilerExtractor/web/static/app.js b/SigProfilerExtractor/web/static/app.js
+index 944f849..cd31fda 100644
+--- a/SigProfilerExtractor/web/static/app.js
++++ b/SigProfilerExtractor/web/static/app.js
+@@ -297,8 +297,9 @@ async function loadEnv() {
+   const env = await get('/api/env');
+   state.env = env;
+   state.settings = env.settings;
++  // "0+unknown" is setuptools_scm's fallback when it cannot find the version.
+   const v = String(env.version || '').split('+')[0];
+-  $('envVersion').textContent = v ? `v${v}` : '';
++  $('envVersion').textContent = v && v !== '0' ? `v${v}` : '';
+   fillChoices();
+   applyGenomes(env.genomes);
+   resetAdvanced();
+diff --git a/tests/test_git_archival.py b/tests/test_git_archival.py
+new file mode 100644
+index 0000000..4e425f5
+--- /dev/null
++++ b/tests/test_git_archival.py
+@@ -0,0 +1,23 @@
++import pathlib
++import unittest
++
++ROOT = pathlib.Path(__file__).resolve().parents[1]
++
++
++class GitArchivalTest(unittest.TestCase):
++    """A zip or tarball from GitHub has no git history. GitHub fills in
++    .git_archival.txt when it builds one, and setuptools_scm reads the version
++    from it; without it the version is "0+unknown"."""
++
++    def test_github_fills_in_the_archival_file(self):
++        attributes = (ROOT / ".gitattributes").read_text().split("\n")
++        self.assertIn(".git_archival.txt  export-subst", attributes)
++
++    def test_the_archival_file_names_the_commit_and_nearest_tag(self):
++        text = (ROOT / ".git_archival.txt").read_text()
++        self.assertIn("node: $Format:%H$", text)
++        self.assertIn("describe-name: $Format:%(describe:tags=true,match=v[0-9]*)$", text)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/web/test_web_interactions.py b/tests/web/test_web_interactions.py
+index 2aef5cc..fcc1be9 100644
+--- a/tests/web/test_web_interactions.py
++++ b/tests/web/test_web_interactions.py
+@@ -471,3 +471,15 @@ def test_the_log_shows_windows_line_endings_and_keeps_the_last_progress_step(pag
+     _wait_text(page.locator("#jobLog"), "last line")
+     lines = page.locator("#jobLog").text_content().split("\n")
+     assert lines[:4] == ["== step 1/1: working", "first line", "100% |████|", "last line"]
++
++
++@pytest.mark.parametrize("version, shown", [
++    ("1.6.1", "v1.6.1"),
++    ("1.6.1.dev5+g868d105", "v1.6.1.dev5"),
++    ("0+unknown", ""),  # setuptools_scm's fallback: show nothing rather than "v0"
++])
++def test_the_top_bar_shows_the_installed_version(page, monkeypatch, version, shown):
++    monkeypatch.setattr(server, "_package_version", lambda: version)
++    page.reload()
++    page.wait_for_selector("#exampleSel option[value='sbs96']", state="attached")
++    _wait_until(lambda: page.text_content("#envVersion") == shown)

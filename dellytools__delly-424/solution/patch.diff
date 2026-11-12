@@ -1,0 +1,84 @@
+diff --git a/README.md b/README.md
+index 9aaffb2..a1e718e 100644
+--- a/README.md
++++ b/README.md
+@@ -29,15 +29,15 @@ There is a Delly discussion group [delly-users](http://groups.google.com/d/forum
+ 
+ # Running Delly
+ 
+-Delly needs a sorted, indexed and duplicate marked bam file for every input sample.
+-An indexed reference genome is required to identify split-reads.
++Delly needs a sorted, indexed and duplicate marked BAM or CRAM file for every input sample.
++An indexed reference genome is required to identify split-reads and to decode CRAM files (the `-g` flag serves both purposes).
+ Common workflows for germline and somatic SV calling are outlined below.
+ 
+-`delly call -g hg38.fa input.bam > delly.vcf`
++`delly call -g ref.fa <input.bam|input.cram> > delly.vcf`
+ 
+ You can also specify an output file in [BCF](http://samtools.github.io/bcftools/) format.
+ 
+-`delly call -o delly.bcf -g hg38.fa input.bam`
++`delly call -o delly.bcf -g ref.fa <input.bam|input.cram>`
+ 
+ `bcftools view delly.bcf > delly.vcf`
+ 
+@@ -252,8 +252,9 @@ You should exclude telomere and centromere regions and also all unplaced contigs
+ * Are non-unique alignments, multi-mappings and/or multiple split-read alignments allowed?  
+ Delly expects two alignment records in the bam file for every paired-end, one for the first and one for the second read. Multiple split-read alignment records of a given read are allowed if and only if one of them is a primary alignment whereas all others are marked as secondary or supplementary. This is the default for bwa, minimap2 and many other aligners.
+ 
+-* What pre-processing of bam files is required?    
+-Bam files need to be sorted, indexed and ideally duplicate marked.
++* What pre-processing of BAM/CRAM files is required?
++BAM/CRAM files both need to be sorted, indexed and ideally duplicate marked.
++For CRAM files, the reference genome required for decoding is already supplied via the mandatory `-g` flag.
+ 
+ * Usage/discussion mailing list?         
+ There is a delly discussion group [delly-users](http://groups.google.com/d/forum/delly-users).
+diff --git a/src/coral.h b/src/coral.h
+index 2686a08..9fc00d3 100644
+--- a/src/coral.h
++++ b/src/coral.h
+@@ -532,7 +532,7 @@ namespace torali
+     
+     boost::program_options::options_description hidden("Hidden options");
+     hidden.add_options()
+-      ("input-file", boost::program_options::value<boost::filesystem::path>(&c.bamFile), "input bam file")
++      ("input-file", boost::program_options::value<boost::filesystem::path>(&c.bamFile), "input BAM/CRAM file")
+       ("fragment", boost::program_options::value<float>(&c.fragmentUnique)->default_value(0.97), "min. fragment uniqueness [0,1]")
+       ("statsfile,s", boost::program_options::value<boost::filesystem::path>(&c.statsFile), "gzipped stats output file (optional)")
+       ;
+@@ -554,7 +554,7 @@ namespace torali
+     // Check command line arguments
+     if ((vm.count("help")) || (!vm.count("input-file")) || (!vm.count("genome")) || (!vm.count("mappability"))) {
+       std::cerr << std::endl;
+-      std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <genome.fa> -m <genome.map> <aligned.bam>" << std::endl;
++      std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <genome.fa> -m <genome.map> <aligned.bam|aligned.cram>" << std::endl;
+       std::cerr << visible_options << "\n";
+       return 1;
+     }
+diff --git a/src/delly.h b/src/delly.h
+index 39ff6f3..070dc1b 100644
+--- a/src/delly.h
++++ b/src/delly.h
+@@ -253,7 +253,7 @@ namespace torali
+     // Check command line arguments
+     if ((vm.count("help")) || (!vm.count("input-file")) || (!vm.count("genome"))) { 
+       std::cerr << std::endl;
+-      std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <ref.fa> <sample1.sort.bam> <sample2.sort.bam> ..." << std::endl;
++      std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <ref.fa> <sample1.sort.bam|sample1.sort.cram> <sample2.sort.bam|sample2.sort.cram> ..." << std::endl;
+       std::cerr << visible_options << "\n";
+       return 0;
+     }
+diff --git a/src/tegua.h b/src/tegua.h
+index 5572a37..9dab9f8 100644
+--- a/src/tegua.h
++++ b/src/tegua.h
+@@ -252,7 +252,7 @@ namespace torali {
+    // Check command line arguments
+    if ((vm.count("help")) || (!vm.count("input-file")) || (!vm.count("genome"))) {
+      std::cerr << std::endl;
+-     std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <ref.fa> <sample1.sort.bam> <sample2.sort.bam> ..." << std::endl;
++     std::cerr << "Usage: delly " << argv[0] << " [OPTIONS] -g <ref.fa> <sample1.sort.bam|sample1.sort.cram> <sample2.sort.bam|sample2.sort.cram> ..." << std::endl;
+      std::cerr << visible_options << "\n";
+      return 0;
+    }

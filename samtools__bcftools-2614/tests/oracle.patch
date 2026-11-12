@@ -1,0 +1,32 @@
+diff --git a/Makefile b/Makefile
+index b5895d9f3..6181eef02 100644
+--- a/Makefile
++++ b/Makefile
+@@ -362,11 +362,14 @@ docs: doc/bcftools.1 doc/bcftools.html
+ # Since there is no make dependency, bcftools.1 can be out-of-date and
+ # make docs can be run to update if asciidoc is available
+ install: $(PROGRAMS) $(PLUGINS)
+-	$(INSTALL_DIR) $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir) $(DESTDIR)$(plugindir)
++	$(INSTALL_DIR) $(DESTDIR)$(bindir) $(DESTDIR)$(man1dir)
+ 	$(INSTALL_PROGRAM) $(PROGRAMS) $(DESTDIR)$(bindir)
+ 	$(INSTALL_SCRIPT) $(MISC_SCRIPTS) $(DESTDIR)$(misc_bindir)
+ 	$(INSTALL_MAN) doc/bcftools.1 $(DESTDIR)$(man1dir)
++ifneq "$(PLUGINS_ENABLED)" "no"
++	$(INSTALL_DIR) $(DESTDIR)$(plugindir)
+ 	$(INSTALL_PROGRAM) plugins/*$(PLUGIN_EXT) $(DESTDIR)$(plugindir)
++endif
+ 
+ clean: testclean clean-plugins
+ 	-rm -f gmon.out *.o mpileup2/*.o *.a *~ $(PROGRAMS) version.h
+diff --git a/test/test.pl b/test/test.pl
+index 835d4bcf1..e2851964a 100755
+--- a/test/test.pl
++++ b/test/test.pl
+@@ -2478,6 +2478,7 @@ sub test_vcf_merge_big
+ sub test_trio_dnm3
+ {
+     my ($opts,%args) = @_;
++    if ( !$$opts{test_plugins} ) { return; }
+     test_cmd($opts,%args,cmd=>qq[export BCFTOOLS_PLUGINS=$$opts{bin}/plugins; $$opts{path}/trio-dnm3/test.sh $$opts{bin}/bcftools],out=>'trio-dnm3.1.out');
+ }
+ 

@@ -1,0 +1,74 @@
+version = "1.0"
+
+[task]
+name = "default/s-andrews__FastQC-199"
+description = "Performance: Eliminate per-sequence `char[]` allocations in seven QC modules"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "FastQC",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "s-andrews/FastQC"
+ref = "b6bc4b908b6c419589cf6cd5f14deec247cfb747"
+reference = "https://github.com/s-andrews/FastQC/pull/199"
+source_access = "auto"
+built_at = "2026-11-12T05:36:32.146623+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b60f91d9ba11a5df309dc2f3558702164169305d412e2b40aff43d27afc60a18"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-26T07:34:18Z"
+diff_format = "unified"
+context_files = [
+    "uk/ac/babraham/FastQC/Modules/BasicStats.java",
+    "uk/ac/babraham/FastQC/Modules/NContent.java",
+    "uk/ac/babraham/FastQC/Modules/PerBaseQualityScores.java",
+    "uk/ac/babraham/FastQC/Modules/PerBaseSequenceContent.java",
+    "uk/ac/babraham/FastQC/Modules/PerSequenceGCContent.java",
+    "uk/ac/babraham/FastQC/Modules/PerSequenceQualityScores.java",
+    "uk/ac/babraham/FastQC/Modules/PerTileQualityScores.java",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 128
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.825101+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6127615dae9563e3b5f14451c4fe347ecb62f31ea25841173cce2e742f391f65"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

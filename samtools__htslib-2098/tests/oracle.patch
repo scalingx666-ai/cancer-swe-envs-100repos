@@ -1,0 +1,189 @@
+diff --git a/hfile_s3.c b/hfile_s3.c
+index d3d7de945..a3085bc20 100644
+--- a/hfile_s3.c
++++ b/hfile_s3.c
+@@ -2110,6 +2110,13 @@ static ssize_t s3_read(hFILE *fpv, void *bufferv, size_t nbytes) {
+         } else {
+             int ret;
+ 
++            // At EOF.  Don't ask for another part, as a range starting at
++            // the end of the file gets a 416 error.
++            if (fp->file_size >= 0 && fp->last_read >= (size_t) fp->file_size) {
++                fp->keep_going = 0;
++                break;
++            }
++
+             ret = get_part(fp, NULL);
+ 
+             if (!ret) {
+diff --git a/test/mock_http_server.py b/test/mock_http_server.py
+index 1f926c4f9..2cc38797a 100755
+--- a/test/mock_http_server.py
++++ b/test/mock_http_server.py
+@@ -33,6 +33,7 @@
+     drop_mid_transfer - Send first half of file then close connection, N times
+     404              - Always return 404
+     stall            - Send headers + a few bytes then sleep forever
++    s3               - Serve ranges as S3 does, with 416 for ranges at EOF
+ """
+ 
+ import argparse
+@@ -152,6 +153,10 @@ def do_GET(self):
+                 pass
+             return
+ 
++        if mode == "s3":
++            self.serve_s3_range(data, range_header)
++            return
++
+         # Normal serving (with Range support)
+         remaining = data[range_start:]
+         if range_start > 0:
+@@ -168,12 +173,34 @@ def do_GET(self):
+         self.end_headers()
+         self.wfile.write(remaining)
+ 
++    def serve_s3_range(self, data, range_header):
++        # Unlike normal mode, honour the end of the range, always send
++        # Content-Range and refuse ranges starting at or after EOF
++        start, end = 0, len(data) - 1
++        if range_header and range_header.startswith("bytes="):
++            first, last = range_header[6:].split("-")
++            start = int(first)
++            if last:
++                end = min(int(last), len(data) - 1)
++        if start >= len(data):
++            self.send_response(416)
++            self.send_header("Content-Range", "bytes */%d" % len(data))
++            self.send_header("Content-Length", "0")
++            self.end_headers()
++            return
++        self.send_response(206)
++        self.send_header("Content-Range",
++                         "bytes %d-%d/%d" % (start, end, len(data)))
++        self.send_header("Content-Length", str(end - start + 1))
++        self.end_headers()
++        self.wfile.write(data[start:end + 1])
++
+ 
+ def main():
+     parser = argparse.ArgumentParser(description="Mock HTTP server for testing")
+     parser.add_argument("--mode", required=True,
+                         choices=["normal", "503_then_ok", "429_then_ok",
+-                                 "drop_mid_transfer", "404", "stall"])
++                                 "drop_mid_transfer", "404", "stall", "s3"])
+     parser.add_argument("--file", required=True, help="File to serve")
+     parser.add_argument("--fail-count", type=int, default=2,
+                         help="Number of requests to fail before succeeding")
+diff --git a/test/test_hfile_libcurl.c b/test/test_hfile_libcurl.c
+index b80134c51..6767c4533 100644
+--- a/test/test_hfile_libcurl.c
++++ b/test/test_hfile_libcurl.c
+@@ -61,8 +61,9 @@ static int failures = 0;
+     failures++; \
+ } while (0)
+ 
+-// Start mock server, return its PID and port
+-static pid_t start_server(const char *mode, int fail_count, int *port_out)
++// Start mock server serving file, return its PID and port
++static pid_t start_server_file(const char *mode, const char *file,
++                               int fail_count, int *port_out)
+ {
+     int pipefd[2];
+     pid_t pid;
+@@ -93,7 +94,7 @@ static pid_t start_server(const char *mode, int fail_count, int *port_out)
+         close(pipefd[1]);
+         execlp("python3", "python3", "test/mock_http_server.py",
+                "--mode", mode,
+-               "--file", "test/" TEST_DATA_FILE,
++               "--file", file,
+                "--fail-count", fail_count_str,
+                "--port", "0",
+                NULL);
+@@ -136,6 +137,11 @@ static pid_t start_server(const char *mode, int fail_count, int *port_out)
+     return pid;
+ }
+ 
++static pid_t start_server(const char *mode, int fail_count, int *port_out)
++{
++    return start_server_file(mode, "test/" TEST_DATA_FILE, fail_count, port_out);
++}
++
+ static void stop_server(pid_t pid)
+ {
+     int status;
+@@ -461,6 +467,66 @@ static void test_retry_disabled(void)
+     stop_server(pid);
+ }
+ 
++// Test 8: hfile_s3 reading to EOF when the file size is a multiple of the
++// read part size, so the last part is full-sized (issue #2097)
++static void test_s3_eof_at_part_boundary(void)
++{
++    const char *name = "S3 read to EOF at a part boundary";
++    const char *file = "test/hfile_s3_eof.tmp";
++    const size_t size = 1024 * 1024; // the default S3 read part size
++    char host[64], buf[4096];
++    size_t i, total = 0;
++    ssize_t n = 0;
++    int port;
++    pid_t pid;
++    hFILE *fp;
++    FILE *f;
++
++    f = fopen(file, "wb");
++    if (!f) { FAIL(name, "could not write %s", file); return; }
++    for (i = 0; i < size; i++)
++        fputc((i * 7 + 13) & 0xFF, f);
++    fclose(f);
++
++    pid = start_server_file("s3", file, 0, &port);
++    if (pid < 0) { FAIL(name, "could not start server"); unlink(file); return; }
++
++    snprintf(host, sizeof(host), "127.0.0.1:%d", port);
++    setenv("HTS_S3_HOST", host, 1);
++    setenv("HTS_S3_ADDRESS_STYLE", "path", 1);
++    setenv("AWS_ACCESS_KEY_ID", "test", 1);
++    setenv("AWS_SECRET_ACCESS_KEY", "test", 1);
++    setenv("HTS_ALLOW_UNENCRYPTED_AUTHORIZATION_HEADER", "I understand the risks", 1);
++
++    fp = hopen("s3+http://bucket/object", "r");
++    if (!fp) {
++        if (errno == EPROTONOSUPPORT)
++            fprintf(stderr, "  SKIP: %s: S3 not supported\n", name);
++        else
++            FAIL(name, "hopen failed: %s", strerror(errno));
++    } else {
++        while ((n = hread(fp, buf, sizeof(buf))) > 0)
++            total += n;
++        if (n < 0)
++            FAIL(name, "hread failed after %zu bytes: %s", total, strerror(errno));
++        else if (total != size)
++            FAIL(name, "read %zu bytes, expected %zu", total, size);
++        else if (hseek(fp, size, SEEK_SET) < 0 || (n = hread(fp, buf, sizeof(buf))) != 0)
++            FAIL(name, "read after seeking to EOF returned %zd: %s", n, strerror(errno));
++        else
++            PASS(name);
++        hclose_abruptly(fp);
++    }
++
++    unsetenv("HTS_S3_HOST");
++    unsetenv("HTS_S3_ADDRESS_STYLE");
++    unsetenv("AWS_ACCESS_KEY_ID");
++    unsetenv("AWS_SECRET_ACCESS_KEY");
++    unsetenv("HTS_ALLOW_UNENCRYPTED_AUTHORIZATION_HEADER");
++    stop_server(pid);
++    unlink(file);
++}
++
+ int main(void)
+ {
+     // Check python3 is available
+@@ -497,6 +563,7 @@ int main(void)
+     test_404_no_retry();
+     test_retry_exhaustion();
+     test_retry_disabled();
++    test_s3_eof_at_part_boundary();
+ 
+     // Clean up test data
+     unlink("test/" TEST_DATA_FILE);

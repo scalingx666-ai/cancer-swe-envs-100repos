@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__bcftools-2614"
+description = "Gentoo fixes"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "bcftools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/bcftools"
+ref = "b62c1bda5bf8a6e0a343e2671e5f5abebfc1bcac"
+reference = "https://github.com/samtools/bcftools/pull/2614"
+source_access = "auto"
+built_at = "2026-11-12T05:36:07.563190+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c5c13e040d071e72c9c88ce7ca1c30329c6350dabaa452ffe7d5c95aa702b14a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-02T13:41:46Z"
+diff_format = "unified"
+context_files = [
+    "Makefile",
+    "test/test.pl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 6
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.826706+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:2d7336a6d784d9e3fe98c2a8ef576b21c2e59cd8d1f228f5d4a97d3130cab85f"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

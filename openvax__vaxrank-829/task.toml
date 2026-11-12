@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__vaxrank-829"
+description = "Expose named antigen type limits and clarify selection order"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "vaxrank",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/vaxrank"
+ref = "da399afc0ea11cd62963acf9af4aaccbf05678bd"
+reference = "https://github.com/openvax/vaxrank/pull/829"
+source_access = "auto"
+built_at = "2026-11-12T05:34:38.353270+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:585217f8a7c8375c26680ba5623cd6bcaeb36219ee6c516b2072127b97c04e5e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-10T15:45:51Z"
+diff_format = "unified"
+context_files = [
+    "docs/mixed-antigen-design.md",
+    "docs/vaccine-designs.md",
+    "notes/design/source-windows-and-allocation.md",
+    "tests/test_source_windows_allocation.py",
+    "vaxrank/cli/vaccine_config_args.py",
+    "vaxrank/version.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 157
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.820912+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6b6ad1f0989b569a071237138f9c6943970af047ea902a7a726d85c1b4bad663"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

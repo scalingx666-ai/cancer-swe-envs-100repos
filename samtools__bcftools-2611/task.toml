@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__bcftools-2611"
+description = "sort: preserve 64-bit values and detect temporary-file I/O errors"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bcftools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/bcftools"
+ref = "289397747dec0a28653daac45d74f67c8fb9e513"
+reference = "https://github.com/samtools/bcftools/pull/2611"
+source_access = "auto"
+built_at = "2026-11-12T05:36:09.228874+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:31435a78e5a05de92db98210005495ce753bc55677fff5f7b3a7348abff35fe5"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-29T13:17:57Z"
+diff_format = "unified"
+context_files = [
+    "NEWS",
+    "test/sort.big2.1.out",
+    "test/sort.big2.vcf",
+    "test/test.pl",
+    "vcfsort.c",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 313
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.826242+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e07394f05cede63b8abf8ee18f86e221092b34a98a7dbcdb98db5bbde3ff914f"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

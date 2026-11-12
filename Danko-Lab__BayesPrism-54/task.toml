@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/Danko-Lab__BayesPrism-54"
+description = "Updated Tutorial to inform users on sc.dat class"
+
+[metadata]
+difficulty = "easy"
+category = "bugfix"
+keywords = [
+    "BayesPrism",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "Danko-Lab/BayesPrism"
+ref = "0375a84cb874ef5c6274bbd1336e40468022dc78"
+reference = "https://github.com/Danko-Lab/BayesPrism/pull/54"
+source_access = "auto"
+built_at = "2026-11-12T05:55:33.295347+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b16037f009f8f68a615cb45e5270ad9022269ef5a00dd64b93b999db2169f220"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-08-01T02:09:17Z"
+diff_format = "unified"
+context_files = [
+    "tutorial_deconvolution.html",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2
+difficulty = "trivial"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.741938+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:a4037eedbd204acd20c8400eda66822c4d0b603f5ba96c14eb60fb1d9198ebb3"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

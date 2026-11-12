@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/neheller__kits21-50"
+description = "an alternative get imaging script"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "kits21",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "neheller/kits21"
+ref = "7961ec1210d7fa18de5ef1d406609025313baf59"
+reference = "https://github.com/neheller/kits21/pull/50"
+source_access = "auto"
+built_at = "2026-11-12T05:38:36.987174+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2d946499d520bdfb26fc4ea06447e20e59ed5b8e54312639d14bc79b9c7cece4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2021-11-14T19:10:06Z"
+diff_format = "unified"
+context_files = [
+    "kits21/annotation/cache.json",
+    "kits21/annotation/import.py",
+    "kits21/annotation/sample_segmentations.py",
+    "kits21/data/kits.json",
+    "kits21/evaluation/compute_tolerances.py",
+    "kits21/starter_code/get_imaging_v2.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 1116
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.809122+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:fff892ed239359af3d9809f119bc06632c9a7683b5796a21e0de4373099e1b2e"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

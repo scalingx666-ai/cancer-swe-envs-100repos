@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/griffithlab__pVACtools-1463"
+description = "Fix pVACview aggregate report header tooltips"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "pVACtools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "griffithlab/pVACtools"
+ref = "9f9762a92a69287a18239564c8bb9910235f16ae"
+reference = "https://github.com/griffithlab/pVACtools/pull/1463"
+source_access = "auto"
+built_at = "2026-11-12T04:09:02.838791+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5976d9c841b72f0d7dafe9fa5028852691c78b7b445401a2c7e9df5ba319a4a8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-16T13:09:38Z"
+diff_format = "unified"
+context_files = [
+    "pvactools/tools/pvacview/styling.R",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 21
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.793948+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0a77afc2ebd0f3e06dd9248a915b42dbb1129af887866c88ac41f55a20571af8"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

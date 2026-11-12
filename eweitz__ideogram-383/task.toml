@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/eweitz__ideogram-383"
+description = "Improve configurability for interactive pathways"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "ideogram",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "eweitz/ideogram"
+ref = "1023e99b82eb8b6cb0ef722b8274ea75cefed9a9"
+reference = "https://github.com/eweitz/ideogram/pull/383"
+source_access = "auto"
+built_at = "2026-11-12T05:37:35.934730+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:4575a61c9abc92b48f87737f8cbb208d265b5dcb70d9dc1005b8080714c6c40a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-04-08T12:54:56Z"
+diff_format = "unified"
+context_files = [
+    "examples/vanilla/gene-leads.html",
+    "src/js/ideogram.js",
+    "src/js/kit/pathway-viewer.js",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 82
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.788451+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:7b3e955b7b0f90b8d8a008a9a73482b802fc139ed9c3777098fa6d7500e7f895"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

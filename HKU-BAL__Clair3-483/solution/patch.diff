@@ -1,0 +1,237 @@
+diff --git a/.dockerignore b/.dockerignore
+index 5d94334..3b1f72e 100644
+--- a/.dockerignore
++++ b/.dockerignore
+@@ -26,3 +26,6 @@ fa_test
+ 
+ # misc
+ *.sif
++
++# test suite (not part of the runtime image)
++tests/
+diff --git a/README.md b/README.md
+index 6b64bc4..888f571 100644
+--- a/README.md
++++ b/README.md
+@@ -16,9 +16,9 @@
+ 
+ ---
+ 
+-**Contact:** Ruibang Luo, Zhenxian Zheng, Xian Yu
++**Contact:** Ruibang Luo, Zhenxian Zheng, Xian Yu, Minggao He
+ 
+-**Email:** rbluo@cs.hku.hk · zxzheng@cs.hku.hk · yuxian@connect.hku.hk
++**Email:** rbluo@cs.hku.hk · zxzheng@cs.hku.hk · yuxian@connect.hku.hk · dwzad@connect.hku.hk
+ 
+ ---
+ 
+@@ -59,6 +59,15 @@ Clair3 is the 3rd generation of [Clair](https://github.com/HKU-BAL/Clair) (2nd)
+ ---
+ 
+ ## Latest Updates
++### v2.0.5 — *Oct 28, 2026*
++- **[#480](https://github.com/HKU-BAL/Clair3/pull/480) — AMD Instinct (ROCm) GPUs.** Adds `Dockerfile.amd` and a `rocm-smi` fallback in the GPU scheduler. Tested on MI300X (gfx942) and MI355X (gfx950); NVIDIA/CUDA behaviour is unchanged.
++- **[#481](https://github.com/HKU-BAL/Clair3/pull/481) — CRAM 3.1 input.** `libclair3` now links htslib 1.24 instead of 1.15.1, and the `--disable_c_impl` path passes the reference to `samtools mpileup` and handles the match symbols it then emits, so CRAM 3.1 records decode ([Issue#453](https://github.com/HKU-BAL/Clair3/issues/453)).
++- **[#474](https://github.com/HKU-BAL/Clair3/pull/474) — `getMyMaxItem` boundary fix.** The loop read one element past the end of the array; it now stops at the last element, with a regression test.
++- **[#465](https://github.com/HKU-BAL/Clair3/pull/465) — `CheckEnvs` error messages.** Two `format()` calls had mismatched placeholder counts; one raised `IndexError` instead of printing the message it was meant to show.
++
++<details>
++<summary><b>v2.0.4 – v2.0.0</b> (click to expand)</summary>
++
+ ### v2.0.4 — *Oct 5, 2026*
+ - `--device=cuda:N` now runs on the requested physical GPU. The GPU scheduler mixed up the 0-based indices of the *visible* devices with physical GPU ids, so `--device=cuda:3` handed every worker `--gpu_id 0` and the job landed on GPU 0; setting `CUDA_VISIBLE_DEVICES` by hand failed the same way, because the worker overwrote it with that logical index ([Issue#472](https://github.com/HKU-BAL/Clair3/issues/472)). A requested device that does not exist on the host is now refused with a clear message instead of silently falling back to GPU 0.
+ - Fixed `SplitExtendBed` silently dropping the last BED region — the pending merged region was only written out when the *next* non-overlapping region arrived, so a single-region (whole-contig) BED produced an empty file, and downstream steps failed with a chunk region of `ctg:nan-nan` ([Issue#466](https://github.com/HKU-BAL/Clair3/issues/466)).
+@@ -94,6 +103,8 @@ A preprint describing the performance of Clair3 v2 is available on [bioRxiv](htt
+ - **New Python runner.** `run_clair3.sh` was reconstructed as `run_clair3.py`; both remain usable.
+ - **Checkpoint format.** TF `.index`/`.data` → PyTorch `.pt`.
+ 
++</details>
++
+ ### v1.2.0 — *Aug 1, 2025*
+ 
+ Native GPU support on Linux (NVIDIA CUDA and AMD Instinct ROCm) and Apple Silicon. Clair3 on GPU runs **~5× faster than CPU**. See the [GPU Quick Start](docs/gpu_quick_start.md).
+diff --git a/docs/quick_demo/illumina_quick_demo.md b/docs/quick_demo/illumina_quick_demo.md
+index 49a82db..0a91ab4 100644
+--- a/docs/quick_demo/illumina_quick_demo.md
++++ b/docs/quick_demo/illumina_quick_demo.md
+@@ -24,15 +24,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ # GRCh38 Reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+diff --git a/docs/quick_demo/ont_quick_demo.md b/docs/quick_demo/ont_quick_demo.md
+index 7700a69..c54800e 100644
+--- a/docs/quick_demo/ont_quick_demo.md
++++ b/docs/quick_demo/ont_quick_demo.md
+@@ -23,15 +23,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ # GRCh38_no_alt reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_no_alt_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+@@ -94,7 +94,7 @@ hap.py \
+ 
+ |   Type    | TRUTH.TP | TRUTH.FN | QUERY.FP | METRIC.Recall | METRIC.Precision | METRIC.F1-Score |
+ | :-------: | :------: | :------: | :------: | :-----------: | :--------------: | :-------------: |
+-| **INDEL** |    45    |    14    |    4     |     0.762     |      0.918       |      0.833      |
++| **INDEL** |    44    |    15    |    5     |     0.746     |      0.898       |      0.815      |
+ |  **SNP**  |   402    |    0     |    1     |     1.000     |      0.997       |      0.998      |
+ 
+ Check the results using `less ${HOME}/clair3_ont_quickDemo/output/merge_output.vcf.gz`
+@@ -145,5 +145,5 @@ ${OUTPUT_DIR}/${OUTPUT_VCF_FILE_PATH} \
+ 
+ |   Type    | TRUTH.TP | TRUTH.FN | QUERY.FP | METRIC.Recall | METRIC.Precision | METRIC.F1-Score |
+ | :-------: | :------: | :------: | :------: | :-----------: | :--------------: | :-------------: |
+-| **INDEL** |    45    |    14    |    4     |     0.762     |      0.918       |      0.833      |
++| **INDEL** |    44    |    15    |    5     |     0.746     |      0.898       |      0.815      |
+ |  **SNP**  |   402    |    0     |    1     |     1.000     |      0.997       |      0.998      |
+diff --git a/docs/quick_demo/pacbio_hifi_quick_demo.md b/docs/quick_demo/pacbio_hifi_quick_demo.md
+index f4cf593..c0413f8 100644
+--- a/docs/quick_demo/pacbio_hifi_quick_demo.md
++++ b/docs/quick_demo/pacbio_hifi_quick_demo.md
+@@ -24,15 +24,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ #GRCh38_no_alt Reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_no_alt_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+diff --git a/scripts/clair3_hifi_quick_demo.sh b/scripts/clair3_hifi_quick_demo.sh
+index 595b50e..0f717fc 100755
+--- a/scripts/clair3_hifi_quick_demo.sh
++++ b/scripts/clair3_hifi_quick_demo.sh
+@@ -9,15 +9,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ #GRCh38_no_alt Reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/GRCh38_no_alt_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/pacbio_hifi/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_no_alt_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+diff --git a/scripts/clair3_ilmn_quick_demo.sh b/scripts/clair3_ilmn_quick_demo.sh
+index b78e342..5adce88 100755
+--- a/scripts/clair3_ilmn_quick_demo.sh
++++ b/scripts/clair3_ilmn_quick_demo.sh
+@@ -10,15 +10,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ #GRCh38_no_alt Reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/GRCh38_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/illumina/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+diff --git a/scripts/clair3_ont_quick_demo.sh b/scripts/clair3_ont_quick_demo.sh
+index 2606f21..5cf9bed 100755
+--- a/scripts/clair3_ont_quick_demo.sh
++++ b/scripts/clair3_ont_quick_demo.sh
+@@ -10,15 +10,15 @@ mkdir -p ${OUTPUT_DIR}
+ 
+ # Download quick demo data
+ #GRCh38_no_alt Reference
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa.fai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/GRCh38_no_alt_chr20.fa.fai
+ # BAM chr20:100000-300000
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam.bai
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_chr20_demo.bam.bai
+ # GIAB Truth VCF and BED
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
+-wget -P ${INPUT_DIR} http://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark.vcf.gz.tbi
++wget -P ${INPUT_DIR} https://www.bio8.cs.hku.hk/clair3/demo/quick_demo/ont/HG003_GRCh38_chr20_v4.2.1_benchmark_noinconsistent.bed
+ 
+ REF="GRCh38_no_alt_chr20.fa"
+ BAM="HG003_chr20_demo.bam"
+diff --git a/shared/version.py b/shared/version.py
+index f6bb6f4..34c5111 100644
+--- a/shared/version.py
++++ b/shared/version.py
+@@ -1 +1 @@
+-__version__ = "2.0.4"
++__version__ = "2.0.5"

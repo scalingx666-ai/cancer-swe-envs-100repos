@@ -1,0 +1,290 @@
+diff --git a/tests/test_cli_errors.py b/tests/test_cli_errors.py
+index f50da331..64bec15d 100644
+--- a/tests/test_cli_errors.py
++++ b/tests/test_cli_errors.py
+@@ -175,7 +175,7 @@ def test_empty_ranked_table_writes_a_schema(tmp_path):
+ 
+ def test_argparse_errors_name_the_problem_without_the_usage_dump(capsys):
+     """vaxrank's usage is over 150 lines; the one line that matters must not hide in it."""
+-    for argv in ([], ["--bam", "x.bam", "--mhc-predictor", "notapredictor"],
++    for argv in (["--bam", "x.bam", "--mhc-predictor", "notapredictor"],
+                  ["--input-pvacseq", "x.tsv", "--mhc-predictor", "notapredictor"]):
+         with pytest.raises(SystemExit) as exit_info:
+             entry_point.main(argv)
+@@ -453,3 +453,43 @@ def test_predictor_with_an_input_that_reuses_predictions_explains_the_choice(tmp
+     err = capsys.readouterr().err
+     assert "reuses the predictions already in its tables" in err
+     assert "--external-predictions fresh or additive" in err and "drop --mhc-predictor" in err
++
++
++def test_bare_vaxrank_prints_examples_and_exits_cleanly(capsys):
++    assert entry_point.main([]) is None
++    out = capsys.readouterr().out
++    assert "Examples:" in out and "--input-pvacseq" in out
++
++
++def test_mistyped_flag_gets_a_suggestion(capsys):
++    with pytest.raises(SystemExit) as exit_info:
++        entry_point.main(["--bamm", "x.bam", "--mhc-predictor", "random"])
++    assert exit_info.value.code == 2
++    err = capsys.readouterr().err
++    assert "did you mean --bam?" in err
++    assert len(err.strip().splitlines()) == 2
++
++
++def test_help_carries_worked_examples(capsys):
++    for args in (["--vcf", "a.vcf", "--help"], ["--input-lens", "a.tsv", "--help"],
++                 ["--input-json-file", "r.json", "--help"]):
++        with pytest.raises(SystemExit) as exit_info:
++            entry_point.main(args)
++        assert exit_info.value.code == 0
++        assert "Examples:" in capsys.readouterr().out
++
++
++def test_unique_flag_prefixes_still_work():
++    from vaxrank.cli.arg_parser import parse_vaxrank_args
++    parsed = parse_vaxrank_args(["--vcf", "a.vcf", "--bam", "b.bam", "--mhc-predictor", "random",
++                                 "--output-d", "out"])
++    assert parsed.output_dir == "out"
++
++
++def test_final_outputs_block_lists_what_was_written(tmp_path, capsys):
++    out = tmp_path / "out"
++    entry_point.main(_pipeline_args(tmp_path, "--output-dir", str(out)))
++    err = capsys.readouterr().err
++    assert "Outputs written:" in err
++    assert str(out / "ranked_candidates.csv") in err
++    assert str(out / "run_summary.txt") in err
+diff --git a/vaxrank/cli/arg_parser.py b/vaxrank/cli/arg_parser.py
+index c97e5823..30e8db88 100644
+--- a/vaxrank/cli/arg_parser.py
++++ b/vaxrank/cli/arg_parser.py
+@@ -22,6 +22,7 @@
+ from mhctools.cli import add_mhc_args
+ 
+ 
++from .discoverability import EXAMPLES, ExamplesHelpFormatter, check_unknown_flags
+ from .epitope_config_args import add_epitope_prediction_args
+ from .vaccine_config_args import add_vaccine_peptide_args
+ from ..version import __version__
+@@ -185,6 +186,8 @@ def make_vaxrank_arg_parser():
+     add_supplemental_report_args(arg_parser)
+     # isovar built this parser, so it does not inherit _ConciseErrorParser.
+     arg_parser.error = partial(_concise_error, arg_parser)
++    arg_parser.epilog = EXAMPLES
++    arg_parser.formatter_class = ExamplesHelpFormatter
+     return arg_parser
+ 
+ 
+@@ -195,6 +198,8 @@ def cached_run_arg_parser():
+             "Rank personalized cancer neoantigens from somatic variants, "
+             "tumor RNA, and patient HLA type, and emit them as analysis "
+             "reports, peptide constructs, or mRNA constructs."),
++        epilog=EXAMPLES,
++        formatter_class=ExamplesHelpFormatter,
+     )
+     arg_parser.add_argument(
+         '--version',
+@@ -1177,6 +1182,8 @@ def external_input_arg_parser():
+         description=(
+             "Score and rank pre-computed epitope predictions from "
+             "pVACseq or LENS."),
++        epilog=EXAMPLES,
++        formatter_class=ExamplesHelpFormatter,
+     )
+     arg_parser.add_argument(
+         '--version',
+@@ -1278,6 +1285,7 @@ def choose_arg_parser(args_list):
+ 
+ def parse_vaxrank_args(args_list):
+     arg_parser = choose_arg_parser(args_list)
++    check_unknown_flags(arg_parser, args_list)
+     parsed = arg_parser.parse_args(args_list)
+     # Record supplied destinations, including values equal to defaults,
+     # aliases, abbreviations and --option=value. Value comparison alone
+diff --git a/vaxrank/cli/discoverability.py b/vaxrank/cli/discoverability.py
+new file mode 100644
+index 00000000..60223733
+--- /dev/null
++++ b/vaxrank/cli/discoverability.py
+@@ -0,0 +1,130 @@
++# Licensed under the Apache License, Version 2.0 (the "License");
++# you may not use this file except in compliance with the License.
++# You may obtain a copy of the License at
++#
++#       http://www.apache.org/licenses/LICENSE-2.0
++#
++# Unless required by applicable law or agreed to in writing, software
++# distributed under the License is distributed on an "AS IS" BASIS,
++# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++# See the License for the specific language governing permissions and
++# limitations under the License.
++
++"""Help a user find the right command (openvax/vaxrank#772).
++
++Worked examples for ``--help``, a short screen for a bare ``vaxrank``, a
++"did you mean" for mistyped flags, and the closing list of what a run wrote.
++"""
++
++import difflib
++import os
++import sys
++from argparse import HelpFormatter
++
++EXAMPLES = """\
++Examples:
++  Rank variants against tumor RNA and write peptide and mRNA constructs:
++    vaxrank --vcf somatic.vcf --bam rnaseq.bam \\
++        --mhc-predictor netmhcpan --mhc-alleles HLA-A*02:01,HLA-B*07:02 \\
++        --output-dir vaccine_out/
++
++  Import a pVACseq or LENS report (no BAM needed):
++    vaxrank --input-pvacseq patient.all_epitopes.tsv --output-dir vaccine_out/
++    vaxrank --input-lens patient.lens.tsv --output-dir vaccine_out/
++
++  Replay a run saved earlier with --output-json-file:
++    vaxrank --input-json-file ranked.json --output-dir replay_out/
++
++Run `vaxrank --help` for every option, or `vaxrank --list-policies` for the
++bundled selection policies."""
++
++BARE_SUMMARY = """\
++vaxrank ranks personalized cancer neoantigens from somatic variants, tumor RNA
++and patient HLA type, and writes peptide or mRNA vaccine constructs plus reports.
++
++%s
++""" % EXAMPLES
++
++
++class ExamplesHelpFormatter(HelpFormatter):
++    """Wrap descriptions as usual but keep the examples epilog as written."""
++
++    def _fill_text(self, text, width, indent):
++        if text.startswith("Examples:"):
++            return text
++        return super()._fill_text(text, width, indent)
++
++
++def suggest_flag(flag, known_flags, cutoff=0.6):
++    """Return the closest known option to ``flag``, or None."""
++    matches = difflib.get_close_matches(flag, known_flags, n=1, cutoff=cutoff)
++    return matches[0] if matches else None
++
++
++def check_unknown_flags(parser, args_list):
++    """Fail with a suggestion when a long option is not one the parser knows.
++
++    argparse only reports an unknown option after it has reported missing
++    required ones, so ``--bamm x.bam`` surfaces as "required: --bam". Looking
++    at the flags first names the mistake. Unique prefixes stay legal
++    (``allow_abbrev``).
++    """
++    known = {name for action in parser._actions for name in action.option_strings}
++    longs = sorted(name for name in known if name.startswith("--"))
++    for token in args_list:
++        if token == "--":
++            return
++        if not token.startswith("--"):
++            continue
++        flag = token.split("=", 1)[0]
++        if flag in known:
++            continue
++        if parser.allow_abbrev and any(name.startswith(flag) for name in longs):
++            continue
++        suggestion = suggest_flag(flag, longs)
++        hint = " (did you mean %s?)" % suggestion if suggestion else ""
++        parser.error("unrecognized argument: %s%s" % (flag, hint))
++
++
++def print_bare_summary(stream=None):
++    (stream or sys.stdout).write(BARE_SUMMARY)
++
++
++OUTPUT_LABELS = (
++    ("ranked candidates", "output_csv"),
++    ("ranked workbook", "output_xlsx_report"),
++    ("prediction table", "output_neoepitope_report"),
++    ("native evidence", "output_epitopes"),
++    ("antigen export", "output_antigens"),
++    ("policy exports", "output_policy_dir"),
++    ("input predictions", "output_input_predictions"),
++    ("JSON data", "output_json_file"),
++    ("ASCII report", "output_ascii_report"),
++    ("HTML report", "output_html_report"),
++    ("PDF report", "output_pdf_report"),
++)
++
++
++def written_outputs(args, construct_dirs=()):
++    """(label, path) pairs for the requested outputs that exist on disk."""
++    found = []
++    for label, attr in OUTPUT_LABELS:
++        path = getattr(args, attr, "") or ""
++        if path and os.path.exists(path):
++            found.append((label, path))
++    for label, path in construct_dirs:
++        if path and os.path.exists(path):
++            found.append((label, path))
++    output_dir = getattr(args, "output_dir", "") or ""
++    summary = os.path.join(output_dir, "run_summary.txt") if output_dir else ""
++    if summary and os.path.exists(summary):
++        found.append(("run summary", summary))
++    return found
++
++
++def format_outputs_block(entries):
++    if not entries:
++        return ""
++    lines = ["Outputs written:"]
++    lines += ["  %-18s %s" % (label + ":", path) for label, path in entries]
++    return "\n".join(lines) + "\n"
+diff --git a/vaxrank/cli/entry_point.py b/vaxrank/cli/entry_point.py
+index 6bb40975..8eefdd14 100644
+--- a/vaxrank/cli/entry_point.py
++++ b/vaxrank/cli/entry_point.py
+@@ -47,6 +47,7 @@
+     manufacturability_config_from_args, vaccine_config_from_args,
+ )
+ from ..config import load_vaxrank_config
++from .discoverability import format_outputs_block, print_bare_summary, written_outputs
+ from .errors import USER_ERRORS, exit_with_user_error
+ from ..progress import timed_step
+ from ..allele_validation import validate_allele_arguments
+@@ -1383,7 +1384,27 @@ def run_cli(args_list=None):
+     if args_list is None:
+         args_list = sys.argv[1:]
+ 
++    if not args_list:
++        print_bare_summary()
++        return None
+     args = parse_vaxrank_args(args_list)
++    result = _run_parsed_cli(args, args_list)
++    print_outputs_written(args)
++    return result
++
++
++def print_outputs_written(args):
++    """Close a run with one list of what it wrote, not a dozen scattered log lines."""
++    output_dir = getattr(args, 'output_dir', '') or ''
++    types = resolve_vaccine_types(args)
++    constructs = [(vtype + ' constructs', vaccine_target_dir(output_dir, vtype, types))
++                  for vtype in types] if output_dir else []
++    block = format_outputs_block(written_outputs(args, constructs))
++    if block:
++        print("\n" + block, end="", file=sys.stderr)
++
++
++def _run_parsed_cli(args, args_list):
+     if getattr(args, 'reference_context', None):
+         direct = any(getattr(args, name, None) for name in ('vcf', 'maf', 'variant', 'json_variants'))
+         external = any(getattr(args, name, None) for name in (
+diff --git a/vaxrank/version.py b/vaxrank/version.py
+index 1c730bce..a279930a 100644
+--- a/vaxrank/version.py
++++ b/vaxrank/version.py
+@@ -1,4 +1,4 @@
+-__version__ = "3.49.9"
++__version__ = "3.49.10"
+ 
+ 
+ def print_version():

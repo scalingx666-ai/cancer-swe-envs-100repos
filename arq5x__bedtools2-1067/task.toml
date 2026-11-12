@@ -1,0 +1,72 @@
+version = "1.0"
+
+[task]
+name = "default/arq5x__bedtools2-1067"
+description = "Fix various GCC 13 warnings and errors"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "bedtools2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "arq5x/bedtools2"
+ref = "07533e9bce0da501eddacc4b8ee171fe25be0631"
+reference = "https://github.com/arq5x/bedtools2/pull/1067"
+source_access = "auto"
+built_at = "2026-11-12T05:35:59.182823+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:596cf7c7d3c23e77eb6d88805d1afd7cb7fc36cd7cf4a98e674ab8c79a2cea64"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2023-10-30T15:31:29Z"
+diff_format = "unified"
+context_files = [
+    "src/utils/FileRecordTools/Records/Record.h",
+    "src/utils/NewChromsweep/NewChromsweep.cpp",
+    "src/utils/NewChromsweep/NewChromsweep.h",
+    "src/utils/general/ParseTools.cpp",
+    "src/utils/general/ParseTools.h",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.760349+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:dd213a000b568a3ca474accb8d362118fe78a3689e66c15c1f1a4a9a6314e399"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

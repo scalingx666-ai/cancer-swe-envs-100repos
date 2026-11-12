@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/judegomila__OnCo-396"
+description = "Three China approvals cite the makers' own announcements"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "OnCo",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "judegomila/OnCo"
+ref = "b1d278e277075208a5929e0137146531716091fe"
+reference = "https://github.com/judegomila/OnCo/pull/396"
+source_access = "auto"
+built_at = "2026-11-12T05:37:56.291843+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7670e55c3dc70a5e20898eddd743e390a81afee68d3cbd7367c8dbe1f1fb70c4"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-12T00:29:08Z"
+diff_format = "unified"
+context_files = [
+    "src/data/company-pipeline-gap.ts",
+    "src/data/drugs-pipeline-wave1.ts",
+    "src/data/drugs.ts",
+    "src/data/regional-approvals.ts",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 22
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.799062+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:af1528e0d53e72b490217201f8c6ad8332edafc61c7948ad58ce27a30d94ec2a"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

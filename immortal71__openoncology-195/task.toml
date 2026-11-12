@@ -1,0 +1,80 @@
+version = "1.0"
+
+[task]
+name = "default/immortal71__openoncology-195"
+description = "fix(security): clear the npm and pip-audit Security Scan failures"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "openoncology",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "immortal71/openoncology"
+ref = "0bd8be141960ffbcdaa4d3ef4e6d93c52022aa98"
+reference = "https://github.com/immortal71/openoncology/pull/195"
+source_access = "auto"
+built_at = "2026-11-12T05:56:19.493629+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:ed2ebdf9ba8b30807495adfe202e3f192405b65a6613066b7598128b181cf90d"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-23T17:18:25Z"
+diff_format = "unified"
+context_files = [
+    "CLAUDE.md",
+    "README.md",
+    "api/.pip-audit-ignore",
+    "api/requirements.txt",
+    "api/routes/auth.py",
+    "api/tests/test_auth_jwks.py",
+    "docs/ARCHITECTURE.md",
+    "web/app/crowdfund/[id]/page.tsx",
+    "web/app/gene/[symbol]/page.tsx",
+    "web/app/repurposing/[id]/page.tsx",
+    "web/app/results/[id]/page.tsx",
+    "web/package-lock.json",
+    "web/package.json",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15087
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.794497+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:9c7d0a1d425fc8118e966720ef4ed378fe31b74fd72d81164bef50a8fd6ba384"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

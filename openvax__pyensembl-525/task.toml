@@ -1,0 +1,73 @@
+version = "1.0"
+
+[task]
+name = "default/openvax__pyensembl-525"
+description = "Match nothing when a lookup's feature table or column is absent (2.33.2)"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pyensembl",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "openvax/pyensembl"
+ref = "3219771b395aaa8adf491532cc9bb7ad3ef3dca0"
+reference = "https://github.com/openvax/pyensembl/pull/525"
+source_access = "auto"
+built_at = "2026-11-12T05:37:04.979742+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6be1f4d3afbfd5172aa2b25c13fee5e1f2e05287ffab6dfa369090f9d8e2b548"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-08T03:56:33Z"
+diff_format = "unified"
+context_files = [
+    "RELEASE_NOTES.md",
+    "pyensembl/database.py",
+    "pyensembl/shell.py",
+    "pyensembl/version.py",
+    "tests/test_absent_features_and_attributes.py",
+    "tests/test_cli_actions.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 150
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.818045+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:37f46c6a8d0e49d2f9e2e2d109fa4dddb91b93c108375c291f16cb84555873fd"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

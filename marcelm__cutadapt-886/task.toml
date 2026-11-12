@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/marcelm__cutadapt-886"
+description = "Bump the github-actions group across 1 directory with 3 updates"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "cutadapt",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "marcelm/cutadapt"
+ref = "e9d2b0ddba957d5313b535c00d6f43659d4feceb"
+reference = "https://github.com/marcelm/cutadapt/pull/886"
+source_access = "auto"
+built_at = "2026-11-12T05:36:33.834517+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:cdf85a58c6a4961e4317638c5f940d8e35ef9f946711abc58596aa290d2ef0be"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-06-26T09:59:58Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/pyinstaller.yml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 14
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.804111+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0e6ce81e866d55275524c73cb9ead3e58a9feb8fd3246410f26cba34e509b718"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

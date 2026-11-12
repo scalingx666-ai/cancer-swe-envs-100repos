@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/dellytools__delly-411"
+description = "chore: package python script `delly2bnd` for bioconda recipe"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "delly",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "dellytools/delly"
+ref = "e0bb069465bb32e32ed33ba38f1bb92e77734af1"
+reference = "https://github.com/dellytools/delly/pull/411"
+source_access = "auto"
+built_at = "2026-11-12T05:36:42.974442+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:1f1b37d28ad640864a28c493dca180a6f8ac8a91cbbc9b6954862d8d249fceee"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-07-30T12:14:03Z"
+diff_format = "unified"
+context_files = [
+    "pyproject.toml",
+    "scripts/__init.py__",
+    "scripts/delly2bnd.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 228
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.783715+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:9975ff3192c2adcb93bb44d3a583325fb25047be4f45cc8796cf2b4cf09c91dc"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

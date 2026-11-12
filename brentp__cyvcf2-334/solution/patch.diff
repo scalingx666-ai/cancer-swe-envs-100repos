@@ -1,0 +1,71 @@
+diff --git a/cyvcf2/cyvcf2.pyx b/cyvcf2/cyvcf2.pyx
+index 77ae9f1..856e8f6 100644
+--- a/cyvcf2/cyvcf2.pyx
++++ b/cyvcf2/cyvcf2.pyx
+@@ -560,10 +560,10 @@ cdef class VCF(HTSFile):
+                             ret = vcf_parse(&s, self.hdr, b)
+                     if slen <= 0:
+                         break
+-                    if ret > 0:
++                    if ret != 0:
+                         bcf_destroy(b)
+                         # s.s and itr are released by the finally block
+-                        raise Exception("error parsing")
++                        raise Exception("error parsing: vcf_parse returned %d" % ret)
+                     yield newVariant(b, self)
+             finally:
+                 stdlib.free(s.s)
+@@ -598,10 +598,10 @@ cdef class VCF(HTSFile):
+                             ret = vcf_parse(&s, self.hdr, b)
+                 if slen <= 0:
+                     break
+-                if ret > 0:
++                if ret != 0:
+                     bcf_destroy(b)
+                     # s.s and itr are released by the finally block
+-                    raise Exception("error parsing")
++                    raise Exception("error parsing: vcf_parse returned %d" % ret)
+                 yield newVariant(b, self)
+         finally:
+             stdlib.free(s.s)
+@@ -2587,10 +2587,10 @@ cdef class Writer(VCF):
+         s.m = len(variant_string) + 1
+ 
+         ret = vcf_parse(&s, self.hdr, b)
+-        if ret > 0:
++        if ret != 0:
+             bcf_destroy(b)
+             ks_free(&s)
+-            raise Exception("error parsing:" + variant_string + " return value:" + ret)
++            raise Exception("error parsing: %s (vcf_parse returned %d)" % (variant_string, ret))
+ 
+         var = newVariant(b, self)
+         if var.b.errcode == BCF_ERR_CTG_UNDEF:
+diff --git a/cyvcf2/tests/test_reader.py b/cyvcf2/tests/test_reader.py
+index 4e50c1a..1f6339e 100644
+--- a/cyvcf2/tests/test_reader.py
++++ b/cyvcf2/tests/test_reader.py
+@@ -285,6 +285,23 @@ def test_writer_from_string():
+     w.write_record(v)
+     w.close()
+ 
++def test_variant_from_string_malformed():
++    # vcf_parse() returns 0 on success and a negative value on failure, so a
++    # malformed line must raise rather than return a partially-filled record.
++    # Reading REF or ID off such a record segfaults.
++    header = """##fileformat=VCFv4.1
++##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
++##contig=<ID=chr1,length=249250621,assembly=hg19>
++#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	samplea
++"""
++
++    output_path = tempfile.mktemp(suffix=".vcf")
++    atexit.register(os.unlink, output_path)
++    w = Writer.from_string(output_path, header)
++    with pytest.raises(Exception, match="error parsing"):
++        w.variant_from_string("chr1\tNOTANUMBER\t.\tA\tC\t40\tPASS\t.\tGT\t0/0")
++    w.close()
++
+ def test_isa():
+     vcf = VCF(os.path.join(HERE, "test.isa.vcf"))
+     for i, v in enumerate(vcf):

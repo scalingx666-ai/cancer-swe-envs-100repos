@@ -1,0 +1,34 @@
+diff --git a/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/monitoring/Env.scala b/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/monitoring/Env.scala
+index 396334d7de0..ac78de57559 100644
+--- a/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/monitoring/Env.scala
++++ b/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/monitoring/Env.scala
+@@ -1,6 +1,7 @@
+ package cromwell.backend.google.batch.monitoring
+ 
+ import cromwell.backend.BackendJobDescriptor
++import cromwell.backend.google.batch.runnable.RunnableUtils
+ 
+ object Env {
+ 
+@@ -14,7 +15,7 @@ object Env {
+   val DiskMounts = "DISK_MOUNTS"
+ 
+   def monitoringImageEnvironment(jobDescriptor: BackendJobDescriptor)(mountPaths: List[String]): Map[String, String] =
+-    Map(
++    RunnableUtils.CloudSdkEnvironment ++ Map(
+       Env.WorkflowId -> jobDescriptor.workflowDescriptor.id.toString,
+       Env.TaskCallName -> jobDescriptor.taskCall.localName,
+       Env.TaskCallIndex -> jobDescriptor.key.index.map(_.toString).getOrElse("NA"),
+diff --git a/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/runnable/RunnableCommands.scala b/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/runnable/RunnableCommands.scala
+index 77dfd98bd02..d060b3b1fac 100644
+--- a/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/runnable/RunnableCommands.scala
++++ b/supportedBackends/google/batch/src/main/scala/cromwell/backend/google/batch/runnable/RunnableCommands.scala
+@@ -172,7 +172,7 @@ object RunnableCommands {
+     val base64EncodedScript = Base64.encodeBase64String(withBashShebang.getBytes(StandardCharsets.UTF_8))
+     val scriptPath = s"/tmp/$randomUuid.sh"
+ 
+-    s"""python3 -c 'import base64; print(base64.b64decode("$base64EncodedScript").decode("utf-8"));' """ +
++    s"""printf '%s' "$base64EncodedScript" | base64 -d """ +
+       s"""> $scriptPath && """ +
+       s"chmod u+x $scriptPath && " +
+       s"$shell $scriptPath"

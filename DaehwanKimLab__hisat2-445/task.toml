@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/DaehwanKimLab__hisat2-445"
+description = "Remove the imp dependency in hisat2-inspect"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "hisat2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "DaehwanKimLab/hisat2"
+ref = "bccf5e552e493fb84e1642fad13c31c31a8e087c"
+reference = "https://github.com/DaehwanKimLab/hisat2/pull/445"
+source_access = "auto"
+built_at = "2026-11-12T05:36:43.473186+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:c1200b3b2da707eb6b62476ddd8e438cd05a8915d811fdeb097cdafe5e5c4609"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-11-15T16:13:39Z"
+diff_format = "unified"
+context_files = [
+    "hisat2-inspect",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 30
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.740070+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:5a2be694106f1b46aae00e2fa81ad99b652b74564a8f2abe38bcbc47501a2692"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

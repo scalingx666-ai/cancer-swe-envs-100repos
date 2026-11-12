@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/IOBR__IOBR-136"
+description = "Update palettes.R and sig_heatmap.R"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "IOBR",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "IOBR/IOBR"
+ref = "196229de08ba1bbc48d7b63e62fd099a14dd4793"
+reference = "https://github.com/IOBR/IOBR/pull/136"
+source_access = "auto"
+built_at = "2026-11-12T05:37:40.568039+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:3d3b5a08fb4ed9a48babf392f8eacdfc86b4f966f5700bacb083e5994e75c04a"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-01T01:25:34Z"
+diff_format = "unified"
+context_files = [
+    "R/palettes.R",
+    "R/sig_heatmap.R",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 24
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.745545+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ebf21eeaa2b9d91f647e83736b3aa98091c70da66a4e11fda6136e58f0ce9a73"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

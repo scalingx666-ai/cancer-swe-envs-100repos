@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/brentp__vcfanno-109"
+description = " Fix always falling back to non-bgzip reader && allow .bgz extension"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "vcfanno",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "brentp/vcfanno"
+ref = "54bcc00049d74a35107b919600e93038d7ff8a05"
+reference = "https://github.com/brentp/vcfanno/pull/109"
+source_access = "auto"
+built_at = "2026-11-12T05:37:09.529810+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:2f4f333be1b1154b2a754476dfc9694f46dc5bbef8fa7defb513e0abb253774e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2019-06-07T14:14:34Z"
+diff_format = "unified"
+context_files = [
+    "vcfanno.go",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 15
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.771365+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:868d262dc5f504913730376affe5d3e0948c8d0cb7ab6757705874909b9d7032"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

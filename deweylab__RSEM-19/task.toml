@@ -1,0 +1,77 @@
+version = "1.0"
+
+[task]
+name = "default/deweylab__RSEM-19"
+description = "Convert RSEM to use the HTSlib API instead of the legacy samtools API"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "RSEM",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "deweylab/RSEM"
+ref = "4f522f33613372769c139b218b9c3a292445d112"
+reference = "https://github.com/deweylab/RSEM/pull/19"
+source_access = "auto"
+built_at = "2026-11-12T05:56:03.684654+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:f175d221a4d9ca11cc86f3b29af4f0fbf022275f57ff1d0d9d312122430f56cf"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2016-02-11T23:46:42Z"
+diff_format = "unified"
+context_files = [
+    "BamConverter.h",
+    "BamWriter.h",
+    "Makefile",
+    "SamParser.h",
+    "bc_aux.h",
+    "getUnique.cpp",
+    "samValidator.cpp",
+    "sam_utils.h",
+    "scanForPairedEndReads.cpp",
+    "wiggle.cpp",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 262
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.786177+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:2b27ae4804c1b291a239ced96f2770295b2c1427ff615ebbba5caec96de14720"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

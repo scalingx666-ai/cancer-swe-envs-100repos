@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/BenLangmead__bowtie2-546"
+description = "Make the AVX2 build's output identical to the SSE build's, including `@PG`, and test the dispatch"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bowtie2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "BenLangmead/bowtie2"
+ref = "94bdbdbeadf4faea5c252ee547d114e89895595a"
+reference = "https://github.com/BenLangmead/bowtie2/pull/546"
+source_access = "auto"
+built_at = "2026-11-12T05:36:13.585963+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b41dba681d61c80bc40fbc14d69a1c59c632ef46ba38876358c1e5a54727ee4e"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-07T13:16:26Z"
+diff_format = "unified"
+context_files = [
+    "Makefile",
+    "bowtie_main.cpp",
+    "scripts/test/test_dispatch.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 208
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.733248+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:6cfb5dabbce05042ce7251af4462c097309be646f66e171fb17f90e46e148325"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

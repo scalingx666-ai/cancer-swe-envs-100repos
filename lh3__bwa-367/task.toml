@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/lh3__bwa-367"
+description = "Add CI job for Ubuntu 20.04 aarch64"
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "bwa",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lh3/bwa"
+ref = "2e603e4581ae0a59c50fac2b67ada37dee30b49d"
+reference = "https://github.com/lh3/bwa/pull/367"
+source_access = "auto"
+built_at = "2026-11-12T05:35:35.578735+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:64e022cacf8d5fc3e44c3e82849c179b00e3c62bc9125a3e457aa1b44dfc9749"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-09-22T23:52:12Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/ci.yaml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 27
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.802059+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:0b62f514812f7bbbccf5a37f5045499392194f833446340ed8cfef4fdb96aa05"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,78 @@
+diff --git a/python/cmappy.h b/python/cmappy.h
+index 6bc5635d..8428351b 100644
+--- a/python/cmappy.h
++++ b/python/cmappy.h
+@@ -71,13 +71,13 @@ static inline void mm_reset_timer(void)
+ }
+ 
+ extern unsigned char seq_comp_table[256];
+-static inline mm_reg1_t *mm_map_aux(const mm_idx_t *mi, const char *seq1, const char *seq2, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt)
++static inline mm_reg1_t *mm_map_aux(const mm_idx_t *mi, const char* seqname, const char *seq1, const char *seq2, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt)
+ {
+ 	mm_reg1_t *r;
+ 
+ 	Py_BEGIN_ALLOW_THREADS
+ 	if (seq2 == 0) {
+-		r = mm_map(mi, strlen(seq1), seq1, n_regs, b, opt, NULL);
++		r = mm_map(mi, strlen(seq1), seq1, n_regs, b, opt, seqname);
+ 	} else {
+ 		int _n_regs[2];
+ 		mm_reg1_t *regs[2];
+@@ -94,7 +94,7 @@ static inline mm_reg1_t *mm_map_aux(const mm_idx_t *mi, const char *seq1, const
+ 			seq[1][i] = seq_comp_table[t];
+ 		}
+ 		if (len[1]&1) seq[1][len[1]>>1] = seq_comp_table[(uint8_t)seq[1][len[1]>>1]];
+-		mm_map_frag(mi, 2, len, (const char**)seq, _n_regs, regs, b, opt, NULL);
++		mm_map_frag(mi, 2, len, (const char**)seq, _n_regs, regs, b, opt, seqname);
+ 		for (i = 0; i < _n_regs[1]; ++i)
+ 			regs[1][i].rev = !regs[1][i].rev;
+ 		*n_regs = _n_regs[0] + _n_regs[1];
+diff --git a/python/cmappy.pxd b/python/cmappy.pxd
+index 05bb7a9b..38432746 100644
+--- a/python/cmappy.pxd
++++ b/python/cmappy.pxd
+@@ -129,7 +129,7 @@ cdef extern from "cmappy.h":
+ 
+ 	void mm_reg2hitpy(const mm_idx_t *mi, mm_reg1_t *r, mm_hitpy_t *h)
+ 	void mm_free_reg1(mm_reg1_t *r)
+-	mm_reg1_t *mm_map_aux(const mm_idx_t *mi, const char *seq1, const char *seq2, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt)
++	mm_reg1_t *mm_map_aux(const mm_idx_t *mi, const char* seqname, const char *seq1, const char *seq2, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt)
+ 	char *mappy_fetch_seq(const mm_idx_t *mi, const char *name, int st, int en, int *l)
+ 	mm_idx_t *mappy_idx_seq(int w, int k, int is_hpc, int bucket_bits, const char *seq, int l)
+ 
+diff --git a/python/mappy.pyx b/python/mappy.pyx
+index 0a6b93cd..4a5adf89 100644
+--- a/python/mappy.pyx
++++ b/python/mappy.pyx
+@@ -163,7 +163,7 @@ cdef class Aligner:
+ 	def __bool__(self):
+ 		return (self._idx != NULL)
+ 
+-	def map(self, seq, seq2=None, buf=None, cs=False, MD=False, max_frag_len=None, extra_flags=None):
++	def map(self, seq, seq2=None, name=None, buf=None, cs=False, MD=False, max_frag_len=None, extra_flags=None):
+ 		cdef cmappy.mm_reg1_t *regs
+ 		cdef cmappy.mm_hitpy_t h
+ 		cdef ThreadBuffer b
+@@ -185,11 +185,20 @@ cdef class Aligner:
+ 		km = cmappy.mm_tbuf_get_km(b._b)
+ 
+ 		_seq = seq if isinstance(seq, bytes) else seq.encode()
++		if name is not None:
++			_name = name if isinstance(name, bytes) else name.encode()
++
+ 		if seq2 is None:
+-			regs = cmappy.mm_map_aux(self._idx, _seq, NULL,  &n_regs, b._b, &map_opt)
++			if name is None:
++				regs = cmappy.mm_map_aux(self._idx, NULL, _seq, NULL,  &n_regs, b._b, &map_opt)
++			else:
++				regs = cmappy.mm_map_aux(self._idx, _name, _seq, NULL,  &n_regs, b._b, &map_opt)
+ 		else:
+ 			_seq2 = seq2 if isinstance(seq2, bytes) else seq2.encode()
+-			regs = cmappy.mm_map_aux(self._idx, _seq, _seq2, &n_regs, b._b, &map_opt)
++			if name is None:
++				regs = cmappy.mm_map_aux(self._idx, NULL, _seq, _seq2, &n_regs, b._b, &map_opt)
++			else:
++				regs = cmappy.mm_map_aux(self._idx, _name, _seq, _seq2, &n_regs, b._b, &map_opt)
+ 
+ 		try:
+ 			i = 0

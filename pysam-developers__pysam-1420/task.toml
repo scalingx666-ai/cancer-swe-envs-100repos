@@ -1,0 +1,75 @@
+version = "1.0"
+
+[task]
+name = "default/pysam-developers__pysam-1420"
+description = "Prevent libcurl/libcrypto/et al being bundled in Linux wheels"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "pysam",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "pysam-developers/pysam"
+ref = "dbcca7bec8442aee6c5c94d69dbca6aa0d316a5f"
+reference = "https://github.com/pysam-developers/pysam/pull/1420"
+source_access = "auto"
+built_at = "2026-11-12T05:36:05.025189+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:25550cfc010ed768d2b0f369c107790ffaea841677b54192c394e4be93509144"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-09-07T07:41:46Z"
+diff_format = "unified"
+context_files = [
+    ".github/workflows/ci.yaml",
+    "htslib/hfile_libcurl.c",
+    "htslib/hfile_s3.c",
+    "pysam/dynamic_curl.h",
+    "pysam/dynamic_libs.c",
+    "pysam/dynamic_openssl.h",
+    "pysam/libchtslib.pyx",
+    "setup.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 322
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.823821+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e1c43c71bf232ca2a31e7da41b2aead1277f4e6d65577c68a64133976b6ea692"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

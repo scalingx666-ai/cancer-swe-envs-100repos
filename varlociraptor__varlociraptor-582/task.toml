@@ -1,0 +1,69 @@
+version = "1.0"
+
+[task]
+name = "default/varlociraptor__varlociraptor-582"
+description = "chore(master): release 8.12.0"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "varlociraptor",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "varlociraptor/varlociraptor"
+ref = "25d6b214152f58cc1d17575171a57a5c32845690"
+reference = "https://github.com/varlociraptor/varlociraptor/pull/582"
+source_access = "auto"
+built_at = "2026-11-12T05:39:04.140589+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:25c91701c95ce65f25e39a11d0e1aaccccb47d73d61d2fa16096cc6b2f1aab51"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-17T13:20:44Z"
+diff_format = "unified"
+context_files = [
+    "CHANGELOG.md",
+    "Cargo.toml",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 14
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.838653+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:f6ed6a9e886604d1bd2c4fed4c8e82b3621c1300314d6a4099bdc6200c2290de"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

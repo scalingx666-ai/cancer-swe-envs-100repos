@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/CBICA__CaPTk-1480"
+description = "added parse() to handle options advertised by makeself, added more te…"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "CaPTk",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "CBICA/CaPTk"
+ref = "0df5ef0852880b073cf34fd2c83649ba67f8e57f"
+reference = "https://github.com/CBICA/CaPTk/pull/1480"
+source_access = "auto"
+built_at = "2026-11-12T04:13:18.072923+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:6675913b8423f19196a556480fdc5558ee8a32d3a984b74a5e5724d8d94a07db"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-03-09T14:43:03Z"
+diff_format = "unified"
+context_files = [
+    "scripts/linux-makeself",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 276
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.736549+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:b125d85517882404eae984bdc73036b8ad7d25c62316ae6812b5b17265db6ccc"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

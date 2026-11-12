@@ -1,0 +1,83 @@
+version = "1.0"
+
+[task]
+name = "default/nanoporetech__medaka-8"
+description = "New non-RLE encoded model, docker file, bugfixes, updated docs"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "medaka",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "nanoporetech/medaka"
+ref = "d9ce1b3698ea088cdb6e73368ed065867da9161e"
+reference = "https://github.com/nanoporetech/medaka/pull/8"
+source_access = "auto"
+built_at = "2026-11-12T05:55:44.875922+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:597b909b288ba3aca2586d96a89b1c344adf6e6c09905cbc3d0da0f64f1aba70"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2018-08-08T13:51:22Z"
+diff_format = "unified"
+context_files = [
+    "Dockerfile",
+    "Makefile",
+    "docs/benchmarks.rst",
+    "docs/development.rst",
+    "docs/index.rst",
+    "docs/installation.rst",
+    "docs/walkthrough.rst",
+    "medaka/__init__.py",
+    "medaka/common.py",
+    "medaka/compress.py",
+    "medaka/data/medaka_model.hdf5",
+    "medaka/inference.py",
+    "medaka/labels.py",
+    "medaka/stitch.py",
+    "scripts/medaka_consensus",
+    "setup.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 711
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.806972+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:79cb9d97a08c4797c941e119f735d8dfc845b680f122e2355d5a9daf30329315"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

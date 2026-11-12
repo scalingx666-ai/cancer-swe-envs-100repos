@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/cBioPortal__cbioportal-frontend-5804"
+description = "Add Normal Allele Freq column to patient view mutation table"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "cbioportal-frontend",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "cBioPortal/cbioportal-frontend"
+ref = "c6c8b92d579b9ee6edb7fdc685444a7c26c077ee"
+reference = "https://github.com/cBioPortal/cbioportal-frontend/pull/5804"
+source_access = "auto"
+built_at = "2026-11-12T05:39:04.767327+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:963280a8e9ab9763bac7feb8a4494e61302c452203ee07bd51c80a8bdf4e35b6"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-27T10:54:00Z"
+diff_format = "unified"
+context_files = [
+    "src/pages/patientView/mutation/PatientViewMutationTable.tsx",
+    "src/pages/patientView/mutation/column/AlleleFreqColumnFormatter.spec.tsx",
+    "src/pages/patientView/mutation/column/AlleleFreqColumnFormatter.tsx",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 287
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.781216+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:84dc40962b3501ac29365d6ccfd080fac1afa11e8b51bb9cfa69a2e65a0bea1f"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

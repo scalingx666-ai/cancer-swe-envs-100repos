@@ -1,0 +1,209 @@
+diff --git a/README.md b/README.md
+index b819767..f58e18d 100644
+--- a/README.md
++++ b/README.md
+@@ -79,6 +79,15 @@ the area is exponentially proportional to the count indicated. Examples:
+   -dpi=300                set DPI (PNG output only)
+ ```
+ 
++#### Domain sources:
++
++```
++  -D pfam                 set the source of protein domains
++                          pfam:     use Pfam domains only
++                          interpro: use representative domains 
++                                    from CDD, NCBIfam, Pfam, PROSITE, and SMART
++```
++
+ ## Installation
+ 
+ Head over to the [Releases](https://github.com/joiningdata/lollipops/releases) to
+diff --git a/data/data.go b/data/data.go
+index 8e6f62b..c8f80b4 100644
+--- a/data/data.go
++++ b/data/data.go
+@@ -60,6 +60,7 @@ type InterProMetaData struct {
+ 	Accession string `json:"accession"`
+ 	Name      string `json:"name"`
+ 	Type      string `json:"type"`
++	Database  string `json:"source_database"`
+ }
+ 
+ type InterProExtraField struct {
+@@ -67,9 +68,10 @@ type InterProExtraField struct {
+ }
+ 
+ type InterProFragment struct {
+-	Start      json.Number `json:"start"`
+-	End        json.Number `json:"end"`
+-	SeqFeature string      `json:"seq_feature"`
++	Start          json.Number `json:"start"`
++	End            json.Number `json:"end"`
++	SeqFeature     string      `json:"seq_feature"`
++	Representative bool        `json:"representative"`
+ }
+ 
+ type InterProLocation struct {
+diff --git a/data/interpro.go b/data/interpro.go
+index e0ddb4a..0063e1a 100644
+--- a/data/interpro.go
++++ b/data/interpro.go
+@@ -26,12 +26,20 @@ import (
+ 	"sort"
+ )
+ 
+-const PfamURL = "https://www.ebi.ac.uk/interpro/api/entry/pfam/protein/uniprot/%s/?extra_fields=short_name&page_size=100"
+-const PfamLink = "https://www.ebi.ac.uk/interpro/entry/pfam/%s"
++const InterProURL = "https://www.ebi.ac.uk/interpro/api/entry/%s/protein/uniprot/%s/?extra_fields=short_name&page_size=100"
++const InterProLink = "https://www.ebi.ac.uk/interpro/entry/%s/%s"
+ const SequenceFeaturesURL = "https://www.ebi.ac.uk/interpro/api/protein/UniProt/%s/?extra_features=true"
+ 
+-func GetPfamProteinMatches(accession string) ([]GraphicFeature, error) {
+-	queryURL := fmt.Sprintf(PfamURL, accession)
++func GetProteinMatches(database string, accession string) ([]GraphicFeature, error) {
++	var sourceDatabase string
++	filterDomains := false
++	if database == "interpro" {
++		sourceDatabase = "all"
++		filterDomains = true
++	} else {
++		sourceDatabase = "pfam"
++	}
++	queryURL := fmt.Sprintf(InterProURL, sourceDatabase, accession)
+ 	resp, err := httpGet(queryURL)
+ 	if err != nil {
+ 		if err, ok := err.(net.Error); ok && err.Timeout() {
+@@ -44,7 +52,11 @@ func GetPfamProteinMatches(accession string) ([]GraphicFeature, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if resp.StatusCode != 200 {
++
++	var gs []GraphicFeature
++	if resp.StatusCode == 204 {
++		return gs, nil
++	} else if resp.StatusCode != 200 {
+ 		return nil, fmt.Errorf("InterPro error: %s", resp.Status)
+ 	}
+ 
+@@ -54,23 +66,24 @@ func GetPfamProteinMatches(accession string) ([]GraphicFeature, error) {
+ 		return nil, err
+ 	}
+ 
+-	var gs []GraphicFeature
+ 	for _, e := range r.Entries {
+ 		for _, m := range e.Matches {
+ 			for _, l := range m.Locations {
+ 				for _, f := range l.Fragments {
+-					gf := GraphicFeature{
+-						Text:  e.ExtraFields.ShortName,
+-						Type:  e.Metadata.Type,
+-						Start: f.Start,
+-						End:   f.End,
+-						Link:  fmt.Sprintf(PfamLink, e.Metadata.Accession),
+-						Metadata: GraphicMetadata{
+-							Description: e.Metadata.Name,
+-							Identifier:  e.Metadata.Accession,
+-						},
++					if !filterDomains || f.Representative {
++						gf := GraphicFeature{
++							Text:  e.ExtraFields.ShortName,
++							Type:  e.Metadata.Type,
++							Start: f.Start,
++							End:   f.End,
++							Link:  fmt.Sprintf(InterProLink, e.Metadata.Database, e.Metadata.Accession),
++							Metadata: GraphicMetadata{
++								Description: e.Metadata.Name,
++								Identifier:  e.Metadata.Accession,
++							},
++						}
++						gs = append(gs, gf)
+ 					}
+-					gs = append(gs, gf)
+ 				}
+ 			}
+ 		}
+@@ -115,7 +128,11 @@ func GetSequenceFeatures(accession string) ([]GraphicFeature, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	if resp.StatusCode != 200 {
++
++	var gs []GraphicFeature
++	if resp.StatusCode == 204 {
++		return gs, nil
++	} else if resp.StatusCode != 200 {
+ 		return nil, fmt.Errorf("InterPro error: %s", resp.Status)
+ 	}
+ 
+@@ -126,7 +143,6 @@ func GetSequenceFeatures(accession string) ([]GraphicFeature, error) {
+ 		return nil, fmt.Errorf("InterPro error: %s", err)
+ 	}
+ 
+-	var gs []GraphicFeature
+ 	featureDatabases := map[string]string{
+ 		"signalp_e":  "sig_p",
+ 		"signalp_g+": "sig_p",
+diff --git a/main.go b/main.go
+index 94c09eb..4526a76 100644
+--- a/main.go
++++ b/main.go
+@@ -36,6 +36,7 @@ import (
+ var (
+ 	queryDB = flag.String("Q", "GENENAME", "Uniprot query database when -U not used")
+ 	uniprot = flag.String("U", "", "Uniprot accession instead of GENE_SYMBOL")
++	domains = flag.String("D", "pfam", "source of protein domains (defaults to pfam)")
+ 	output  = flag.String("o", "", "output SVG/PNG file (default GENE_SYMBOL.svg)")
+ 	width   = flag.Int("w", 0, "output width (default automatic fit labels)")
+ 	dpi     = flag.Float64("dpi", 72, "output DPI for PNG rasterization")
+@@ -92,6 +93,11 @@ Protein changes:
+ 
+   (N.B. color must come before count in tags)
+ 
++Protein domains:
++  -D pfam				  set the source of protein domains
++						    "pfam"     = use domains from Pfam
++							"interpro" = use domains from CDD, NCBIfam, Pfam, PROSITE, and SMART
++
+ Diagram generation options:
+   -legend                 draw a legend for colored regions
+   -syn-color="#0000ff"    color to use for synonymous mutation markers
+@@ -123,6 +129,7 @@ Output options:
+ 	drawing.DefaultSettings.SynonymousColor = *synColor
+ 	drawing.DefaultSettings.MutationColor = *mutColor
+ 	drawing.DefaultSettings.GraphicWidth = float64(*width)
++	domainsDatabase := strings.ToLower(*domains)
+ 
+ 	if *fontPath == "" {
+ 		err := drawing.LoadDefaultFont()
+@@ -142,6 +149,11 @@ Output options:
+ 		}
+ 	}
+ 
++	if domainsDatabase != "pfam" && domainsDatabase != "interpro" {
++		fmt.Fprintln(os.Stderr, "ERROR: Invalid source of protein domains (available: InterPro, Pfam).")
++		os.Exit(1)
++	}
++
+ 	var err error
+ 	varStart := 0
+ 	acc := ""
+@@ -168,6 +180,9 @@ Output options:
+ 
+ 	if *uniprot != "" {
+ 		acc = *uniprot
++		if geneSymbol == "" {
++			geneSymbol = acc
++		}
+ 	}
+ 
+ 	if flag.NArg() == 0 && *uniprot == "" {
+@@ -195,7 +210,7 @@ Press Enter/Ctrl-C to quit.`)
+ 
+ 	d.Length = json.Number(fmt.Sprint(length))
+ 
+-	regions, err := data.GetPfamProteinMatches(acc)
++	regions, err := data.GetProteinMatches(domainsDatabase, acc)
+ 	if err != nil {
+ 		fmt.Fprintln(os.Stderr, err)
+ 		os.Exit(1)

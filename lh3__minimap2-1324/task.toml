@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/lh3__minimap2-1324"
+description = "Convert unmapped reads in sam2paf"
+
+[metadata]
+difficulty = "small"
+category = "bugfix"
+keywords = [
+    "minimap2",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "lh3/minimap2"
+ref = "bd0cba50129c9d74fc03c69e707eb2ccc153b8b7"
+reference = "https://github.com/lh3/minimap2/pull/1324"
+source_access = "auto"
+built_at = "2026-11-12T05:35:21.196849+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:272377a06377eee57d4113c899fe78414f68b660d4a9284f56408bde0e2ca5e2"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2025-10-05T23:43:23Z"
+diff_format = "unified"
+context_files = [
+    "misc/paftools.js",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 16
+difficulty = "small"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.803189+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:50ff02ab59ff574e8ce237454ae2d5576e7056d6f1d60f2447b9d7760effeafb"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

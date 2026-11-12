@@ -1,0 +1,168 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 72f7d3d..a218846 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -19,7 +19,7 @@ jobs:
+       matrix:
+         os: [ubuntu-22.04, macos-14]
+         version:
+-          - 1.6.18
++          - 1.6.20
+           - 2.0.2
+ 
+     steps:
+@@ -116,6 +116,13 @@ jobs:
+           fi
+ 
+       - name: Install d4
++        env:
++          # d4binding declares `memcpy` with a mismatched signature
++          # (d4binding/src/api.rs:252). Recent rustc denies that by default via
++          # the `invalid_runtime_symbol_definitions` lint, which breaks the
++          # upstream build. The mismatch is ABI-harmless, so downgrade it here
++          # until 38/d4-format fixes the declaration.
++          RUSTFLAGS: -A invalid_runtime_symbol_definitions
+         run: |
+           #export HTSLIB=system
+           git clone https://github.com/38/d4-format
+diff --git a/functional-tests.sh b/functional-tests.sh
+index b0fb606..572b0b1 100755
+--- a/functional-tests.sh
++++ b/functional-tests.sh
+@@ -76,6 +76,40 @@ run length_filter $exe t tests/ovl.bam --max-frag-len 79
+ assert_exit_code 0
+ assert_equal "MT	0	16569	0" "$(zgrep ^MT t.per-base.bed.gz)"
+ 
++# --exclude-tag. tests/dup-tags.bam holds 3 reads all spanning MT:0-80: one untagged
++# non-duplicate, one optical duplicate (DT:Z:SQ) and one library/PCR duplicate (DT:Z:LB), so the
++# depth over that span is just the number of reads that survived filtering.
++
++# default excludes every duplicate: only the untagged read remains
++run exclude_tag_default $exe t tests/dup-tags.bam
++assert_exit_code 0
++assert_equal "MT 0 80 1 MT 80 16569 0 " "$(zgrep ^MT t.per-base.bed.gz | tr -s '[:space:]' ' ')"
++
++# keep duplicates (-F 772) but drop the optical one: untagged + library = 2
++run exclude_tag_optical $exe t tests/dup-tags.bam -F 772 --exclude-tag DT:SQ
++assert_exit_code 0
++assert_equal "MT 0 80 2 MT 80 16569 0 " "$(zgrep ^MT t.per-base.bed.gz | tr -s '[:space:]' ' ')"
++
++# keep duplicates and exclude nothing: all 3
++run exclude_tag_none $exe t tests/dup-tags.bam -F 772
++assert_exit_code 0
++assert_equal "MT 0 80 3 MT 80 16569 0 " "$(zgrep ^MT t.per-base.bed.gz | tr -s '[:space:]' ' ')"
++
++# an absent tag must never exclude: filtering on a tag no read carries changes nothing
++run exclude_tag_absent $exe t tests/dup-tags.bam -F 772 --exclude-tag ZZ:nope
++assert_exit_code 0
++assert_equal "MT 0 80 3 MT 80 16569 0 " "$(zgrep ^MT t.per-base.bed.gz | tr -s '[:space:]' ' ')"
++
++# comma-separated list drops both classes, leaving only the untagged read
++run exclude_tag_multi $exe t tests/dup-tags.bam -F 772 --exclude-tag DT:SQ,DT:LB
++assert_exit_code 0
++assert_equal "MT 0 80 1 MT 80 16569 0 " "$(zgrep ^MT t.per-base.bed.gz | tr -s '[:space:]' ' ')"
++
++# a spec without a colon is rejected up front rather than silently ignored
++run exclude_tag_malformed $exe t tests/dup-tags.bam --exclude-tag DT
++assert_exit_code 2
++assert_in_stderr "--exclude-tag expects TAG:VALUE"
++
+ run bad_frag_len_filter $exe t tests/ovl.bam --min-frag-len 10 --max-frag-len 9
+ assert_in_stderr "--max-frag-len was lower than --min-frag-len."
+ assert_exit_code 2
+diff --git a/mosdepth.nim b/mosdepth.nim
+index 5a35279..d7f5590 100644
+--- a/mosdepth.nim
++++ b/mosdepth.nim
+@@ -251,7 +251,9 @@ proc coverage(bam: hts.Bam, arr: var coverage_t, region: var region_t,
+     targets: seq[Target], mapq: int = -1, min_len: int = -1,
+     max_len: int = int.high, eflag: uint16 = 1796, iflag: uint16 = 0,
+     read_groups: seq[string] = (@[]), fast_mode: bool = false,
+-    fragment_mode: bool = false, last_tid: var int = -1): int =
++    fragment_mode: bool = false,
++    exclude_tags: seq[tuple[tag: string, value: string]] = (@[]),
++    last_tid: var int = -1): int =
+   # depth updates arr in-place and yields the tid for each chrom.
+   # returns -1 if the chrom is not found in the bam header
+   # returns -2 if the chrom was found in the header, but there was no data for it
+@@ -261,6 +263,7 @@ proc coverage(bam: hts.Bam, arr: var coverage_t, region: var region_t,
+     mate: Record
+     seen = newTable[string, Record]()
+     has_read_groups = read_groups.len > 0
++    has_exclude_tags = exclude_tags.len > 0
+ 
+   var tid = if region != nil: get_tid(targets, region.chrom, last_tid) else: -1
+   if tid == -1:
+@@ -283,6 +286,18 @@ proc coverage(bam: hts.Bam, arr: var coverage_t, region: var region_t,
+       var t = tag[string](rec, "RG")
+       if t.isNone or not read_groups.contains(t.get):
+         continue
++    # --exclude-tag TAG:VALUE. A read is dropped only when the tag is PRESENT and matches;
++    # an absent tag never excludes. That asymmetry is deliberate -- the motivating case is
++    # duplicate-type tags (DT:Z:SQ optical vs DT:Z:LB library), where only duplicates carry the
++    # tag at all and the untagged majority must be kept.
++    if has_exclude_tags:
++      var drop = false
++      for ex in exclude_tags:
++        var t = tag[string](rec, ex.tag)
++        if t.isSome and t.get == ex.value:
++          drop = true
++          break
++      if drop: continue
+     if tgt.tid != rec.b.core.tid:
+       raise newException(OSError, "expected only a single chromosome per query")
+ 
+@@ -633,6 +648,15 @@ proc main(bam: hts.Bam, chrom: region_t, mapq: int, min_len: int, max_len: int,
+   if $args["--read-groups"] != "nil":
+     for r in ($args["--read-groups"]).split(','):
+       read_groups.add($r)
++  var exclude_tags: seq[tuple[tag: string, value: string]] = @[]
++  if $args["--exclude-tag"] != "nil":
++    for spec in ($args["--exclude-tag"]).split(','):
++      # split once here so the per-alignment check is a plain comparison.
++      let c = spec.find(':')
++      if c != 2:
++        stderr.write_line("[mosdepth] error --exclude-tag expects TAG:VALUE with a two-character TAG, got '" & spec & "'")
++        quit(2)
++      exclude_tags.add((tag: spec[0 ..< c], value: spec[(c+1) .. ^1]))
+   var levels = get_min_levels(targets)
+ 
+   var chrom_region_distribution = newSeq[int64](region_distribution.len)
+@@ -706,7 +730,7 @@ proc main(bam: hts.Bam, chrom: region_t, mapq: int, min_len: int, max_len: int,
+     rchrom = region_t(chrom: target.name)
+     var tid = coverage(bam, arr, rchrom, targets, mapq, min_len, max_len, eflag,
+         iflag, read_groups = read_groups, fast_mode = fast_mode,
+-        fragment_mode = fragment_mode,
++        fragment_mode = fragment_mode, exclude_tags = exclude_tags,
+         last_tid = last_tid)
+     if tid == -1: continue # -1 means that chrom is not even in the bam
+     if tid != -2: # -2 means there were no reads in the bam
+@@ -913,6 +937,10 @@ Other options:
+                                     by ','.
+   -m --use-median                   output median of each region (in --by) instead of mean.
+   -R --read-groups <string>         only calculate depth for these comma-separated read groups IDs.
++  --exclude-tag <TAG:VALUE>         exclude reads carrying this string tag with this exact value,
++                                    e.g. DT:SQ to drop optical duplicates while keeping PCR
++                                    duplicates. Reads lacking the tag are never excluded. May be
++                                    given as a comma-separated list (DT:SQ,XX:YY).
+   -h --help                         show help
+   """
+ 
+@@ -979,6 +1007,9 @@ Other options:
+ 
+   if $args["--read-groups"] != "nil":
+     opts = opts or SamField.SAM_RGAUX.int
++  # an arbitrary aux tag cannot be read from CRAM unless the aux block is decoded
++  if $args["--exclude-tag"] != "nil":
++    opts = opts or SamField.SAM_AUX.int
+ 
+   discard bam.set_option(FormatOption.CRAM_OPT_REQUIRED_FIELDS, opts)
+   discard bam.set_option(FormatOption.CRAM_OPT_DECODE_MD, 0)
+diff --git a/tests/dup-tags.bam b/tests/dup-tags.bam
+new file mode 100644
+index 0000000..06ee81a
+Binary files /dev/null and b/tests/dup-tags.bam differ
+diff --git a/tests/dup-tags.bam.bai b/tests/dup-tags.bam.bai
+new file mode 100644
+index 0000000..0dd065f
+Binary files /dev/null and b/tests/dup-tags.bam.bai differ

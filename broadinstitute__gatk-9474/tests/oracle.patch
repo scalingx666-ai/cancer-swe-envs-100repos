@@ -1,0 +1,918 @@
+diff --git a/scripts/m2_cromwell_tests/run_m2_wdl.sh b/scripts/m2_cromwell_tests/run_m2_wdl.sh
+index 9e11623aaaf..39af81eae48 100644
+--- a/scripts/m2_cromwell_tests/run_m2_wdl.sh
++++ b/scripts/m2_cromwell_tests/run_m2_wdl.sh
+@@ -47,14 +47,15 @@ echo "=================="
+ grep -v 'Mutect2.normal_reads' $WORKING_DIR/test_m2_wdl_mod.json >$WORKING_DIR/test_m2_wdl_mod_to.json
+ cd $WORKING_DIR/
+ 
++# sudo resets PATH, so plain "sudo java" would run the runner's default Java instead of the Java 17 that setup-java installed
+ echo "Running M2 WDL through cromwell (T/N)"
+ ln -fs $WORKING_DIR/gatk/scripts/mutect2_wdl/mutect2.wdl
+-sudo java -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mutect2_wdl/mutect2.wdl -i $WORKING_DIR/test_m2_wdl_mod.json -m $WORKING_DIR/test_m2_wdl.metadata
++sudo "$JAVA_HOME/bin/java" -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mutect2_wdl/mutect2.wdl -i $WORKING_DIR/test_m2_wdl_mod.json -m $WORKING_DIR/test_m2_wdl.metadata
+ 
+ echo "Running M2 WDL through cromwell (Tumor-only)"
+-sudo java -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mutect2_wdl/mutect2.wdl -i $WORKING_DIR/test_m2_wdl_mod_to.json -m $WORKING_DIR/test_m2_wdl_to.metadata
++sudo "$JAVA_HOME/bin/java" -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mutect2_wdl/mutect2.wdl -i $WORKING_DIR/test_m2_wdl_mod_to.json -m $WORKING_DIR/test_m2_wdl_to.metadata
+ 
+ echo "Running Mitochondria M2 WDL through cromwell"
+ ln -fs $WORKING_DIR/gatk/scripts/mitochondria_m2_wdl/AlignAndCall.wdl
+ ln -fs $WORKING_DIR/gatk/scripts/mitochondria_m2_wdl/AlignmentPipeline.wdl
+-sudo java -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mitochondria_m2_wdl/MitochondriaPipeline.wdl -i $WORKING_DIR/test_mitochondria_m2_wdl_mod.json -m $WORKING_DIR/test_mitochondria_m2_wdl.metadata
++sudo "$JAVA_HOME/bin/java" -jar $CROMWELL_JAR run $WORKING_DIR/gatk/scripts/mitochondria_m2_wdl/MitochondriaPipeline.wdl -i $WORKING_DIR/test_mitochondria_m2_wdl_mod.json -m $WORKING_DIR/test_mitochondria_m2_wdl.metadata
+diff --git a/scripts/variantstore/wdl/GvsUtils.wdl b/scripts/variantstore/wdl/GvsUtils.wdl
+index 10131a935fb..5a5a9026ec4 100644
+--- a/scripts/variantstore/wdl/GvsUtils.wdl
++++ b/scripts/variantstore/wdl/GvsUtils.wdl
+@@ -159,8 +159,8 @@ task GetToolVersions {
+     #     attestation manifest (it shows up as an `unknown/unknown` platform entry).
+     # Both forms pull correctly under modern Docker and Cromwell. Neither the suffix nor the manifest media type says
+     # anything about image contents -- verify a tag by layer count and size, not by the shape of its name.
+-    String gatk_docker = "us-central1-docker.pkg.dev/broad-dsde-methods/gvs/gatk:2026-10-14-gatkbase-lite-3b99a1224be1"
+-    String gatk_heavy_docker = "us-central1-docker.pkg.dev/broad-dsde-methods/gvs/gatk:2026-10-14-gatkbase-0ab1c8e37ba9"
++    String gatk_docker = "us-central1-docker.pkg.dev/broad-dsde-methods/gvs/gatk:2026-11-05-gatkbase-lite-7e0158d58a6a"
++    String gatk_heavy_docker = "us-central1-docker.pkg.dev/broad-dsde-methods/gvs/gatk:2026-11-05-gatkbase-b2099b68c00e"
+     String real_time_genomics_docker = "docker.io/realtimegenomics/rtg-tools:latest"
+     String gotc_imputation_docker = "us.gcr.io/broad-gotc-prod/imputation-bcf-vcf:1.0.5-1.10.2-0.1.16-1649948623"
+     String plink_docker = "us-central1-docker.pkg.dev/broad-dsde-methods/gvs/plink2:2024-04-23-slim-a0a65f52cc0e"
+diff --git a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/AltSiteRecord.java b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/AltSiteRecord.java
+index ede79d8b48d..71c8282af9c 100644
+--- a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/AltSiteRecord.java
++++ b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/AltSiteRecord.java
+@@ -31,7 +31,8 @@ public AltSiteRecord(final String referenceContext, final int refCount, final in
+                          final int refF1R2, final int altF1R2, final Nucleotide altAllele){
+         Utils.validateArg(altAllele != null && altAllele.isStandard(), "altAllele must be one of {A,C,G,T} but got " + altAllele);
+ 
+-        this.referenceContext = referenceContext;
++        // records with the same context share one String to save memory
++        this.referenceContext = referenceContext.intern();
+         this.refCount = refCount;
+         this.altCount = altCount;
+         this.refF1R2 = refF1R2;
+@@ -118,8 +119,8 @@ protected void composeLine(final AltSiteRecord record, final DataLine dataLine)
+     }
+ 
+     /*** Reader ***/
+-    private static class AltSiteRecordTableReader extends TableReader<AltSiteRecord> {
+-        private AltSiteRecordTableReader(final Path table) throws IOException {
++    static class AltSiteRecordTableReader extends TableReader<AltSiteRecord> {
++        AltSiteRecordTableReader(final Path table) throws IOException {
+             super(table);
+         }
+ 
+diff --git a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollector.java b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollector.java
+index 7382f3d78ec..dc3dc2f643e 100644
+--- a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollector.java
++++ b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollector.java
+@@ -19,6 +19,7 @@
+ 
+ import java.io.File;
+ import java.io.IOException;
++import java.nio.file.Files;
+ import java.util.*;
+ import java.util.stream.Collectors;
+ 
+@@ -43,12 +44,26 @@ public class F1R2CountsCollector {
+     private Map<String, DepthOneHistograms> depthOneAltHistograms;
+ 
+     // alt table writer for each sample
++    // This is by far the largest quantity of data (for each sample histograms involve 64 3-base contexts x 3
++    // substitution errors x 2 orientations x (by default) 200 histogram count bins, which comes out to maybe 1MB of RAM.
++    // In a genome of 3 billion bases where every hundredth site or so has more than 1 alt base the alt records could come out
++    // to a gigabyte or more.  Thus it makes sense to split the alt tables by sample *and* by 3-base context
++    // so that downstream tools (LearnReadOrientationModel) need only load the records for one context at a time.
++    // Each sample's table is split after collection, one sample at a time, so that one file per sample is open during
++    // collection rather than one per sample and context.
+     private Map<String, AltSiteRecord.AltSiteRecordTableWriter> altTableWriters;
+ 
+-    private final File outputTarGzFile;
++    // the alt table of each sample, before it is split by 3-base context
++    private final File unsplitAltTableDir = IOUtils.createTempDir("unsplit");
+ 
++    // We put all pre-tarred output files in a temporary directory.  These include, for each sample, a depth one alt
++    // histogram file and a ref site histogram file, each with information for all 3-base contexts, and an alt table
++    // for each 3-base context.
+     private final File tmpDir = IOUtils.createTempDir("untarred");
+ 
++    // the final output file is produced by archiving every file in the temporary directory
++    private final File outputTarGzFile;
++
+     public F1R2CountsCollector(final CollectF1R2CountsArgumentCollection CF1R2Args, final SAMFileHeader header, final File outputTarGzFile, final Collection<String> samples) {
+         this.CF1R2Args = CF1R2Args;
+         this.samples = samples.size() == 1 ? Collections.singleton(samples.iterator().next()) : new HashSet<>(samples);
+@@ -63,17 +78,16 @@ public F1R2CountsCollector(final CollectF1R2CountsArgumentCollection CF1R2Args,
+             final Map<String, Histogram<Integer>> refSitesHistogramsForThisSample = new HashMap<>(F1R2FilterConstants.ALL_KMERS.size());
+ 
+             // Initialize for each reference the histogram of the counts of reference sites by depth
+-            F1R2FilterConstants.ALL_KMERS.forEach(context -> {
++            for (final String context : F1R2FilterConstants.ALL_KMERS) {
+                 Histogram<Integer> emptyRefHistogram = F1R2FilterUtils.createRefHistogram(context, CF1R2Args.maxDepth);
+                 refSitesHistogramsForThisSample.put(context, emptyRefHistogram);
+-            });
++            }
+ 
+             refSiteHistograms.put(sample, refSitesHistogramsForThisSample);
+-
+             depthOneAltHistograms.put(sample, new DepthOneHistograms(CF1R2Args.maxDepth));
+ 
+             // Intentionally not use try-with-resources so that the writer stays open outside of the try block
+-            final File altTableFile = new File(tmpDir, IOUtils.urlEncode(sample) + ALT_TABLE_EXTENSION);
++            final File altTableFile = getUnsplitAltTable(sample);
+             try {
+                 altTableWriters.put(sample, new AltSiteRecord.AltSiteRecordTableWriter(IOUtils.fileToPath(altTableFile), sample));
+             } catch (IOException e) {
+@@ -116,7 +130,7 @@ public void process(final ReadPileup pileup, final ReferenceContext referenceCon
+             final int depth = (int) MathUtils.sum(baseCounts);
+ 
+             if (!isPileupGood(samplePileup)) {
+-                return;
++                continue;
+             }
+ 
+             // Make a copy of base counts and update the counts of ref to -1. Now the maxElementIndex of the array gives us
+@@ -129,7 +143,7 @@ public void process(final ReadPileup pileup, final ReferenceContext referenceCon
+             // If the site is ref, we simply update the coverage histogram
+             if (referenceSite) {
+                 refSiteHistograms.get(sample).get(refContext).increment(Math.min(depth, CF1R2Args.maxDepth));
+-                return;
++                continue;
+             }
+ 
+             // If we got here, we have an alt site with a single alt base
+@@ -145,7 +159,7 @@ public void process(final ReadPileup pileup, final ReferenceContext referenceCon
+             if (altCount == 1) {
+                 final ReadOrientation type = altF1R2 == 1 ? ReadOrientation.F1R2 : ReadOrientation.F2R1;
+                 depthOneAltHistograms.get(sample).increment(refContext, altBase, type, depth);
+-                return;
++                continue;
+             }
+ 
+             try {
+@@ -159,12 +173,12 @@ public void process(final ReadPileup pileup, final ReferenceContext referenceCon
+     public void writeHistograms() {
+         for (final String sample : samples) {
+             final MetricsFile<?, Integer> refMetricsFile = new MetricsFile<>();
+-            refMetricsFile.addHeader(new StringHeader(sample));
++            addSampleHeader(refMetricsFile, sample);
+             refSiteHistograms.get(sample).values().forEach(refMetricsFile::addHistogram);
+             refMetricsFile.write(new File(tmpDir,IOUtils.urlEncode(sample) + REF_HIST_EXTENSION));
+ 
+             final MetricsFile<?, Integer> altMetricsFile = new MetricsFile<>();
+-            altMetricsFile.addHeader(new StringHeader(sample));
++            addSampleHeader(altMetricsFile, sample);
+             depthOneAltHistograms.get(sample).getHistograms().forEach(altMetricsFile::addHistogram);
+             altMetricsFile.write(new File(tmpDir, IOUtils.urlEncode(sample) + ALT_HIST_EXTENSION));
+ 
+@@ -184,6 +198,14 @@ public void closeAndArchiveFiles() {
+             }
+         }
+ 
++        for (final String sample : samples) {
++            try {
++                splitAltTable(sample);
++            } catch (IOException e) {
++                throw new UserException(String.format("Encountered an IO exception while splitting the alt table of %s by reference context", sample), e);
++            }
++        }
++
+         try {
+             IOUtils.writeTarGz(outputTarGzFile.getAbsolutePath(), tmpDir.listFiles());
+         } catch (final IOException ex) {
+@@ -191,6 +213,34 @@ public void closeAndArchiveFiles() {
+         }
+     }
+ 
++    /**
++     * Split a sample's alt table into a table for each 3-base context, keeping the order of the records.  Only this
++     * sample's tables are open at once.
++     */
++    private void splitAltTable(final String sample) throws IOException {
++        final Map<String, AltSiteRecord.AltSiteRecordTableWriter> contextWriters = new HashMap<>(F1R2FilterConstants.ALL_KMERS.size());
++        for (final String context : F1R2FilterConstants.ALL_KMERS) {
++            final File altTableFile = new File(tmpDir, getAltTableName(sample, context));
++            contextWriters.put(context, new AltSiteRecord.AltSiteRecordTableWriter(IOUtils.fileToPath(altTableFile), sample));
++        }
++
++        final File unsplitAltTable = getUnsplitAltTable(sample);
++        try (AltSiteRecord.AltSiteRecordTableReader reader = new AltSiteRecord.AltSiteRecordTableReader(IOUtils.fileToPath(unsplitAltTable))) {
++            for (final AltSiteRecord record : reader) {
++                contextWriters.get(record.getReferenceContext()).writeRecord(record);
++            }
++        }
++
++        for (final AltSiteRecord.AltSiteRecordTableWriter writer : contextWriters.values()) {
++            writer.close();
++        }
++        Files.delete(unsplitAltTable.toPath());
++    }
++
++    private File getUnsplitAltTable(final String sample) {
++        return new File(unsplitAltTableDir, IOUtils.urlEncode(sample) + ALT_TABLE_EXTENSION);
++    }
++
+     /**
+      * Use a series of heuristics to detect a bad pileup.
+      */
+@@ -222,4 +272,33 @@ public static List<File> getAltHistogramsFromExtractedTar(final File extractedTa
+     public static List<File> getAltTablesFromExtractedTar(final File extractedTarDir) {
+         return Arrays.stream(extractedTarDir.listFiles()).filter(file -> file.getAbsolutePath().endsWith(ALT_TABLE_EXTENSION)).collect(Collectors.toList());
+     }
++
++    // alt tables are named <sample>.<reference context>.alt_table
++    public static String getAltTableName(final String sample, final String refContext) {
++        return IOUtils.urlEncode(sample) + "." + refContext + ALT_TABLE_EXTENSION;
++    }
++
++    /**
++     * Record the sample of a ref or alt histogram file, which {@link #getSample} reads, as its only {@link StringHeader}
++     */
++    static void addSampleHeader(final MetricsFile<?, ?> metricsFile, final String sample) {
++        metricsFile.addHeader(new StringHeader(sample));
++    }
++
++    /**
++     * The sample of a ref or alt histogram file, recorded by {@link #addSampleHeader}
++     *
++     * @param file the histogram file, for the error message if it does not have exactly one {@link StringHeader}
++     */
++    static String getSample(final MetricsFile<?, ?> metricsFile, final File file) {
++        final List<String> sampleHeaders = metricsFile.getHeaders().stream()
++                .filter(header -> header instanceof StringHeader)
++                .map(header -> ((StringHeader) header).getValue())
++                .collect(Collectors.toList());
++        if (sampleHeaders.size() != 1) {
++            throw new UserException.BadInput(String.format("The histogram file %s should have one string header, " +
++                    "which names its sample, but it has %d.", file, sampleHeaders.size()));
++        }
++        return sampleHeaders.get(0);
++    }
+ }
+diff --git a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModel.java b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModel.java
+index 722d9101ff5..01dc91f0a26 100644
+--- a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModel.java
++++ b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModel.java
+@@ -3,7 +3,6 @@
+ import com.google.common.annotations.VisibleForTesting;
+ import htsjdk.samtools.metrics.MetricsFile;
+ import htsjdk.samtools.util.*;
+-import org.apache.commons.lang3.tuple.Pair;
+ import org.broadinstitute.barclay.argparser.Argument;
+ import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
+ import org.broadinstitute.barclay.help.DocumentedFeature;
+@@ -46,7 +45,6 @@
+ public class LearnReadOrientationModel extends CommandLineProgram {
+     public static final double DEFAULT_CONVERGENCE_THRESHOLD = 1e-4;
+     public static final int DEFAULT_MAX_ITERATIONS = 20;
+-    private static final int DEFAULT_INITIAL_LIST_SIZE = 1_000_000;
+ 
+     public static final String EM_CONVERGENCE_THRESHOLD_LONG_NAME = "convergence-threshold";
+     public static final String MAX_EM_ITERATIONS_LONG_NAME = "num-em-iterations";
+@@ -87,16 +85,9 @@ public Object doWork(){
+ 
+         final List<File> refHistogramFiles = tmpDirs.stream().flatMap(dir -> F1R2CountsCollector.getRefHistogramsFromExtractedTar(dir).stream()).collect(Collectors.toList());
+         final List<File> altHistogramFiles = tmpDirs.stream().flatMap(dir -> F1R2CountsCollector.getAltHistogramsFromExtractedTar(dir).stream()).collect(Collectors.toList());
+-        final List<File> altTableFiles = tmpDirs.stream().flatMap(dir -> F1R2CountsCollector.getAltTablesFromExtractedTar(dir).stream()).collect(Collectors.toList());
+ 
+-        // TODO: this is brittle: it relies on the fact that in CollectF1R2Counts we put a single header line with the same name in the ref and alt histograms
+-        final Map<String, List<MetricsFile<?, Integer>>> refHistogramMetricsFilesBySample = refHistogramFiles.stream()
+-                .map(file -> readMetricsFile(file))
+-                .collect(Collectors.groupingBy(metricsFile -> metricsFile.getHeaders().get(0).toString()));
+-
+-        final Map<String, List<MetricsFile<?, Integer>>> altHistogramMetricsFilesBySample = altHistogramFiles.stream()
+-                .map(file -> readMetricsFile(file))
+-                .collect(Collectors.groupingBy(metricsFile -> metricsFile.getHeaders().get(0).toString()));
++        final Map<String, List<MetricsFile<?, Integer>>> refHistogramMetricsFilesBySample = readHistogramFilesBySample(refHistogramFiles);
++        final Map<String, List<MetricsFile<?, Integer>>> altHistogramMetricsFilesBySample = readHistogramFilesBySample(altHistogramFiles);
+ 
+         final Set<String> refHistogramSamples = refHistogramMetricsFilesBySample.keySet();
+         final Set<String> altHistogramSamples = altHistogramMetricsFilesBySample.keySet();
+@@ -111,21 +102,34 @@ public Object doWork(){
+         altHistogramsBySample = altHistogramSamples.stream().collect(Collectors.toMap(sample -> sample,
+                 sample -> sumHistogramsFromFiles(altHistogramMetricsFilesBySample.get(sample), false)));
+ 
+-        final Map<String, List<AltSiteRecord>> recordsBySample = gatherAltSiteRecords(altTableFiles);
++        final Set<String> samples = refHistogramsBySample.keySet();
++
++        // Alt tables are named <sample>.<reference context>.alt_table, but older versions of GATK wrote one alt table per sample
++        final Set<String> altTableNames = samples.stream()
++                .flatMap(sample -> F1R2FilterConstants.ALL_KMERS.stream().map(kmer -> F1R2CountsCollector.getAltTableName(sample, kmer)))
++                .collect(Collectors.toSet());
++        for (int n = 0; n < inputTarGzs.size(); n++) {
++            for (final File table : F1R2CountsCollector.getAltTablesFromExtractedTar(tmpDirs.get(n))) {
++                if (!altTableNames.contains(table.getName())) {
++                    throw new UserException.BadInput(String.format("%s has an alt table %s that is not named <sample>.<reference context>%s " +
++                            "for a sample with ref histograms.  If an older version of GATK made it, please regenerate it with this version of " +
++                            "CollectF1R2Counts or Mutect2 --%s.", inputTarGzs.get(n), table.getName(), F1R2CountsCollector.ALT_TABLE_EXTENSION,
++                            M2ArgumentCollection.F1R2_TAR_GZ_NAME));
++                }
++            }
++        }
+ 
+-        final Map<String, ArtifactPriorCollection> artifactPriorCollectionBySample = new HashMap<>();
+-        for (final Map.Entry<String, List<AltSiteRecord>> entry : recordsBySample.entrySet()) {
+-            final String sample = entry.getKey();
+-            final List<AltSiteRecord> records = entry.getValue();
++        final Map<String, ArtifactPriorCollection> artifactPriorCollectionBySample = samples.stream()
++                .collect(Collectors.toMap(sample -> sample, sample -> new ArtifactPriorCollection(sample)));
+ 
+-            final Map<String, List<AltSiteRecord>> altDesignMatrixByContext = records.stream()
+-                    .collect(Collectors.groupingBy(AltSiteRecord::getReferenceContext));
+ 
+-            final ArtifactPriorCollection artifactPriorCollection = new ArtifactPriorCollection(sample);
++        // Since e.g. G->T under AGT F1R2 is equivalent to C->A under ACT F2R1, combine the data
++        for (final String refContext : F1R2FilterConstants.CANONICAL_KMERS) {
++            final String reverseComplement = SequenceUtil.reverseComplement(refContext);
+ 
+-            // Since e.g. G->T under AGT F1R2 is equivalent to C->A under ACT F2R1, combine the data
+-            for (final String refContext : F1R2FilterConstants.CANONICAL_KMERS) {
+-                final String reverseComplement = SequenceUtil.reverseComplement(refContext);
++            for (final Map.Entry<String, ArtifactPriorCollection> entry : artifactPriorCollectionBySample.entrySet()) {
++                final String sample = entry.getKey();
++                final ArtifactPriorCollection artifactPriorCollection = entry.getValue();
+ 
+                 // Merge ref histograms
+                 final Histogram<Integer> refHistogram = refHistogramsBySample.get(sample).stream()
+@@ -136,25 +140,23 @@ public Object doWork(){
+                         .findFirst().orElseGet(() -> F1R2FilterUtils.createRefHistogram(reverseComplement, maxDepth));
+                 final Histogram<Integer> combinedRefHistograms = combineRefHistogramWithRC(refContext, refHistogram, refHistogramRevComp, maxDepth);
+ 
+-
+                 // Merge alt depth=1 histograms
+                 final List<Histogram<Integer>> altDepthOneHistogramsForContext = !altHistogramsBySample.containsKey(sample) ? Collections.emptyList() :
+                         altHistogramsBySample.get(sample).stream()
+-                        .filter(h -> h.getValueLabel().startsWith(refContext))
+-                        .collect(Collectors.toList());
++                                .filter(h -> h.getValueLabel().startsWith(refContext))
++                                .collect(Collectors.toList());
+                 final List<Histogram<Integer>> altDepthOneHistogramsRevComp = !altHistogramsBySample.containsKey(sample) ? Collections.emptyList() :
+                         altHistogramsBySample.get(sample).stream()
+-                        .filter(h -> h.getValueLabel().startsWith(reverseComplement))
+-                        .collect(Collectors.toList());
++                                .filter(h -> h.getValueLabel().startsWith(reverseComplement))
++                                .collect(Collectors.toList());
+                 final List<Histogram<Integer>> combinedAltHistograms = combineAltDepthOneHistogramWithRC(altDepthOneHistogramsForContext, altDepthOneHistogramsRevComp, maxDepth);
+ 
+-                // Finally, merge the rest of alt records
+-                final List<AltSiteRecord> altDesignMatrix = altDesignMatrixByContext.getOrDefault(refContext, new ArrayList<>()); // Cannot use Collections.emptyList() here because the input list must be mutable
+-                final List<AltSiteRecord> altDesignMatrixRevComp = altDesignMatrixByContext.getOrDefault(reverseComplement, Collections.emptyList());
+-                // Warning: the below method will mutate the content of {@link altDesignMatrixRevComp} and append to {@code altDesignMatrix}
++                // Finally, merge the rest of alt records, which we read for one sample and context at a time to save memory
++                final List<AltSiteRecord> altDesignMatrix = gatherAltSiteRecords(getAltTables(tmpDirs, sample, refContext));
++                final List<AltSiteRecord> altDesignMatrixRevComp = gatherAltSiteRecords(getAltTables(tmpDirs, sample, reverseComplement));
++                // Warning: the below method appends the reverse complements of {@code altDesignMatrixRevComp} to {@code altDesignMatrix}
+                 mergeDesignMatrices(altDesignMatrix, altDesignMatrixRevComp);
+ 
+-
+                 if (combinedRefHistograms.getSumOfValues() == 0 || altDesignMatrix.isEmpty()) {
+                     logger.info(String.format("Skipping the reference context %s as we didn't find either the ref or alt table for the context", refContext));
+                     continue;
+@@ -171,7 +173,6 @@ public Object doWork(){
+                 final ArtifactPrior artifactPrior = engine.learnPriorForArtifactStates();
+                 artifactPriorCollection.set(artifactPrior);
+             }
+-            artifactPriorCollectionBySample.put(sample, artifactPriorCollection);
+         }
+ 
+         final File tmpPriorDir = IOUtils.createTempDir("priors");
+@@ -197,7 +198,7 @@ public static Histogram<Integer> combineRefHistogramWithRC(final String refConte
+                                                                final Histogram<Integer> refHistogramRevComp,
+                                                                final int maxDepth){
+         Utils.validateArg(refHistogram.getValueLabel()
+-                .equals(SequenceUtil.reverseComplement(refHistogramRevComp.getValueLabel())),
++                        .equals(SequenceUtil.reverseComplement(refHistogramRevComp.getValueLabel())),
+                 "ref context = " + refHistogram.getValueLabel() + ", rev comp = " + refHistogramRevComp.getValueLabel());
+         Utils.validateArg(refHistogram.getValueLabel().equals(refContext), "this better match");
+ 
+@@ -300,6 +301,16 @@ public static MetricsFile<?, Integer> readMetricsFile(File file){
+         return metricsFile;
+     }
+ 
++    // the ref or alt histogram files of all the inputs, by sample
++    private static Map<String, List<MetricsFile<?, Integer>>> readHistogramFilesBySample(final List<File> histogramFiles) {
++        final Map<String, List<MetricsFile<?, Integer>>> result = new HashMap<>();
++        for (final File file : histogramFiles) {
++            final MetricsFile<?, Integer> metricsFile = readMetricsFile(file);
++            result.computeIfAbsent(F1R2CountsCollector.getSample(metricsFile, file), sample -> new ArrayList<>()).add(metricsFile);
++        }
++        return result;
++    }
++
+     public static List<Histogram<Integer>> sumHistogramsFromFiles(final List<MetricsFile<?,Integer>> metricsFiles, final boolean ref){
+         Utils.nonNull(metricsFiles, "files may not be null");
+         if (metricsFiles.isEmpty()) {
+@@ -331,20 +342,15 @@ public static List<Histogram<Integer>> sumHistogramsFromFiles(final List<Metrics
+     }
+ 
+     @VisibleForTesting
+-    static Map<String, List<AltSiteRecord>> gatherAltSiteRecords(final List<File> tables){
+-        final Map<String, List<AltSiteRecord>> result = new HashMap<>();
+-        for (final File table : tables) {
+-            final Pair<String, List<AltSiteRecord>> sampleAndRecords = AltSiteRecord.readAltSiteRecords(table.toPath(), DEFAULT_INITIAL_LIST_SIZE);
+-            final String sample = sampleAndRecords.getLeft();
+-            final List<AltSiteRecord> records = sampleAndRecords.getRight();
+-
+-            if (result.containsKey(sample)) {
+-                result.get(sample).addAll(records);
+-            } else {
+-                result.put(sample, records);
+-            }
+-        }
+-
++    static List<AltSiteRecord> gatherAltSiteRecords(final List<File> tables){
++        final List<AltSiteRecord> result = new ArrayList<>();
++        tables.forEach(table -> result.addAll(AltSiteRecord.readAltSiteRecords(table.toPath()).getRight()));
+         return result;
+     }
++
++    // the alt tables of one sample and reference context in all inputs, some of which may not have the sample
++    private static List<File> getAltTables(final List<File> extractedTarDirs, final String sample, final String refContext) {
++        return extractedTarDirs.stream().map(dir -> new File(dir, F1R2CountsCollector.getAltTableName(sample, refContext)))
++                .filter(File::exists).collect(Collectors.toList());
++    }
+ }
+\ No newline at end of file
+diff --git a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngine.java b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngine.java
+index 31d3c53f88e..b3a98dd6625 100644
+--- a/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngine.java
++++ b/src/main/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngine.java
+@@ -37,11 +37,8 @@ public class LearnReadOrientationModelEngine {
+ 
+     private final List<AltSiteRecord> altDesignMatrix;
+ 
+-    /**
+-     * N by K matrix of posterior probabilities of latent variable z, where N is the number of alt sites,
+-     * evaluated at the current estimates of the mixture weights
+-     */
+-    private final RealMatrix altResponsibilities;
++    // K-dimensional sum over alt sites of the posterior probabilities of latent variable z, computed in the E step
++    private double[] effectiveAltCountsFromDesignMatrix;
+ 
+     private final Map<Triple<Integer, Nucleotide, ReadOrientation>, double[]> responsibilitiesOfAltDepth1Sites;
+ 
+@@ -128,8 +125,6 @@ public LearnReadOrientationModelEngine(final Histogram<Integer> refHistogram, fi
+         // multiply by the number of counts for that depth
+         this.refResponsibilities = new Array2DRowRealMatrix(maxDepth, F1R2FilterConstants.NUM_STATES);
+ 
+-        this.altResponsibilities = new Array2DRowRealMatrix(altDesignMatrix.size(), F1R2FilterConstants.NUM_STATES);
+-
+         // Store responsibilities for each depth and the F1R2/F2R1 of the one alt read
+         this.responsibilitiesOfAltDepth1Sites = new HashMap<>();
+         this.refAllele = F1R2FilterUtils.getMiddleBase(referenceContext);
+@@ -187,14 +182,15 @@ private void takeEstep(final double[] artifactPriors) {
+             refResponsibilities.setRow(i, computeResponsibilities(refAllele, refAllele, 0, 0, depth, artifactPriors, false));
+         }
+ 
+-        // Compute the responsibilities of alt sites
+-        for (int n = 0; n < altDesignMatrix.size(); n++) {
+-            final AltSiteRecord example = altDesignMatrix.get(n);
+-            final int depth = example.getDepth();
+-            final int altDepth = example.getAltCount();
+-            final int altF1R2 = example.getAltF1R2();
+-
+-            altResponsibilities.setRow(n, computeResponsibilities(refAllele, example.getAltAllele(), altDepth, altF1R2, depth, artifactPriors, false));
++        // Compute the responsibilities of alt sites.  Within an E step, where the artifact priors are fixed, these depend only on
++        // the alt allele, alt depth, alt F1R2 depth, and depth, so we compute them once for each distinct combination.
++        // The M step only needs their sum, so we don't store them for each alt site
++        final Map<AltSiteKey, double[]> responsibilitiesByKey = new HashMap<>();
++        effectiveAltCountsFromDesignMatrix = new double[F1R2FilterConstants.NUM_STATES];
++        for (final AltSiteRecord example : altDesignMatrix) {
++            final AltSiteKey key = new AltSiteKey(example.getAltAllele(), example.getAltCount(), example.getAltF1R2(), example.getDepth());
++            MathUtils.addToArrayInPlace(effectiveAltCountsFromDesignMatrix, responsibilitiesByKey.computeIfAbsent(key, k ->
++                    computeResponsibilities(refAllele, k.altAllele(), k.altDepth(), k.altF1R2(), k.depth(), artifactPriors, false)));
+         }
+ 
+         // Compute the responsibilities of alt sites with depth=1
+@@ -223,7 +219,6 @@ private void takeEstep(final double[] artifactPriors) {
+      */
+     private double[] takeMstep(final double[] pseudocounts) {
+         // First we compute the effective counts of each state, N_k in the docs. We do this separately over alt and ref sites
+-        final double[] effectiveAltCountsFromDesignMatrix = MathUtils.sumArrayFunction(0, altDesignMatrix.size(), n -> altResponsibilities.getRow(n));
+         double[] effectiveAltCountsFromHistograms = new double[F1R2FilterConstants.NUM_STATES];
+ 
+         for (Histogram<Integer> histogram : altDepthOneHistograms){
+@@ -293,7 +288,7 @@ public static double[] computeResponsibilities(final Nucleotide refAllele, final
+     private static double computeLogPosterior(final int altDepth, final int altF1R2Depth, final int depth,
+                                               final double statePrior, final BetaDistributionShape afPseudoCounts,
+                                               final BetaDistributionShape f1r2PseudoCounts){
+-        Utils.validateArg(MathUtils.isValidProbability(statePrior), String.format("statePrior must be a probability but got %f", statePrior));
++        Utils.validateArg(MathUtils.isValidProbability(statePrior), () -> String.format("statePrior must be a probability but got %f", statePrior));
+ 
+         return Math.log(statePrior)
+                 + new BetaBinomialDistribution(null, afPseudoCounts.getAlpha(), afPseudoCounts.getBeta(), depth).logProbability(altDepth)
+@@ -335,11 +330,6 @@ public double[] getRefResonsibilities(final int rowNum){
+         return refResponsibilities.getRow(rowNum);
+     }
+ 
+-    @VisibleForTesting
+-    public double[] getAltResonsibilities(final int rowNum){
+-        return altResponsibilities.getRow(rowNum);
+-    }
+-
+     @VisibleForTesting
+     public double[] getAltDepth1Resonsibilities(final int rowNum){
+         return null;
+@@ -372,4 +362,6 @@ public static double[] getFlatPrior(final Nucleotide refAllele){
+     private Triple<Integer, Nucleotide, ReadOrientation> createKey(final int depth, final Nucleotide altAllele, final ReadOrientation orientation){
+         return new ImmutableTriple<>(depth, altAllele, orientation);
+     }
++
++    private record AltSiteKey(Nucleotide altAllele, int altDepth, int altF1R2, int depth) { }
+ }
+\ No newline at end of file
+diff --git a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/CollectF1R2CountsIntegrationTest.java b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/CollectF1R2CountsIntegrationTest.java
+index 05bf5798444..8ef4177e21b 100644
+--- a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/CollectF1R2CountsIntegrationTest.java
++++ b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/CollectF1R2CountsIntegrationTest.java
+@@ -20,6 +20,7 @@
+ import java.io.Reader;
+ import java.util.Arrays;
+ import java.util.List;
++import java.util.Map;
+ import java.util.Optional;
+ 
+ /**
+@@ -48,7 +49,6 @@ public void testOnSyntheticBam() throws IOException {
+         IOUtils.extractTarGz(outputTarGz.toPath(), extractedDir.toPath());
+ 
+         final File refHistogramFile = F1R2CountsCollector.getRefHistogramsFromExtractedTar(extractedDir).stream().findFirst().get();
+-        final File altTableFile = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir).stream().findFirst().get();
+ 
+         final MetricsFile<?, Integer> referenceSiteMetrics = new MetricsFile<>();
+         final Reader in = IOUtil.openFileForBufferedReading(refHistogramFile);
+@@ -56,7 +56,6 @@ public void testOnSyntheticBam() throws IOException {
+         CloserUtil.close(in);
+ 
+         List<Histogram<Integer>> histograms = referenceSiteMetrics.getAllHistograms();
+-        List<AltSiteRecord> altDesignMatrix = AltSiteRecord.readAltSiteRecords(altTableFile.toPath()).getRight();
+ 
+         /** Expected result
+          *
+@@ -85,34 +84,21 @@ public void testOnSyntheticBam() throws IOException {
+          **/
+ 
+         // alt site tests
+-        Assert.assertEquals(altDesignMatrix.size(), 4);
+-        AltSiteRecord recordCAC = altDesignMatrix.stream().
+-                filter(rec -> rec.getReferenceContext().equals("CAC")).findFirst().get();
+-        Assert.assertEquals(recordCAC.getRefCount(), 70);
+-        Assert.assertEquals(recordCAC.getAltCount(), 30);
+-        Assert.assertEquals(recordCAC.getRefF1R2(), 35);
+-        Assert.assertEquals(recordCAC.getAltF1R2(), 15);
+-
+-        AltSiteRecord recordTAA = altDesignMatrix.stream().
+-                filter(rec -> rec.getReferenceContext().equals("TAA")).findFirst().get();
+-        Assert.assertEquals(recordTAA.getRefCount(), 70);
+-        Assert.assertEquals(recordTAA.getAltCount(), 30);
+-        Assert.assertEquals(recordTAA.getRefF1R2(), 35);
+-        Assert.assertEquals(recordTAA.getAltF1R2(), 15);
+-
+-        AltSiteRecord recordAGC = altDesignMatrix.stream().
+-                filter(rec -> rec.getReferenceContext().equals("AGC")).findFirst().get();
+-        Assert.assertEquals(recordAGC.getRefCount(), 70);
+-        Assert.assertEquals(recordAGC.getAltCount(), 30);
+-        Assert.assertEquals(recordAGC.getRefF1R2(), 35);
+-        Assert.assertEquals(recordAGC.getAltF1R2(), 15);
+-
+-        AltSiteRecord recordACA = altDesignMatrix.stream().
+-                filter(rec -> rec.getReferenceContext().equals("ACA")).findFirst().get();
+-        Assert.assertEquals(recordACA.getRefCount(), 70);
+-        Assert.assertEquals(recordACA.getAltCount(), 30);
+-        Assert.assertEquals(recordACA.getRefF1R2(), 35);
+-        Assert.assertEquals(recordACA.getAltF1R2(), 15);
++        final int totalAltRecords = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir).stream()
++                .mapToInt(file -> AltSiteRecord.readAltSiteRecords(file.toPath()).getRight().size()).sum();
++        Assert.assertEquals(totalAltRecords, 4);
++
++        for (final String context : List.of("CAC", "TAA", "AGC", "ACA")) {
++            final File altTableFile = new File(extractedDir, F1R2CountsCollector.getAltTableName(sample, context));
++            final List<AltSiteRecord> altDesignMatrix = AltSiteRecord.readAltSiteRecords(altTableFile.toPath()).getRight();
++            Assert.assertEquals(altDesignMatrix.size(), 1);
++            final AltSiteRecord record = altDesignMatrix.get(0);
++            Assert.assertEquals(record.getReferenceContext(), context);
++            Assert.assertEquals(record.getRefCount(), 70);
++            Assert.assertEquals(record.getAltCount(), 30);
++            Assert.assertEquals(record.getRefF1R2(), 35);
++            Assert.assertEquals(record.getAltF1R2(), 15);
++        }
+ 
+         // check ref histograms
+         // ImmutableMap.of can take up to 5 elements, and ImmutableMap.Builder is ugly
+@@ -201,8 +187,8 @@ public void testTwoSamples() throws IOException {
+         final File outputTarGZ12 = createTempFile("f1r212",".tar.gz");
+         final String sample1 = "SAMPLE1";
+         final String sample2 = "SAMPLE2";
+-        final File sam1 = createSyntheticSam(10, 1, "SAMPLE1");
+-        final File sam2 = createSyntheticSam(20, 2, "SAMPLE2");
++        final File sam1 = createSyntheticSam(10, 1, sample1);
++        final File sam2 = createSyntheticSam(20, 2, sample2);
+ 
+         final String[] args1 = {
+                 "-R", hg19_chr1_1M_Reference,
+@@ -219,6 +205,7 @@ public void testTwoSamples() throws IOException {
+         final String[] args12 = {
+                 "-R", hg19_chr1_1M_Reference,
+                 "-I", sam1.getAbsolutePath(),
++                "-I", sam2.getAbsolutePath(),
+                 "-O", outputTarGZ12.getAbsolutePath()
+         };
+ 
+@@ -228,13 +215,24 @@ public void testTwoSamples() throws IOException {
+         final File extractedDir1 = createTempDir("extracted1");
+         IOUtils.extractTarGz(outputTarGZ1.toPath(), extractedDir1.toPath());
+ 
++        final File extractedDir2 = createTempDir("extracted2");
++        IOUtils.extractTarGz(outputTarGZ2.toPath(), extractedDir2.toPath());
++
+         final File extractedDir12 = createTempDir("extracted12");
+         IOUtils.extractTarGz(outputTarGZ12.toPath(), extractedDir12.toPath());
+ 
+-
+-        for (final String extension : new String[] {F1R2CountsCollector.REF_HIST_EXTENSION, F1R2CountsCollector.ALT_HIST_EXTENSION, F1R2CountsCollector.ALT_TABLE_EXTENSION}) {
+-            IntegrationTestSpec.assertEqualTextFiles(new File(extractedDir1, sample1 + extension),
+-                    new File(extractedDir12, sample1 + extension));
++        // each sample's counts are the same whether it is collected alone or together with the other sample
++        for (final Map.Entry<String, File> sampleAndDir : Map.of(sample1, extractedDir1, sample2, extractedDir2).entrySet()) {
++            final String sample = sampleAndDir.getKey();
++            for (final String context : F1R2FilterConstants.ALL_KMERS) {
++                final String altTable = F1R2CountsCollector.getAltTableName(sample, context);
++                IntegrationTestSpec.assertEqualTextFiles(new File(sampleAndDir.getValue(), altTable), new File(extractedDir12, altTable));
++            }
++
++            for (final String extension : List.of(F1R2CountsCollector.REF_HIST_EXTENSION, F1R2CountsCollector.ALT_HIST_EXTENSION)) {
++                IntegrationTestSpec.assertEqualTextFiles(new File(sampleAndDir.getValue(), sample + extension),
++                        new File(extractedDir12, sample + extension));
++            }
+         }
+     }
+ 
+diff --git a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollectorUnitTest.java b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollectorUnitTest.java
+new file mode 100644
+index 00000000000..823b122ecf1
+--- /dev/null
++++ b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/F1R2CountsCollectorUnitTest.java
+@@ -0,0 +1,97 @@
++package org.broadinstitute.hellbender.tools.walkers.readorientation;
++
++import com.sun.management.UnixOperatingSystemMXBean;
++import htsjdk.samtools.SAMFileHeader;
++import htsjdk.samtools.metrics.Header;
++import htsjdk.samtools.metrics.MetricsFile;
++import htsjdk.samtools.metrics.StringHeader;
++import htsjdk.samtools.metrics.VersionHeader;
++import org.broadinstitute.hellbender.GATKBaseTest;
++import org.broadinstitute.hellbender.exceptions.UserException;
++import org.broadinstitute.hellbender.utils.io.IOUtils;
++import org.testng.Assert;
++import org.testng.SkipException;
++import org.testng.annotations.DataProvider;
++import org.testng.annotations.Test;
++
++import java.io.File;
++import java.lang.management.ManagementFactory;
++import java.lang.management.OperatingSystemMXBean;
++import java.util.Arrays;
++import java.util.List;
++import java.util.Set;
++import java.util.stream.Collectors;
++import java.util.stream.IntStream;
++
++public class F1R2CountsCollectorUnitTest extends GATKBaseTest {
++    // write a histogram file with the given headers and read it as LearnReadOrientationModel does
++    private static MetricsFile<?, Integer> writeAndRead(final List<Header> headers) {
++        final MetricsFile<?, Integer> metricsFile = new MetricsFile<>();
++        headers.forEach(metricsFile::addHeader);
++        final File file = createTempFile("histograms", F1R2CountsCollector.REF_HIST_EXTENSION);
++        metricsFile.write(file);
++        return LearnReadOrientationModel.readMetricsFile(file);
++    }
++
++    @Test
++    public void testSampleHeader() {
++        // LearnReadOrientationModel used to take a histogram file's first header as its sample
++        final VersionHeader otherHeader = new VersionHeader();
++        otherHeader.setVersionedItem("GATK");
++        otherHeader.setVersionString("4.0");
++        final MetricsFile<?, Integer> metricsFile = new MetricsFile<>();
++        metricsFile.addHeader(otherHeader);
++        F1R2CountsCollector.addSampleHeader(metricsFile, "tumor");
++
++        final MetricsFile<?, Integer> read = writeAndRead(metricsFile.getHeaders());
++        Assert.assertEquals(F1R2CountsCollector.getSample(read, new File("histograms")), "tumor");
++    }
++
++    @DataProvider
++    public Object[][] headersWithoutOneSample() {
++        return new Object[][] { { List.of() }, { List.of(new StringHeader("tumor"), new StringHeader("normal")) } };
++    }
++
++    @Test(dataProvider = "headersWithoutOneSample", expectedExceptions = UserException.BadInput.class)
++    public void testHistogramFileWithoutOneSampleHeader(final List<Header> headers) {
++        F1R2CountsCollector.getSample(writeAndRead(headers), new File("histograms"));
++    }
++
++    // A writer for each sample and 3-base context used to stay open throughout collection, so that 16 samples took
++    // 1024 file descriptors for the alt tables alone.
++    @Test
++    public void testOpenFilesDuringCollectionDoNotScaleWithContexts() {
++        final OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();
++        if (!(os instanceof UnixOperatingSystemMXBean)) {
++            throw new SkipException("counting open files requires a Unix operating system");
++        }
++        final UnixOperatingSystemMXBean unixOs = (UnixOperatingSystemMXBean) os;
++
++        final int numSamples = 20;
++        final List<String> samples = IntStream.range(0, numSamples).mapToObj(n -> "sample" + n).collect(Collectors.toList());
++        final File outputTarGz = createTempFile("f1r2", ".tar.gz");
++
++        final long openFilesBefore = unixOs.getOpenFileDescriptorCount();
++        final F1R2CountsCollector collector = new F1R2CountsCollector(new CollectF1R2CountsArgumentCollection(),
++                new SAMFileHeader(), outputTarGz, samples);
++        final long openFilesDuringCollection = unixOs.getOpenFileDescriptorCount() - openFilesBefore;
++        collector.writeHistograms();
++        collector.closeAndArchiveFiles();
++
++        // one alt table per sample, not one per sample and context
++        Assert.assertTrue(openFilesDuringCollection <= 2 * numSamples,
++                String.format("%d files were open during collection for %d samples", openFilesDuringCollection, numSamples));
++
++        // the archive holds an alt table for each sample and context, and two histograms for each sample
++        final File extractedDir = createTempDir("extracted");
++        IOUtils.extractTarGz(outputTarGz.toPath(), extractedDir.toPath());
++        final Set<String> expectedAltTables = samples.stream()
++                .flatMap(sample -> F1R2FilterConstants.ALL_KMERS.stream().map(context -> F1R2CountsCollector.getAltTableName(sample, context)))
++                .collect(Collectors.toSet());
++        final Set<String> altTables = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir).stream()
++                .map(File::getName).collect(Collectors.toSet());
++        Assert.assertEquals(altTables, expectedAltTables);
++        Assert.assertEquals(extractedDir.listFiles().length, expectedAltTables.size() + 2 * numSamples,
++                Arrays.toString(extractedDir.list()));
++    }
++}
+diff --git a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngineUnitTest.java b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngineUnitTest.java
+index c6c19f65bfb..fbd00d5533b 100644
+--- a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngineUnitTest.java
++++ b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelEngineUnitTest.java
+@@ -26,6 +26,7 @@
+ import java.io.File;
+ import java.io.IOException;
+ import java.util.*;
++import java.util.stream.Collectors;
+ import java.util.stream.IntStream;
+ 
+ import static org.broadinstitute.hellbender.tools.walkers.readorientation.F1R2FilterConstants.ALL_KMERS;
+@@ -120,8 +121,6 @@ public void testSimpleCase() {
+ 
+         IntStream.range(0, F1R2FilterConstants.DEFAULT_MAX_DEPTH).mapToDouble(i -> MathUtils.sum(engine.getRefResonsibilities(i)))
+                 .forEach(s -> Assert.assertEquals(s, 1.0, EPSILON));
+-        IntStream.range(0, numAltExamples).mapToDouble(i -> MathUtils.sum(engine.getAltResonsibilities(i)))
+-                .forEach(s -> Assert.assertEquals(s, 1.0, EPSILON));
+         Assert.assertEquals(engine.getEffectiveCounts().getL1Norm(), numExamples, EPSILON);
+ 
+         Assert.assertEquals(engine.getEffectiveCounts(artifactState), (double) numAltExamples, EPSILON);
+@@ -205,13 +204,10 @@ public void testMoreComplicatedCase() {
+     public void testReverseComplement() throws IOException {
+         final File f1r2Dir = createTempDir("f1r2");
+         final String sample = "sample";
+-        final File altMatrixOutput = new File(f1r2Dir, sample + F1R2CountsCollector.ALT_TABLE_EXTENSION);
+         final File refHistogramOutput = new File(f1r2Dir, sample + F1R2CountsCollector.REF_HIST_EXTENSION);
+ 
+         final MetricsFile<?, Integer> refMetricsFile = new MetricsFile<>();
+ 
+-        final AltSiteRecord.AltSiteRecordTableWriter altTableWriter = new AltSiteRecord.AltSiteRecordTableWriter(altMatrixOutput.toPath(), sample);
+-
+         final double epsilon = 1e-3;
+         final int numRefExamples = 10_000;
+         final int refDepth = 150;
+@@ -227,7 +223,8 @@ public void testReverseComplement() throws IOException {
+                 new ImmutableTriple<>("TGG", Nucleotide.C, ReadOrientation.F1R2), // should be recorded as CCA->G F2R1
+                 new ImmutableTriple<>("GAT", Nucleotide.G, ReadOrientation.F2R1)); // should be recorded as ATC->C F1R2
+ 
+-        final List<AltSiteRecord> altDesignMatrix = new ArrayList<>();
++        final Map<String, List<AltSiteRecord>> altDesignMatricesByContext = ALL_KMERS.stream()
++                .collect(Collectors.toMap(kmer -> kmer, kmer -> new ArrayList<>()));
+ 
+         final Map<String, Histogram<Integer>> refSiteHistograms = new HashMap<>(ALL_KMERS.size());
+         ALL_KMERS.forEach(context -> {
+@@ -245,14 +242,23 @@ public void testReverseComplement() throws IOException {
+             final int refF1R2 = refDepth / 2;
+             final int altF1R2 = f1r2 == ReadOrientation.F1R2 ? altDepth : 0;
+ 
+-            IntStream.range(0, numArtifactExamples).forEach(i -> altDesignMatrix.add(new AltSiteRecord(refContext, refDepth, altDepth, refF1R2, altF1R2, altAllele)));
++            IntStream.range(0, numArtifactExamples).forEach(i -> altDesignMatricesByContext.get(refContext).add(new AltSiteRecord(refContext, refDepth, altDepth, refF1R2, altF1R2, altAllele)));
+         }
+ 
+         refSiteHistograms.values().forEach(hist -> refMetricsFile.addHistogram(hist));
+         refMetricsFile.addHeader(new StringHeader(sample));
+         refMetricsFile.write(refHistogramOutput);
+-        altTableWriter.writeAllRecords(altDesignMatrix);
+-        altTableWriter.close();
++
++        for (final String context : ALL_KMERS) {
++            final List<AltSiteRecord> records = altDesignMatricesByContext.get(context);
++            if (!records.isEmpty()) {
++                final File altMatrixOutput = new File(f1r2Dir, sample + "." + context + F1R2CountsCollector.ALT_TABLE_EXTENSION);
++                final AltSiteRecord.AltSiteRecordTableWriter altTableWriter =
++                        new AltSiteRecord.AltSiteRecordTableWriter(altMatrixOutput.toPath(), sample);
++                altTableWriter.writeAllRecords(records);
++                altTableWriter.close();
++            }
++        }
+ 
+         final File inputTarGz = createTempFile("input", ".tar.gz");
+         IOUtils.writeTarGz(inputTarGz.getAbsolutePath(), f1r2Dir.listFiles());
+diff --git a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelIntegrationTest.java b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelIntegrationTest.java
+index 4f2313895f3..256653ea694 100644
+--- a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelIntegrationTest.java
++++ b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelIntegrationTest.java
+@@ -8,12 +8,14 @@
+ import org.broadinstitute.hellbender.Main;
+ import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
+ import org.broadinstitute.hellbender.engine.FeatureDataSource;
++import org.broadinstitute.hellbender.exceptions.UserException;
+ import org.broadinstitute.hellbender.testutils.ArgumentsBuilder;
+ import org.broadinstitute.hellbender.tools.walkers.SplitIntervals;
+ import org.broadinstitute.hellbender.tools.walkers.haplotypecaller.AssemblyBasedCallerArgumentCollection;
+ import org.broadinstitute.hellbender.tools.walkers.mutect.filtering.FilterMutectCalls;
+ import org.broadinstitute.hellbender.tools.walkers.mutect.Mutect2;
+ import org.broadinstitute.hellbender.tools.walkers.mutect.filtering.M2FiltersArgumentCollection;
++import org.broadinstitute.hellbender.utils.Nucleotide;
+ import org.broadinstitute.hellbender.utils.SimpleInterval;
+ import org.broadinstitute.hellbender.utils.io.IOUtils;
+ import org.broadinstitute.hellbender.utils.variant.GATKVCFConstants;
+@@ -160,6 +162,49 @@ public void testTwoSamples() throws Exception {
+         Assert.assertTrue(new File(extractedPriorsDir, sample2 + LearnReadOrientationModel.ARTIFACT_PRIOR_EXTENSION).exists());
+     }
+ 
++    // F1R2 counts from older versions of GATK have one alt table per sample, not one per sample and reference context
++    @Test
++    public void testAltTableNotSplitByContext() throws IOException {
++        final String sample = "SAMPLE";
++        final File extractedDir = collectSyntheticF1R2Counts(sample);
++        final List<File> altTables = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir);
++        final List<AltSiteRecord> records = LearnReadOrientationModel.gatherAltSiteRecords(altTables);
++        altTables.forEach(File::delete);
++        try (final AltSiteRecord.AltSiteRecordTableWriter writer = new AltSiteRecord.AltSiteRecordTableWriter(
++                new File(extractedDir, sample + F1R2CountsCollector.ALT_TABLE_EXTENSION).toPath(), sample)) {
++            writer.writeAllRecords(records);
++        }
++        Assert.assertThrows(UserException.BadInput.class, () -> runLearnReadOrientationModel(extractedDir));
++    }
++
++    @Test
++    public void testAltTableWithoutHistograms() throws IOException {
++        final File extractedDir = collectSyntheticF1R2Counts("SAMPLE");
++        try (final AltSiteRecord.AltSiteRecordTableWriter writer = new AltSiteRecord.AltSiteRecordTableWriter(
++                new File(extractedDir, "OTHER.ACT" + F1R2CountsCollector.ALT_TABLE_EXTENSION).toPath(), "OTHER")) {
++            writer.writeRecord(new AltSiteRecord("ACT", 10, 5, 5, 3, Nucleotide.G));
++        }
++        Assert.assertThrows(UserException.BadInput.class, () -> runLearnReadOrientationModel(extractedDir));
++    }
++
++    // run CollectF1R2Counts on a synthetic bam and return the directory of its extracted output
++    private File collectSyntheticF1R2Counts(final String sample) throws IOException {
++        final File countsTarGz = createTempFile("counts", ".tar.gz");
++        runCommandLine(new ArgumentsBuilder().addReference(hg19_chr1_1M_Reference)
++                .addInput(CollectF1R2CountsIntegrationTest.createSyntheticSam(70, 30, sample)).addOutput(countsTarGz),
++                CollectF1R2Counts.class.getSimpleName());
++        final File extractedDir = createTempDir("extracted");
++        IOUtils.extractTarGz(countsTarGz.toPath(), extractedDir.toPath());
++        return extractedDir;
++    }
++
++    private void runLearnReadOrientationModel(final File extractedCountsDir) throws IOException {
++        final File countsTarGz = createTempFile("counts", ".tar.gz");
++        IOUtils.writeTarGz(countsTarGz.getAbsolutePath(), extractedCountsDir.listFiles());
++        runCommandLine(new ArgumentsBuilder().addInput(countsTarGz).addOutput(createTempFile("priors", ".tar.gz")),
++                LearnReadOrientationModel.class.getSimpleName());
++    }
++
+     // make sure that nothing goes wrong if the target territory is so small that no data exists for some contexts
+     @Test
+     public void testFewSites() throws IOException {
+diff --git a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelUnitTest.java b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelUnitTest.java
+index c31e930c2d5..a455c62764d 100644
+--- a/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelUnitTest.java
++++ b/src/test/java/org/broadinstitute/hellbender/tools/walkers/readorientation/LearnReadOrientationModelUnitTest.java
+@@ -69,18 +69,17 @@ public void testCombineHistograms(){
+ 
+         final List<Histogram<Integer>> ref = LearnReadOrientationModel.sumHistogramsFromFiles(scatteredRefMetricsFiles, true);
+         final List<Histogram<Integer>> alt = LearnReadOrientationModel.sumHistogramsFromFiles(scatteredAltMetricsFiles, false);
+-        final List<AltSiteRecord> altSites = LearnReadOrientationModel.gatherAltSiteRecords(scatteredAltTableFiles).get("SM-CEMAH");
++        final List<AltSiteRecord> altSites = LearnReadOrientationModel.gatherAltSiteRecords(scatteredAltTableFiles);
+ 
+         final File refHistUnscattered = F1R2CountsCollector.getRefHistogramsFromExtractedTar(extractedDir).get(0);
+ 
+         final File altHistUnscattered = F1R2CountsCollector.getAltHistogramsFromExtractedTar(extractedDir).get(0);
+ 
+-        final File altTableUnscattered = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir).get(0);
++        final List<File> altTablesUnscattered = F1R2CountsCollector.getAltTablesFromExtractedTar(extractedDir);
++        final List<AltSiteRecord> altSitesTruth = LearnReadOrientationModel.gatherAltSiteRecords(altTablesUnscattered);
+ 
+         final List<Histogram<Integer>> refTruth = LearnReadOrientationModel.readMetricsFile(refHistUnscattered).getAllHistograms();
+         final List<Histogram<Integer>> altTruth = LearnReadOrientationModel.readMetricsFile(altHistUnscattered).getAllHistograms();
+-        final List<AltSiteRecord> altSitesTruth = AltSiteRecord.readAltSiteRecords(altTableUnscattered.toPath()).getRight();
+-
+ 
+         for (Histogram<Integer> truth : refTruth){
+             final Histogram<Integer> eval = ref.stream().filter(h -> h.getValueLabel().equals(truth.getValueLabel())).findAny().get();

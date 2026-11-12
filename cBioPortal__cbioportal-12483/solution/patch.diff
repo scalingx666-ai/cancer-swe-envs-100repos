@@ -1,0 +1,404 @@
+diff --git a/.github/workflows/importer-maven.yml b/.github/workflows/importer-maven.yml
+index 4d7c1b0280c..c34817edf52 100644
+--- a/.github/workflows/importer-maven.yml
++++ b/.github/workflows/importer-maven.yml
+@@ -7,18 +7,19 @@ on:
+   push:
+     paths:
+       - 'importer/**'
++      - 'shared-model/**'
++      - 'pom.xml'
+       - '.github/workflows/importer-maven.yml'
+   pull_request:
+     paths:
+       - 'importer/**'
++      - 'shared-model/**'
++      - 'pom.xml'
+       - '.github/workflows/importer-maven.yml'
+ 
+ jobs:
+   build:
+     runs-on: ubuntu-latest
+-    defaults:
+-      run:
+-        working-directory: ./importer
+     steps:
+       - uses: actions/checkout@v4
+       - name: Set up JDK 21
+@@ -32,7 +33,9 @@ jobs:
+             importer/pom.xml
+ 
+       - name: Build and run integration tests (Testcontainers)
+-        run: mvn -B integration-test --file pom.xml
++        # From the repository root: the importer is a module of the reactor and needs shared-model.
++        run: mvn -B -pl importer -am integration-test
++        timeout-minutes: 30
+ 
+       # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
+       - name: Update dependency graph
+diff --git a/AGENTS.md b/AGENTS.md
+index a8958a2eb6a..3f071904414 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -6,7 +6,8 @@ This file contains rules and conventions that AI coding agents (Claude Code, Cop
+ 
+ - The root `pom.xml` is the parent (`cbioportal-parent`) of two modules: `web/` (the web application, artifact `io.github.cbioportal:cbioportal`, built from the root `src/` into the root `target/`) and `importer/`. Declare dependency versions only in the root `pom.xml`.
+ - Build: `mvn install -DskipTests` (both modules); web application only: `mvn install -DskipTests -pl web -am`
+-- Run the web application's tests: `mvn integration-test -pl web -am` (the importer's tests don't pass yet)
++- Run the web application's tests: `mvn integration-test -pl web -am`
++- Run the importer's tests: `mvn integration-test -pl importer -am` (needs Docker; about 3 minutes). The integration tests share one JVM and one ClickHouse container: `IntegrationTestBase` rebuilds the database and resets the importer's static state (bulk-load mode, pending bulk loads and deletes, DAO caches) before each test. If you add static state to the importer, reset it there too.
+ - All new development targets the `master` branch (v7)
+ 
+ ## Shared Types
+diff --git a/cbiohackathon-rfc-reintegrating-repos.md b/cbiohackathon-rfc-reintegrating-repos.md
+index 81ae2bf6477..39e16b1e35d 100644
+--- a/cbiohackathon-rfc-reintegrating-repos.md
++++ b/cbiohackathon-rfc-reintegrating-repos.md
+@@ -114,8 +114,10 @@ cbioportal/
+ 
+ **Importer**
+ 
+-- Use the Surefire version Spring Boot manages instead of the pinned 2.21.0. Then add the JUnit Vintage engine, or migrate the 76 JUnit 4 classes to JUnit Jupiter.
+-- Have `IntegrationTestBase` read `clickhouse_cgds.sql` from the repository instead of downloading it from GitHub, and drop the stale `cbioportal.version` (v6.4.1) property.
++- ~~Use the Surefire version Spring Boot manages instead of the pinned 2.21.0. Then add the JUnit Vintage engine, or migrate the 76 JUnit 4 classes to JUnit Jupiter.~~ Done (Nov 5): Surefire 3.5.6 and `junit-vintage-engine` 6.0.3. The JUnit 4 tests run unchanged on the JUnit Platform; migrating them to Jupiter is optional.
++- ~~Have `IntegrationTestBase` read `clickhouse_cgds.sql` from the repository instead of downloading it from GitHub, and drop the stale `cbioportal.version` (v6.4.1) property.~~ Done (Nov 5). The download was already commented out; the dead code and the property are now removed. The tests read the importer's own copy, `importer/src/test/resources/clickhouse_cgds.sql`, which has drifted from production's `schema.sql` (see [Planned Future Work](#planned-future-work)).
++- **Result (Nov 5):** `mvn -pl importer -am integration-test` passes: 115 unit tests, and 200 integration tests with 0 failures, 0 errors and 3 skipped. The integration tests took about 61 minutes, because `IntegrationTestBase` started a new ClickHouse container after every test method; now about 3 minutes (see [Planned Future Work](#planned-future-work)).
++- `importer-maven.yml` now runs from the repository root (`-pl importer -am`), with a 30-minute timeout, and also runs for `shared-model/**` and `pom.xml` changes. Run from `importer/` alone, it couldn't resolve `shared-model`.
+ - ~~Make the Python tests (`test_scripts.sh` / `tests/`) runnable from `importer/`.~~ Done (see below).
+ - ~~Port `maven.yml` and `validate-python.yml` into the root `.github/workflows/`~~ Done: `importer-maven.yml` and `importer-validate-python.yml`. The Python suite passes from `importer/` (192 tests). The Java suite still needs the fixes above.
+ 
+@@ -312,8 +314,10 @@ Status as of Nov 5, 2026. Goals 1 and 2 are done; the repository builds the web
+ | Step | Goal | Why it matters | Effort |
+ | --- | --- | --- | --- |
+ | ~~**Fix the `cbioportal/cbioportal-core` image build.**~~ **Done (Nov 5).** `importer/Dockerfile` built `importer/pom.xml` on its own (build context `importer/`), which no longer works now that the POM inherits from the root and needs `shared-model`. It now builds from the repository root with `mvn -pl importer -am package` and copies `web/pom.xml` only because Maven reads every listed module. `importer-docker-image.yml` uses context `.` and also runs for `shared-model/**` and `pom.xml` changes. Checked with a local build: the JAR includes the shared types, and the Java importer and `metaImport.py -h` run. The multi-platform publish only runs in CI. | 2 | It was a regression introduced by the reactor | Small |
+-| **Make the importer's Java tests run.** Drop the Surefire 2.21.0 pin; add the JUnit Vintage engine or migrate the 76 JUnit 4 classes; have `IntegrationTestBase` read `src/test/resources/clickhouse_cgds.sql` from the repository instead of GitHub; remove the `cbioportal.version` (v6.4.1) property. | 3 | The importer's integration tests currently test against a stale schema, downloaded from GitHub | Medium; the largest remaining item |
+-| **Run every module in CI.** Once the importer's tests pass, switch `backend-test.yml`, `integration-test.yml` and `sonarcloud.yml` from `-pl web -am` to the full reactor, so `mvn verify` at the root is the single check. | 3 | Meets goal 3's "done when" | Small |
++| ~~**Make the importer's Java tests run.**~~ **Done (Nov 5).** Surefire 3.5.6 with the JUnit Vintage engine; the dead GitHub download and `cbioportal.version` are removed; the importer CI workflow builds from the root. 115 unit and 200 integration tests pass (3 skipped). | 3 | The importer's integration tests had never run in this repository | Done |
++| ~~**Make the importer's integration tests fast enough for every PR.**~~ **Done (Nov 5): about 61 minutes down to 3¼ minutes** for `mvn -pl importer -am integration-test`, all tests still passing (also in two random class orders). `IntegrationTestBase` now rebuilds the test database inside one container (drop, schema, seed: under a second) instead of starting a new container after every test method, and all integration test classes share one JVM (`reuseForks=true`). The shared JVM needed the importer's static state reset before each test, because six test classes leave bulk-load mode on and the gene, gene panel and reference genome caches outlived the database; small public `reset()`/`reCache()` hooks were added to `ClickHouseBulkLoader`, `ClickHouseBulkDeleter`, `DaoGenePanel` and `DaoReferenceGenome`. The JVM-per-class setup had also hidden a local cost: the ClickHouse driver resolves every local network address on start-up, which took 40 seconds per class on the test Mac. | 3 | An hour per run was too long to require on PRs | Done |
++| **Run every module in CI.** Now that the importer's tests take minutes, switch `backend-test.yml`, `integration-test.yml` and `sonarcloud.yml` from `-pl web -am` to the full reactor, so `mvn verify` at the root is the single check. | 3 | Meets goal 3's "done when" | Small |
++| **Test the importer against the production schema.** Its `clickhouse_cgds.sql` still creates the old `resource_sample`, `resource_patient` and `resource_study` tables, which production replaced with `resource`, and lacks five derived tables that production's `schema.sql` creates. Point `IntegrationTestBase` at `src/main/resources/db-scripts/clickhouse/init/schema.sql`, fix what breaks, and delete the copy. | 3 | Today the importer is tested against a schema production doesn't use | Medium |
+ | **Test the new image with Docker Compose,** end to end: start the stack and import a study through `/core/core-IMPORTER.jar`. | 2 | The image was only checked by a local build and a few commands inside it | Small |
+ | **Check the IDE import** of the `web/` module whose sources live in `../src`. If IntelliJ or VS Code mishandles it, move `src/` to `backend/` (Option A) in one `git mv` commit. | 2 | The layout is unusual and untested in an IDE | Small to check; medium if the move is needed |
+ | **Update branch protection** if "Core tests" was a required check; the workflow is now "Backend tests". | 3 | A required check that never reports blocks merges | Trivial |
+diff --git a/importer/pom.xml b/importer/pom.xml
+index b6a5f03c673..ab03196ee92 100644
+--- a/importer/pom.xml
++++ b/importer/pom.xml
+@@ -26,8 +26,6 @@
+ 	</licenses>
+ 
+ 	<properties>
+-		<!-- Used only by IntegrationTestBase to download clickhouse_cgds.sql from GitHub -->
+-		<cbioportal.version>v6.4.1</cbioportal.version>
+ 		<!-- The importer isn't a Spring Boot application -->
+ 		<start-class></start-class>
+ 	</properties>
+@@ -122,6 +120,13 @@
+ 			<artifactId>junit</artifactId>
+ 			<scope>test</scope>
+ 		</dependency>
++		<!-- Runs the JUnit 4 tests (most of this module's tests) on the JUnit Platform, alongside the
++		     JUnit Jupiter ones. Remove once the tests are migrated to Jupiter. -->
++		<dependency>
++			<groupId>org.junit.vintage</groupId>
++			<artifactId>junit-vintage-engine</artifactId>
++			<scope>test</scope>
++		</dependency>
+ 		<dependency>
+ 			<groupId>jakarta.ws.rs</groupId>
+ 			<artifactId>jakarta.ws.rs-api</artifactId>
+@@ -191,7 +196,7 @@
+ 			<plugin>
+ 				<groupId>org.apache.maven.plugins</groupId>
+ 				<artifactId>maven-surefire-plugin</artifactId>
+-				<version>2.21.0</version>
++				<!-- Version managed by spring-boot-starter-parent (Surefire 3, JUnit Platform) -->
+ 				<configuration>
+ 					<trimStackTrace>false</trimStackTrace>
+ 				</configuration>
+@@ -218,8 +223,13 @@
+ 							<includes>
+ 								<include>**/integrationTest/**/*</include>
+ 							</includes>
++							<!-- One JVM, and so one ClickHouse container, for all integration test classes.
++							     IntegrationTestBase rebuilds the database and resets the importer's static state
++							     before each test. A JVM per class costs a container start and the ClickHouse
++							     driver's start-up (which resolves every local network address, about 40 s on
++							     some macOS machines) for each of the ~60 classes. -->
+ 							<forkCount>1</forkCount>
+-							<reuseForks>false</reuseForks>
++							<reuseForks>true</reuseForks>
+ 						</configuration>
+ 					</execution>
+ 				</executions>
+diff --git a/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkDeleter.java b/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkDeleter.java
+index 4088509fc2c..50dc83caa5a 100644
+--- a/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkDeleter.java
++++ b/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkDeleter.java
+@@ -115,6 +115,14 @@ public static long flushAll() throws DaoException {
+         return countOfDeletedRecords;
+     }
+ 
++    /**
++     * Discards every registered deleter and its pending ids without deleting anything. For tests that
++     * share one JVM and rebuild the database between tests; the deleters' staging tables go with it.
++     */
++    public static void reset() {
++        BULK_DELETERS.clear();
++    }
++
+ // --- Static helper functions
+ 
+     // might be made public in the future for partial flushes (would require testing)
+diff --git a/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkLoader.java b/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkLoader.java
+index 7522b862621..38587c3c6db 100644
+--- a/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkLoader.java
++++ b/importer/src/main/java/org/mskcc/cbio/portal/dao/ClickHouseBulkLoader.java
+@@ -167,6 +167,17 @@ public void insertRecord(String... fieldValues) {
+         pendingRecords.add(fieldValues);
+     }
+ 
++    /**
++     * Discards every loader's pending records without writing them, and turns bulk load and relaxed
++     * mode off. For tests that share one JVM, where these static settings would otherwise carry over
++     * from one test to the next.
++     */
++    public static synchronized void reset() {
++        BULK_LOADERS.clear();
++        bulkLoad = false;
++        relaxedMode = false;
++    }
++
+     public static boolean isBulkLoad() {
+         return bulkLoad;
+     }
+diff --git a/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoGenePanel.java b/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoGenePanel.java
+index 49ea0f0ac14..1f8086010fb 100644
+--- a/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoGenePanel.java
++++ b/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoGenePanel.java
+@@ -22,7 +22,11 @@
+ public class DaoGenePanel {
+ 
+     private static final String GENE_PANEL_SEQUENCE = "seq_gene_panel";
+-    private static final Map<String, GenePanel> genePanelMap = initMap();
++    private static final Map<String, GenePanel> genePanelMap = new HashMap<>();
++
++    static {
++        reCache();
++    }
+ 
+     /**
+      * @param stableId Name of the gene panel, e.g. TESTPANEL1
+@@ -39,6 +43,17 @@ public static Collection<GenePanel> getAllGenePanels() {
+         return genePanelMap.values();
+     }
+ 
++    /**
++     * Reloads the gene panel cache from the database.
++     */
++    public static synchronized void reCache() {
++        Map<String, GenePanel> fresh = initMap();
++        genePanelMap.clear();
++        if (fresh != null) {
++            genePanelMap.putAll(fresh);
++        }
++    }
++
+     private static Map<String, GenePanel> initMap() {
+         Map<String, GenePanel> genePanelMap = null;
+         Connection con = null;
+diff --git a/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoReferenceGenome.java b/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoReferenceGenome.java
+index 87994b48a1a..c2b5a4282cf 100644
+--- a/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoReferenceGenome.java
++++ b/importer/src/main/java/org/mskcc/cbio/portal/dao/DaoReferenceGenome.java
+@@ -40,7 +40,10 @@ private static synchronized void addCache(ReferenceGenome referenceGenome) {
+         genomeInternalIds.put(referenceGenome.getGenomeName(), referenceGenome.getReferenceGenomeId());
+     }
+ 
+-    private static synchronized void reCache() {
++    /**
++     * Reloads the reference genome cache from the database.
++     */
++    public static synchronized void reCache() {
+         clearCache();
+         Connection con = null;
+         PreparedStatement pstmt = null;
+diff --git a/importer/src/test/java/org/mskcc/cbio/portal/integrationTest/IntegrationTestBase.java b/importer/src/test/java/org/mskcc/cbio/portal/integrationTest/IntegrationTestBase.java
+index 780a0c5cda8..545c901b5fc 100644
+--- a/importer/src/test/java/org/mskcc/cbio/portal/integrationTest/IntegrationTestBase.java
++++ b/importer/src/test/java/org/mskcc/cbio/portal/integrationTest/IntegrationTestBase.java
+@@ -1,13 +1,9 @@
+ package org.mskcc.cbio.portal.integrationTest;
+ 
+ import java.io.IOException;
+-import java.io.InputStream;
+-import java.net.URL;
+-import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+ import java.nio.file.Paths;
+-import java.nio.file.StandardCopyOption;
+ import java.sql.Connection;
+ import java.sql.DriverManager;
+ import java.sql.ResultSet;
+@@ -16,16 +12,18 @@
+ import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Locale;
+-import java.util.regex.Matcher;
+-import java.util.regex.Pattern;
+ 
+ import org.junit.After;
+-import org.junit.AfterClass;
+ import org.junit.Before;
+ import org.junit.BeforeClass;
+ import org.mskcc.cbio.portal.dao.JdbcUtil;
+ import org.mskcc.cbio.portal.dao.ClickHouseAutoIncrement;
++import org.mskcc.cbio.portal.dao.ClickHouseBulkDeleter;
++import org.mskcc.cbio.portal.dao.ClickHouseBulkLoader;
+ import org.mskcc.cbio.portal.dao.DaoCancerStudy;
++import org.mskcc.cbio.portal.dao.DaoGeneOptimized;
++import org.mskcc.cbio.portal.dao.DaoGenePanel;
++import org.mskcc.cbio.portal.dao.DaoReferenceGenome;
+ import org.apache.commons.dbcp2.BasicDataSource;
+ import org.springframework.test.annotation.DirtiesContext;
+ import org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy;
+@@ -43,14 +41,8 @@ public abstract class IntegrationTestBase {
+     private static final int CLICKHOUSE_HTTP_PORT = 8123;
+     private static final String CLICKHOUSE_IMAGE = "clickhouse/clickhouse-server:24.3";
+     private static final String SKIP_ENV = "CBIOPORTAL_TEST_DB_SKIP";
+-    private static final String TARGET_DIR = "target/test-db";
+-    private static final String VERSION_FILE = "cbioportal.version";
+     private static final String CGDS_SQL_FILE = "clickhouse_cgds.sql";
+     private static final String SEED_SQL_FILE = "seed_mini.sql";
+-    private static final String CGDS_URL_TEMPLATE =
+-        "https://raw.githubusercontent.com/cBioPortal/cbioportal/%s/src/test/resources/clickhouse_cgds.sql";
+-    private static final Pattern CBIOPORTAL_VERSION_PATTERN =
+-        Pattern.compile("<cbioportal\\.version>\\s*([^<]+)\\s*</cbioportal\\.version>");
+ 
+     private static ClickHouseContainer container;
+ 
+@@ -63,22 +55,39 @@ public static void setupTestDatabase() {
+         startContainer();
+     }
+ 
++    /**
++     * All test classes share one JVM (see the integration-test execution in importer/pom.xml), so
++     * the importer's static state would otherwise carry over from earlier tests: bulk-load mode left
++     * on, pending bulk loads and deletes, and caches filled from a database that has since been
++     * rebuilt. Reset all of it before each test.
++     */
+     @Before
+     public void reCache() {
++        ClickHouseBulkLoader.reset();
++        ClickHouseBulkDeleter.reset();
++        DaoGeneOptimized.getInstance().reCache();
++        DaoGenePanel.reCache();
++        DaoReferenceGenome.reCache();
+         DaoCancerStudy.reCacheAll();
+     }
+ 
++    /**
++     * Gives the next test a fresh database without starting a new container: drops the test
++     * database and rebuilds it from the schema and seed files already copied into the container.
++     * Dropping the whole database, rather than truncating tables, also removes the tables the
++     * importer creates while it runs (backup tables, bulk-delete scratch tables, the auto-increment
++     * sequence table). The container itself is started once and stopped by the shutdown hook.
++     */
+     @After
+     public void resetDatabase() {
+-        recreateContainer();
++        synchronized (LOCK) {
++            if (container != null) {
++                rebuildDatabase(container);
++            }
++        }
+         ClickHouseAutoIncrement.resetCounters();
+     }
+ 
+-    @AfterClass
+-    public static void teardownTestDatabase() {
+-        stopContainer();
+-    }
+-
+     private static void startContainer() {
+         synchronized (LOCK) {
+             if (container == null && !shouldSkip()) {
+@@ -96,9 +105,11 @@ private static void stopContainer() {
+         }
+     }
+ 
+-    private static void recreateContainer() {
+-        stopContainer();
+-        startContainer();
++    private static void rebuildDatabase(ClickHouseContainer clickhouse) {
++        executeClickHouseQuery(clickhouse, "DROP DATABASE IF EXISTS " + DB_NAME + " SYNC");
++        executeClickHouseQuery(clickhouse, "CREATE DATABASE " + DB_NAME);
++        applySqlFile(clickhouse, "/tmp/" + CGDS_SQL_FILE);
++        applySqlFile(clickhouse, "/tmp/" + SEED_SQL_FILE);
+     }
+ 
+     private static boolean shouldSkip() {
+@@ -261,25 +272,14 @@ private static void executeClickHouseCommand(ClickHouseContainer clickhouse, Lis
+         }
+     }
+ 
++    // The importer's own copy of the schema, read from this repository. It is not the same file as
++    // the web app's src/main/resources/db-scripts/clickhouse/init/schema.sql (see the RFC's
++    // "Choose the schema's source of truth").
+     private static Path ensureCgdsSql() {
+-        //FIXME Uncomment when cbioportal contains the complete clickhouse_cgds.sql for the current version
+-        /*
+-        String cbioportalVersion = readCbioportalVersion();
+-        Path targetDir = Paths.get(System.getProperty("user.dir"), TARGET_DIR);
+-        Path cgdsPath = targetDir.resolve(CGDS_SQL_FILE);
+-        Path versionPath = targetDir.resolve(VERSION_FILE);
+-        try {
+-            Files.createDirectories(targetDir);
+-            if (!Files.exists(cgdsPath) || !Files.exists(versionPath)
+-                || !cbioportalVersion.equals(readFile(versionPath).trim())) {
+-                downloadCgdsSql(cbioportalVersion, cgdsPath);
+-                Files.writeString(versionPath, cbioportalVersion, StandardCharsets.UTF_8);
+-            }
+-        } catch (IOException ex) {
+-            throw new IllegalStateException("Failed to prepare clickhouse_cgds.sql for integration tests", ex);
+-        }
+-        */
+         Path cgdsPath = Paths.get(System.getProperty("user.dir"), "src", "test", "resources", CGDS_SQL_FILE);
++        if (!Files.exists(cgdsPath)) {
++            throw new IllegalStateException(CGDS_SQL_FILE + " not found at " + cgdsPath);
++        }
+         return cgdsPath;
+     }
+ 
+@@ -290,30 +290,4 @@ private static Path ensureSeedSql() {
+         }
+         return seedPath;
+     }
+-
+-    private static String readCbioportalVersion() {
+-        Path pomPath = Paths.get(System.getProperty("user.dir"), "pom.xml");
+-        try {
+-            String pomContents = readFile(pomPath);
+-            Matcher matcher = CBIOPORTAL_VERSION_PATTERN.matcher(pomContents);
+-            if (matcher.find()) {
+-                return matcher.group(1).trim();
+-            }
+-        } catch (IOException ex) {
+-            throw new IllegalStateException("Failed to read pom.xml for cbioportal.version", ex);
+-        }
+-        throw new IllegalStateException("cbioportal.version not found in pom.xml");
+-    }
+-
+-    private static String readFile(Path path) throws IOException {
+-        return Files.readString(path, StandardCharsets.UTF_8);
+-    }
+-
+-    private static void downloadCgdsSql(String version, Path destination) throws IOException {
+-        String url = String.format(CGDS_URL_TEMPLATE, version);
+-        System.out.println("Downloading clickhouse_cgds.sql for " + version + "...");
+-        try (InputStream input = new URL(url).openStream()) {
+-            Files.copy(input, destination, StandardCopyOption.REPLACE_EXISTING);
+-        }
+-    }
+ }

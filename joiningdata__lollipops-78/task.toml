@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/joiningdata__lollipops-78"
+description = "Alternative source of protein domains"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "lollipops",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "joiningdata/lollipops"
+ref = "9f835f4b9ffd19499e813be779cb7643aeedb06a"
+reference = "https://github.com/joiningdata/lollipops/pull/78"
+source_access = "auto"
+built_at = "2026-11-12T05:38:04.847733+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:bb1a65319509137f1c0a0067e367704b812a9ea820dd73d69435d855d3e211c9"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2024-01-27T18:24:59Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "data/data.go",
+    "data/interpro.go",
+    "main.go",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 88
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.798477+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:ff55c666c16785718969d596341df57d1f82a1b84c76341434afe775e8cf6350"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

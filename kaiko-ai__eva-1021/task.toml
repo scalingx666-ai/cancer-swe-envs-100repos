@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/kaiko-ai__eva-1021"
+description = "[Radiology] Update the radiology leaderboard"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "eva",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "kaiko-ai/eva"
+ref = "73b61a797bfda8daf232f6abea2bc87ac614589c"
+reference = "https://github.com/kaiko-ai/eva/pull/1021"
+source_access = "auto"
+built_at = "2026-11-12T05:38:38.530331+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:5ca1e74ad39e4c1ee1093279d2f45945d6cdd0ed0c490f0660fe4aacdb63c9e3"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-05-21T12:43:42Z"
+diff_format = "unified"
+context_files = [
+    "README.md",
+    "docs/images/leaderboards/radiology.svg",
+    "tools/data/leaderboards/radiology.csv",
+    "tools/generate_leaderboard_plots.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 3030
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.800313+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:27bf2258e3c1f00bba7623b2e4496869d44ca460188ce44b9dd6e4e12ad0c64f"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

@@ -1,0 +1,71 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__htslib-2100"
+description = "Use pos=-1 for CRAM query of region \"*\"."
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "htslib",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/htslib"
+ref = "7c5e3e7ebcdf90c8f96afd8a06d75ffa5603e417"
+reference = "https://github.com/samtools/htslib/pull/2100"
+source_access = "auto"
+built_at = "2026-11-12T04:18:14.119615+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:b57c0fd4d103d55bae9c6f1e94576550e109edac6dfa6f8001d3e4c3b5b14851"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-07T15:57:29Z"
+diff_format = "unified"
+context_files = [
+    "cram/cram_index.c",
+    "test/index.cram.crai",
+    "test/index.unmapped.sam",
+    "test/test.pl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 65
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.828081+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:53e5b663066be9c6fba70c6419d6e4fd3927b9ac85c72ae2dcf786e896084517"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

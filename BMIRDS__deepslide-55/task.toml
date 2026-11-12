@@ -1,0 +1,68 @@
+version = "1.0"
+
+[task]
+name = "default/BMIRDS__deepslide-55"
+description = "feat: Make code is executable in terminal. Add a flag to report intermediate stats results every N items."
+
+[metadata]
+difficulty = "medium"
+category = "bugfix"
+keywords = [
+    "deepslide",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "BMIRDS/deepslide"
+ref = "9b92dc82bc0ba235461cf12de0fb10a0713b7dcd"
+reference = "https://github.com/BMIRDS/deepslide/pull/55"
+source_access = "auto"
+built_at = "2026-11-12T04:21:10.065996+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:271c32586c0dd5f329ba2eb792d8fefb330a325b5f7fda892601e15e5d0571f8"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2022-10-17T17:09:32Z"
+diff_format = "unified"
+context_files = [
+    "code/compute_stats.py",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 71
+difficulty = "medium"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.730825+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:93e3a16f16062e23418ee59fc59b787fa854259116860860781264bb0a24400b"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

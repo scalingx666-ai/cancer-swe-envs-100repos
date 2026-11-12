@@ -1,0 +1,980 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index c42dfa7..fa4f676 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,18 @@
+ # Changelog
+ 
++## 5.112.0
++
++- Add `--species` for antigen sequence sources and independent
++  `--exclude-species` / `--exclude-ensembl-release` settings for built-in
++  backgrounds. Human defaults remain available; mouse inputs, HLA-transgenic
++  mice and human xenografts keep their explicitly requested MHC alleles (#586).
++- Built-in exclusions inherit the actual single input annotation species and
++  release, including MAF/JSON references. Explicit source options must agree with
++  loaded annotations; ambiguous references require an explicit background.
++  Human-only CTA and tissue membership is validated in its own source context.
++- Preserve every exclusion sequence when independent FASTA files or reference
++  sources reuse a record name (#604).
++
+ ## 5.111.9
+ 
+ - Make real-tissue workflow tests deterministic and explicitly check both clean
+diff --git a/docs/cli.md b/docs/cli.md
+index 98eb1f7..389f767 100644
+--- a/docs/cli.md
++++ b/docs/cli.md
+@@ -153,6 +153,62 @@ topiary --cta --mhc-predictor netmhcpan --mhc-alleles 'HLA-A*02:01'  # cancer-te
+ `--cta` uses the included PirlyGenes integration. The same sources are available in Python
+ through `topiary.sources` — see the [quickstart](quickstart.md#ensembl-and-tissue-lookups).
+ 
++### Source species, reference backgrounds and MHC
++
++`--species` selects the antigen sequence source. Human is the default for direct
++inputs; a non-human built-in source requires `--ensembl-release`. Species names
++and aliases follow PyEnsembl (`mouse` and `Mus musculus` select the same species).
++`--mhc-alleles` is independent: using mouse proteins with a human HLA allele is
++valid, including HLA-transgenic models ([Pascolo et al., PMID 9182675](https://pubmed.ncbi.nlm.nih.gov/9182675/)).
++
++```bash
++# Mouse proteins presented by mouse MHC
++topiary --gene-names Trp53 --species mouse --ensembl-release 102 \
++  --mhc-predictor netmhcpan --mhc-alleles 'H2-Kb'
++
++# The same source with human HLA, for an HLA-transgenic model
++topiary --gene-names Trp53 --species mouse --ensembl-release 102 \
++  --mhc-predictor netmhcpan --mhc-alleles 'HLA-A*02:01'
++
++# Human antigens with an explicitly selected mouse comparison background
++topiary --gene-names TP53 --species human \
++  --exclude-ensembl --exclude-species mouse --exclude-ensembl-release 102 \
++  --mhc-predictor netmhcpan --mhc-alleles 'HLA-A*02:01'
++```
++
++Built-in exclusions normally inherit the source species and release. For variant
++inputs, this comes from the annotations actually loaded, including references in
++MAF and JSON files. `--genome` still chooses variant coordinates; it is rejected
++for direct sequence inputs, where `--species` / `--ensembl-release` select the
++source. For protein changes, either form can select the annotation. If source
++species/release flags accompany an annotated input, they must agree with it.
++
++`--exclude-species` starts an independent reference context; its release is
++`--exclude-ensembl-release`, never a number borrowed from another species.
++Explicit human references may use the current human default; non-human references
++require a release. `--exclude-ensembl-release` alone keeps the inferred source
++species and overrides its background release. Mixed-species annotations,
++multiple annotation releases and custom annotations without a numbered Ensembl
++release require an explicit background when using built-in exclusions. They
++remain usable without that ambiguous built-in comparison.
++
++FASTA/CSV inputs carry no inferred species metadata: choose `--species` and a
++release explicitly when they should determine a non-human built-in background.
++Additional `--exclude-fasta` files can supply other backgrounds; all their
++sequences are retained even if different files reuse a header. Combining them
++excludes matches to the union. Run separate comparisons if you need separate
++human and mouse results. Exclusions are sequence matching, not a simulation of
++host antigen processing or transplant immunity.
++
++`--cta` is human-only in the **antigen-source** context. `--exclude-non-cta` and
++`--exclude-tissues` are human-only in the **background** context. Human CTA
++antigens with a mouse background are valid; requesting mouse CTA membership or
++applying the human tissue-expression table as mouse data gives an error.
++
++Before 5.112, built-in exclusions defaulted to human even for mouse variants.
++They now follow the actual input annotation. To request a different reference
++deliberately, use the exclusion-specific options instead of changing source flags.
++
+ A gene usually has several Ensembl translations. All gene-derived inputs use
+ `best_protein_transcript`: complete protein-coding translations first, then
+ standard amino-acid sequences, then length, with transcript-ID tie breaking.
+@@ -222,7 +278,7 @@ Remove peptides found in reference proteomes, for tumor-specific or
+ pathogen-specific selection:
+ 
+ ```bash
+---exclude-ensembl                    # human Ensembl proteome
++--exclude-ensembl                    # source annotation's Ensembl proteome
+ --exclude-non-cta                    # non-CTA proteins (requires pirlygenes)
+ --exclude-tissues heart_muscle lung  # genes expressed in these tissues
+ --exclude-fasta reference.fasta      # custom reference sequences
+diff --git a/tasks/lessons.md b/tasks/lessons.md
+index bfc02d1..665fe4e 100644
+--- a/tasks/lessons.md
++++ b/tasks/lessons.md
+@@ -54,3 +54,27 @@ include relevant edge cases when available. Assert expected policy warnings at
+ every affected prediction call; do not blanket-ignore them or rely on a clean
+ sample. Wait for the completed traceback before attributing a failure: a surviving
+ temporary directory may belong to an active test rather than the failed test.
++
++## Separate antigen origin, host background and presenting MHC
++
++The user pointed out that a murine host can carry human HLA. Do not propose
++one global species identity that forces antigen sequences, host/self-reference
++proteomes and MHC alleles to agree. Source coordinates must match their source
++assembly; normal/reference comparisons need explicit identities; presenting
++alleles remain independently configured. Deliberate xenografts and transgenic
++models are valid. Human-only CTA data constrains its antigen source, not the
++host species. Pascolo et al. 1997 (PMID 9182675) demonstrates HLA-A2.1-restricted
++responses in transgenic mice: https://pubmed.ncbi.nlm.nih.gov/9182675/.
++
++For Topiary #586, remove silent human source/reference defaults without banning
++intentional cross-species analyses. Also verify current CLI composition rules
++before giving examples: 5.111.9 rejects combining direct sequence sources with
++variant inputs, while variant inputs can still use reference exclusions.
++
++## Test counts do not establish behavioral coverage
++
++The user challenged the headline test count. Mutation probes showed two full
++workflow cases passed with filtering, ranking and exclusion disabled (#603).
++Report what a regression test detects, including before/after values, and use
++small targeted mutations to verify new behavior. Parameter combinations and
++green CI are useful evidence but are not independent proof of each claim.
+diff --git a/tasks/todo.md b/tasks/todo.md
+index 56454c0..9fae5ef 100644
+--- a/tasks/todo.md
++++ b/tasks/todo.md
+@@ -1,40 +1,74 @@
+-# Stabilize tissue workflow validation and ship the X policy
++# Explicit source and exclusion species contexts (#586)
+ 
+ ## Spec
+ 
+-PR #600 merged the shared default-X exclusion and X-free-window override.
+-Its final local suite (6,353 tests), PR CI and master CI all passed. Deployment
+-then stopped before building/uploading: test_first_principles_workflow sampled
+-TRAC|ENST00000611116 from an unordered tissue-gene mapping and treated the
+-expected ProteinInputWarning as an error. The runtime exclusion worked.
++Preserve human CLI defaults while keeping antigen origin, normal/reference
++backgrounds and presenting MHC independent. Human xenografts and HLA-transgenic
++mouse inputs are intentional supported configurations; never infer source or
++reference species from allele names. Pascolo et al. 1997 (PMID 9182675) establishes
++HLA-A2.1-restricted responses in transgenic mice; no curated biological data or
++allele parsing changes are needed.
+ 
+-Make both small real-tissue integration samples deterministic. When available,
+-include one original X-containing protein alongside clean proteins, and assert
+-the expected warning count and complete exclusion of those source names.
+-Keep other warnings strict. Preserve filter/ranking and vital-organ exclusion
+-checks. Do not change runtime biology, sources or model policy.
++Add --species for sequence-source selection and separate --exclude-species /
++--exclude-ensembl-release overrides for built-in reference exclusions. Existing
++--ensembl-release controls the source. Non-human built-ins require a numbered
++release. Default exclusions inherit a single known source species/release;
++explicit cross-species exclusions do not inherit the other species' release.
++File-based reference inputs can supplement this background, preserving all
++sequences even if different files reuse a header.
+ 
+-Every PR must bump the version. Ship the previously unpublished 5.111.8 changes
+-with this test fix as 5.111.9; consolidate the changelog under the shipped version.
+-Use the normal PR, full-validation, master-CI and clean-master deployment gates.
++Use the actual loaded variant/effect annotations to establish source context;
++validate explicit source species/release against those annotations, including
++MAF/JSON inputs rather than trusting --genome alone. Do not reinterpret variant
++coordinates. Ambiguous/custom source contexts require explicit reference options
++when a built-in exclusion would otherwise guess. Preserve mixed-annotation runs
++that do not request an ambiguous built-in background. Resolve protein-change
++source options with the same checks. Reject ignored --genome on direct inputs.
++
++Human-only CTA, non-CTA and tissue membership is checked in its own source or
++reference context. Human CTA + mouse background is valid; mouse CTA or mouse
++human-expression-background requests fail before model inference. MHC alleles
++remain independently passed to the selected predictor.
++
++Keep CLI configuration plumbing shared, use PyEnsembl normalization, and retain
++existing public sequence loaders. Document defaults, cross-species examples,
++independent background release selection, and the scope of sequence exclusion.
++No host flag that merely relabels output, no automatic HLA/H-2 conversion, and no
++claim that sequence matching alone models transplant immunology.
+ 
+ ## Plan
+ 
+-- [x] File the integration-test regression (#601).
+-- [x] Stabilize both tissue samples and share explicit policy assertions.
+-- [ ] Run focused integration/policy tests, lint, docs, dependency and full checks.
+-- [ ] Merge after green PR CI, wait for master CI, run ./deploy.sh.
+-- [ ] Verify PyPI artifact hashes, release tag and installed-wheel behavior.
+-- [ ] Refresh next-work triage.
++- [x] Inspect issue, source/reference consumers and upstream annotation APIs.
++- [x] Write spec and record the user's species-context and test-quality corrections.
++- [x] Implement shared CLI resolution, input guards and lossless reference union.
++- [x] Test default human, mouse, transgenic and xenograft outcomes, plus conflicts.
++- [x] Add paired entry-point and composed workflow regressions with exact outputs.
++- [x] Verify targeted mutations are caught; inspect the complete diff.
++- [x] Update docs/changelog/version and refresh isolated editable metadata.
++- [ ] Run lint, focused tests, docs, dependencies and the full suite.
++- [ ] Open PR; merge after green CI; wait for master CI and run ./deploy.sh.
++- [ ] Verify published artifacts/tag and an installed-wheel species workflow.
++- [ ] Record review evidence and refresh next-work triage.
++
++## Review
++
++The focused suite passes 76 cases. Lint, strict documentation build and pip check
++pass. Source and selected editable metadata both report 5.112.0 with the same 15
++runtime requirements. The known #565 stale build metadata was archived before
++validation; shared environments and source checkouts were preserved.
+ 
+-## Evidence
++All three mutation probes fail at behavioral assertions: forcing human source
++selection, ignoring the explicit background override, and restoring the released
++FASTA overwrite behavior. The reference-header regression is recorded in #604.
+ 
+-- Original feature PR: https://github.com/openvax/topiary/pull/600
+-- Deployment failure log: /tmp/topiary-5.111.8-deploy.log
+-- Traceback: tests/test_integration.py:123; ProteinInputWarning for TRAC.
+-- Failed deployment: 6,352 passed, one failed. No artifact upload or tag push.
+-- Do not infer a failing test from surviving temporary directories: those can
+-  belong to tests still running. The completed traceback identifies this failure.
++Using installed reference data and actual MHCflurry weights, mouse Trp53 from
++Ensembl 102 produced 382 peptides / 1,146 rows against HLA-A*02:01. All peptide
++coordinates match the mouse sequence and all affinity values are finite and
++positive. Default human TP53 produced 403 peptides / 1,209 rows. Exact-match exclusion against the 68,381-protein mouse reference retained 321
++of those 403 human peptides. Independent direct substring searches verified
++every retained/excluded peptide; cached native scores and HLA identity were
++preserved. These receipts and the published-wheel checks will be retained with
++the release.
+ 
+-Focused validation: 59 integration/policy tests passed; lint, strict docs and
+-pip check pass. Source and selected package metadata both report 5.111.9.
++The previous X-policy release is 5.111.9. Work uses the isolated Topiary checkout
++and environment; no shared-environment package changes were made.
+diff --git a/tests/test_cli_species.py b/tests/test_cli_species.py
+new file mode 100644
+index 0000000..1936525
+--- /dev/null
++++ b/tests/test_cli_species.py
+@@ -0,0 +1,245 @@
++"""Species chooses source/reference data without rewriting presenting alleles."""
++
++from argparse import Namespace
++from types import SimpleNamespace
++
++import pandas as pd
++import pytest
++from pyensembl import EnsemblRelease
++
++from topiary.cli import args as cli
++from topiary.cli.protein_changes import genome_from_args
++from topiary.cli.references import exclusion_options, validate_source_options
++
++
++HUMAN = "homo_sapiens"
++MOUSE = "mus_musculus"
++PEPTIDES = {HUMAN: "SIINFEKLA", MOUSE: "AAAAAAAAA"}
++CONTROL = "VVVVVVVVV"
++
++
++def prediction_args(*extra, alleles="HLA-A*02:01"):
++    return cli.arg_parser.parse_args(
++        [
++            "--mhc-predictor",
++            "random",
++            "--mhc-alleles",
++            alleles,
++            "--mhc-peptide-lengths",
++            "9",
++            *extra,
++        ]
++    )
++
++
++def install_species_sources(monkeypatch):
++    calls = []
++
++    def genes(names, *, species, release):
++        calls.append(("source", species, release))
++        return {"target": PEPTIDES[species], "control": CONTROL}
++
++    def background(*, species, release):
++        calls.append(("background", species, release))
++        return {"shared_header": PEPTIDES[species]}
++
++    monkeypatch.setattr(cli, "sequences_from_gene_names", genes)
++    monkeypatch.setattr(cli, "ensembl_proteome", background)
++    return calls
++
++
++@pytest.mark.parametrize(
++    "flag,loader",
++    [
++        ("--gene-names", "sequences_from_gene_names"),
++        ("--gene-ids", "sequences_from_gene_ids"),
++        ("--transcript-ids", "sequences_from_transcript_ids"),
++        ("--ensembl-proteome", "ensembl_proteome"),
++    ],
++)
++def test_all_ensembl_direct_sources_receive_species_and_release(
++    monkeypatch, flag, loader
++):
++    calls = []
++
++    def load(*args, **kwargs):
++        calls.append(kwargs)
++        return {"mouse": PEPTIDES[MOUSE]}
++
++    monkeypatch.setattr(cli, loader, load)
++    flags = [flag] if flag == "--ensembl-proteome" else [flag, "identifier"]
++    args = prediction_args(*flags, "--species", "mouse", "--ensembl-release", "102")
++    assert cli.predict_epitopes_from_args(args).peptide.tolist() == [PEPTIDES[MOUSE]]
++    assert calls == [{"species": MOUSE, "release": 102}]
++
++
++def test_cta_can_be_human_with_a_mouse_background(monkeypatch):
++    calls = install_species_sources(monkeypatch)
++    monkeypatch.setattr(cli, "cta_sequences", lambda release: {"cta": PEPTIDES[HUMAN]})
++    args = prediction_args(
++        "--cta",
++        "--species",
++        "Homo sapiens",
++        "--exclude-ensembl",
++        "--exclude-species",
++        "mouse",
++        "--exclude-ensembl-release",
++        "102",
++    )
++    result = cli.predict_epitopes_from_args(args)
++    assert result.peptide.tolist() == [PEPTIDES[HUMAN]]
++    assert result.allele.tolist() == ["HLA-A*02:01"]
++    assert calls == [("background", MOUSE, 102)]
++
++
++@pytest.mark.parametrize(
++    "extra,message",
++    [
++        (["--gene-names", "Trp53", "--species", "mouse"], "--ensembl-release"),
++        (
++            ["--cta", "--species", "mouse", "--ensembl-release", "102"],
++            "--cta.*human-only",
++        ),
++        (["--gene-names", "TP53", "--genome", "GRCm38:102"], "Direct sequence inputs"),
++        (["--gene-names", "TP53", "--exclude-species", "mouse"], "require a built-in"),
++    ],
++)
++def test_invalid_species_requests_fail_before_loading_a_model(
++    monkeypatch, extra, message
++):
++    monkeypatch.setattr(
++        cli, "sequences_from_gene_names", lambda *a, **k: {"p": CONTROL}
++    )
++
++    def forbidden(*args, **kwargs):
++        pytest.fail("A model must not be constructed for invalid source options")
++
++    monkeypatch.setattr(cli, "predictors_from_args", forbidden)
++    monkeypatch.setattr(cli, "cta_sequences", forbidden)
++    with pytest.raises(ValueError, match=message):
++        cli.predict_epitopes_from_args(prediction_args(*extra))
++
++
++@pytest.mark.parametrize("flag", ["--exclude-non-cta", "--exclude-tissues"])
++def test_human_only_backgrounds_check_reference_not_antigen_species(monkeypatch, flag):
++    calls = install_species_sources(monkeypatch)
++    reference_calls = []
++
++    def human_reference(*args, **kwargs):
++        reference_calls.append(kwargs)
++        return {"normal": PEPTIDES[HUMAN]}
++
++    monkeypatch.setattr(cli, "non_cta_sequences", human_reference)
++    monkeypatch.setattr(cli, "tissue_expressed_sequences", human_reference)
++    flags = [flag, "lung"] if flag == "--exclude-tissues" else [flag]
++    args = prediction_args(
++        "--gene-names",
++        "Trp53",
++        "--species",
++        "mouse",
++        "--ensembl-release",
++        "102",
++        *flags,
++    )
++    with pytest.raises(ValueError, match="human-only"):
++        cli.predict_epitopes_from_args(args)
++    assert reference_calls == []
++    args.exclude_species = "human"
++    result = cli.predict_epitopes_from_args(args)
++    assert sorted(result.peptide) == sorted([PEPTIDES[MOUSE], CONTROL])
++    assert reference_calls == [{"release": None}]
++    assert calls == [("source", MOUSE, 102), ("source", MOUSE, 102)]
++
++
++def test_variant_background_uses_actual_annotation_not_ignored_genome_flag(monkeypatch):
++    calls = install_species_sources(monkeypatch)
++    variants = [SimpleNamespace(genome=EnsemblRelease(102, "mouse"))]
++    monkeypatch.setattr(cli, "variant_collection_from_args", lambda args: variants)
++
++    def predict(self, variants, **kwargs):
++        assert variants[0].genome.species.latin_name == MOUSE
++        return self.predict_from_named_sequences(
++            {"target": PEPTIDES[MOUSE], "control": CONTROL}
++        )
++
++    monkeypatch.setattr(cli.TopiaryPredictor, "predict_from_variants", predict)
++    args = prediction_args(
++        "--maf", "mouse.maf", "--genome", "GRCh38:115", "--exclude-ensembl"
++    )
++    result = cli.predict_epitopes_from_args(args)
++    assert result.peptide.tolist() == [CONTROL]
++    assert result.allele.tolist() == ["HLA-A*02:01"]
++    assert calls == [("background", MOUSE, 102)]
++    args.species = "human"
++    with pytest.raises(ValueError, match="conflicts with input annotation species"):
++        cli.predict_epitopes_from_args(args)
++    args.species = "mouse"
++    args.ensembl_release = 115
++    with pytest.raises(ValueError, match="conflicts with input annotation release"):
++        cli.predict_epitopes_from_args(args)
++
++
++def test_explicit_background_does_not_borrow_the_sources_release():
++    args = Namespace(
++        species="human",
++        ensembl_release=115,
++        exclude_species="mouse",
++        exclude_ensembl=True,
++    )
++    with pytest.raises(ValueError, match="--exclude-ensembl-release"):
++        exclusion_options(args)
++    args.exclude_ensembl_release = 102
++    assert exclusion_options(args) == {"species": MOUSE, "release": 102}
++
++
++def test_ambiguous_or_custom_annotations_need_an_explicit_background():
++    human, mouse = EnsemblRelease(75, "human"), EnsemblRelease(102, "mouse")
++    args = Namespace(exclude_ensembl=True)
++    with pytest.raises(ValueError, match="multiple species"):
++        exclusion_options(args, [human, mouse])
++    with pytest.raises(ValueError, match="one numbered Ensembl release"):
++        exclusion_options(args, [human, EnsemblRelease(115, "human")])
++    args.exclude_ensembl_release = 75
++    assert exclusion_options(args, [human, EnsemblRelease(115, "human")]) == {
++        "species": HUMAN,
++        "release": 75,
++    }
++    args.exclude_ensembl_release = None
++    custom = SimpleNamespace(species=mouse.species, release=None)
++    with pytest.raises(ValueError, match="one numbered Ensembl release"):
++        exclusion_options(args, [custom])
++    custom.release = "2026_04"
++    with pytest.raises(ValueError, match="one numbered Ensembl release"):
++        exclusion_options(args, [custom])
++    args.exclude_species = "human"
++    assert exclusion_options(args, [human, mouse]) == {
++        "species": HUMAN,
++        "release": None,
++    }
++    args.exclude_ensembl = False
++    args.exclude_species = None
++    assert exclusion_options(args, [human, mouse]) is None
++    validate_source_options(args, [human, mouse])
++
++
++def test_protein_change_source_checks_species_and_release():
++    args = Namespace(genome="GRCm38:102", species="mouse", ensembl_release=102)
++    genome = genome_from_args(args)
++    assert genome.species.latin_name == MOUSE and genome.release == 102
++    args.genome = None
++    assert genome_from_args(args) == genome
++    args.genome = "GRCh38:115"
++    with pytest.raises(ValueError, match="conflicts with input annotation species"):
++        genome_from_args(args)
++
++
++def test_multiple_background_fastas_keep_colliding_headers(tmp_path):
++    paths = []
++    for species, peptide in PEPTIDES.items():
++        path = tmp_path / (species + ".fasta")
++        path.write_text(">shared_header\n" + peptide + "\n")
++        paths.append(str(path))
++    frame = pd.DataFrame({"peptide": [*PEPTIDES.values(), CONTROL]})
++    args = Namespace(exclude_fasta=paths, exclude_mode="exact")
++    result = cli._apply_exclusion(frame, args)
++    assert result.peptide.tolist() == [CONTROL]
+diff --git a/tests/test_consumer_workflows.py b/tests/test_consumer_workflows.py
+index 51f015f..43baf54 100644
+--- a/tests/test_consumer_workflows.py
++++ b/tests/test_consumer_workflows.py
+@@ -58,6 +58,59 @@
+ from .test_twin_conformance import DSL_MEASUREMENT_TWINS
+ 
+ 
++def test_cli_species_contexts_change_sequences_and_exclusions_not_mhc(monkeypatch, tmp_path):
++    """Actual loaders → native predictor → exclusions → CSV for four contexts."""
++    from types import SimpleNamespace
++    from mhcgnomes import parse as parse_allele
++    from topiary import sources
++    from topiary.cli.script import main
++
++    human, mouse = "homo_sapiens", "mus_musculus"
++    peptides = {human: "SIINFEKLA", mouse: "AAAAAAAAA"}
++    control = "VVVVVVVVV"
++    calls = []
++
++    def genome(release, species):
++        calls.append((species, release))
++
++        def genes(name):
++            return [SimpleNamespace(name=name, transcripts=[SimpleNamespace(
++                id=species + "-" + name, biotype="protein_coding", complete=True,
++                protein_sequence=control if name == "CONTROL" else peptides[species],
++            )])]
++
++        return SimpleNamespace(genes_by_name=genes,
++                               protein_ids=lambda: ["shared_header"],
++                               protein_sequence=lambda ident: peptides[species])
++
++    monkeypatch.setattr(sources, "ensembl_genome", genome)
++    scenarios = [
++        ("human", [], "HLA-A*02:01", human, None, human, None, [control]),
++        ("mouse", ["--species", "mouse", "--ensembl-release", "102"],
++         "H2-Kb", mouse, 102, mouse, 102, [control]),
++        ("transgenic", ["--species", "Mus musculus", "--ensembl-release", "102"],
++         "HLA-A*02:01", mouse, 102, mouse, 102, [control]),
++        ("xenograft", ["--exclude-species", "mouse", "--exclude-ensembl-release", "102"],
++         "HLA-A*02:01", human, None, mouse, 102, [peptides[human], control]),
++    ]
++    for name, flags, allele, source, release, background, background_release, expected in scenarios:
++        calls.clear()
++        path = tmp_path / (name + ".csv")
++        assert main([
++            "--gene-names", "GENE", "CONTROL", "--exclude-ensembl",
++            "--mhc-predictor", "random", "--mhc-alleles", allele,
++            "--mhc-peptide-lengths", "9", "--output-csv", str(path), *flags,
++        ]) == 0
++        frame = pd.read_csv(path)
++        assert sorted(frame.peptide) == sorted(expected), name
++        assert frame.allele.unique().tolist() == [parse_allele(allele).to_string()], name
++        expected_names = {"CONTROL|" + source + "-CONTROL"}
++        if peptides[human] in expected:
++            expected_names.add("GENE|" + source + "-GENE")
++        assert set(frame.source_sequence_name) == expected_names, name
++        assert calls == [(source, release), (background, background_release)], name
++
++
+ @pytest.mark.parametrize("policy", ["skip", "windows", "allow"])
+ def test_antigen_sources_share_x_policy_and_cli_override(monkeypatch, tmp_path, policy):
+     from types import SimpleNamespace
+diff --git a/tests/test_twin_conformance.py b/tests/test_twin_conformance.py
+index c18d849..3c996b8 100644
+--- a/tests/test_twin_conformance.py
++++ b/tests/test_twin_conformance.py
+@@ -151,6 +151,39 @@ def calls(self, arg, value):
+ )
+ 
+ 
++def _protein_change_reference(species, release):
++    from topiary.cli.protein_changes import genome_from_args
++    return genome_from_args(SimpleNamespace(
++        genome=None, species=species, ensembl_release=release))
++
++
++SEQUENCE_REFERENCE_TWINS = (sources.ensembl_genome, _protein_change_reference)
++
++
++@pytest.mark.parametrize("species,release,expected_species,expected_release", [
++    ("human", None, "homo_sapiens", None),
++    ("Homo sapiens", 75, "homo_sapiens", 75),
++    ("Mus musculus", 102, "mus_musculus", 102),
++    ("mouse", None, "mus_musculus", None),
++])
++def test_sequence_and_protein_change_sources_share_reference_defaults(
++    species, release, expected_species, expected_release
++):
++    import pyensembl
++    genomes = []
++    for resolve in SEQUENCE_REFERENCE_TWINS:
++        if species == "mouse" and release is None:
++            with pytest.raises(ValueError, match="specify release"):
++                resolve(species=species, release=release)
++        else:
++            genomes.append(resolve(species=species, release=release))
++    if genomes:
++        assert genomes[0] == genomes[1]
++        assert genomes[0].species.latin_name == expected_species
++        assert genomes[0].release == (
++            pyensembl.ensembl_grch38.release if expected_release is None else expected_release)
++
++
+ ANTIGEN_SEQUENCE_INPUT_TWINS = (
+     ("cta", lambda fasta: ["--cta"]),
+     ("gene-name", lambda fasta: ["--gene-names", "GENE"]),
+diff --git a/topiary/__init__.py b/topiary/__init__.py
+index 42091c2..9ef5125 100644
+--- a/topiary/__init__.py
++++ b/topiary/__init__.py
+@@ -247,7 +247,7 @@
+     encode_amino_acids,
+ )
+ 
+-__version__ = "5.111.9"
++__version__ = "5.112.0"
+ 
+ __all__ = [
+     "best_protein_transcript",
+diff --git a/topiary/cli/args.py b/topiary/cli/args.py
+index bd7030a..56c9fe0 100644
+--- a/topiary/cli/args.py
++++ b/topiary/cli/args.py
+@@ -37,8 +37,17 @@
+ from .sequence import add_sequence_args
+ from .errors import add_error_args
+ from .outputs import add_output_args
++from .references import (
++    exclusion_options,
++    has_builtin_exclusions,
++    require_human,
++    require_release,
++    source_options,
++    validate_source_options,
++)
+ from .protein_changes import (
+     add_protein_change_args,
++    genome_from_args,
+     protein_change_effects_from_args,
+ )
+ from ..inputs import (
+@@ -136,7 +145,7 @@ def _add_input_args(arg_parser):
+         default=False,
+         action="store_true",
+         help="Exclude peptides found in the Ensembl proteome "
+-             "(default: human GRCh38).",
++             "(default: the source species/release; human GRCh38 for unannotated inputs).",
+     )
+     input_group.add_argument(
+         "--exclude-non-cta",
+@@ -150,7 +159,18 @@ def _add_input_args(arg_parser):
+         default=None,
+         nargs="*",
+         help="Exclude peptides from genes expressed in these tissues "
+-             "(e.g. heart_muscle lung brain). Requires pirlygenes.",
++             "(e.g. heart_muscle lung brain). Human only. Requires pirlygenes.",
++    )
++    input_group.add_argument(
++        "--exclude-species",
++        help="Species for built-in exclusions, independent of antigen origin and MHC. "
++             "Explicitly selecting it starts a separate reference context; pair it "
++             "with --exclude-ensembl-release (required for non-human species).",
++    )
++    input_group.add_argument(
++        "--exclude-ensembl-release", type=int,
++        help="Ensembl release for built-in exclusions. Defaults to the source release "
++             "unless --exclude-species selects an independent reference context.",
+     )
+ 
+     # -- built-in sequence sources --
+@@ -188,12 +208,20 @@ def _add_input_args(arg_parser):
+         help="Predict across CTA (cancer-testis antigen) proteins. "
+              "Human only. Requires pirlygenes. " + gene_selection_help,
+     )
++    input_group.add_argument(
++        "--species",
++        help="Species of the antigen sequence source, independent of MHC alleles "
++             "(default: human for direct inputs, actual annotation for variants). "
++             "Non-human built-in sources require --ensembl-release. For variants, "
++             "an explicit value must match their annotations.",
++    )
+     input_group.add_argument(
+         "--ensembl-release",
+         default=None,
+         type=int,
+         help=(
+-            "Ensembl release number. Without it, human uses the release the "
++            "Source Ensembl release number. For variant inputs, an explicit value "
++            "must match their annotations. Without it, direct human inputs use the release the "
+             "installed pyensembl exposes as ensembl_grch38, whose data must "
+             "already be installed; pass one to pin an analysis."
+         ),
+@@ -445,7 +473,7 @@ def _parse_regions(region_strings):
+ 
+ def _get_direct_input(args):
+     """Check for direct peptide/sequence inputs. Returns (dict, is_peptides) or (None, None)."""
+-    release = getattr(args, "ensembl_release", None)
++    options = source_options(args)
+ 
+     # File-based sources
+     peptide_csv = getattr(args, "peptide_csv", None)
+@@ -468,6 +496,10 @@ def _get_direct_input(args):
+         raise ValueError(
+             "Only one sequence source may be specified (file or built-in)"
+         )
++    if use_cta:
++        require_human(options, "--cta")
++    elif builtin_sources:
++        require_release(options, "--ensembl-release")
+ 
+     is_peptides = False
+     sequences = None
+@@ -483,15 +515,15 @@ def _get_direct_input(args):
+     elif fasta:
+         sequences = read_fasta(fasta)
+     elif use_ensembl:
+-        sequences = ensembl_proteome(release=release)
++        sequences = ensembl_proteome(**options)
+     elif gene_names:
+-        sequences = sequences_from_gene_names(gene_names, release=release)
++        sequences = sequences_from_gene_names(gene_names, **options)
+     elif gene_id_list:
+-        sequences = sequences_from_gene_ids(gene_id_list, release=release)
++        sequences = sequences_from_gene_ids(gene_id_list, **options)
+     elif transcript_id_list:
+-        sequences = sequences_from_transcript_ids(transcript_id_list, release=release)
++        sequences = sequences_from_transcript_ids(transcript_id_list, **options)
+     elif use_cta:
+-        sequences = cta_sequences(release=release)
++        sequences = cta_sequences(release=options["release"])
+ 
+     if sequences is None:
+         return None, None
+@@ -527,6 +559,8 @@ def _validate_input_modes(args):
+         return
+ 
+     incompatible_flags = []
++    if getattr(args, "genome", None):
++        incompatible_flags.append("--genome (use --species / --ensembl-release for direct inputs)")
+     if getattr(args, "vcf", None):
+         incompatible_flags.append("--vcf")
+     if getattr(args, "maf", None):
+@@ -615,9 +649,10 @@ def predict_epitopes_from_args(args):
+     _validate_required_prediction_args(args)
+     cache_misses = []
+     report_cache_misses = bool(getattr(args, "cache_miss_report", None))
++    reference_options = None
+ 
+     def finish(df):
+-        df = _apply_exclusion(df, args)
++        df = _apply_exclusion(df, args, reference_options=reference_options)
+         if report_cache_misses:
+             df.attrs["topiary_cache_misses"] = cache_misses
+         return df
+@@ -641,6 +676,21 @@ def finish(df):
+         transcript_expression_dict = rna_transcript_expression_dict_from_args(args)
+         expr_data = expression_data_from_args(args)
+ 
++    # Read actual loaded annotations: --genome can be ignored by MAF, and VCF /
++    # JSON can supply their own references. None of this consults MHC alleles.
++    genomes = []
++    if (has_builtin_exclusions(args)
++            or getattr(args, "species", None) is not None
++            or getattr(args, "ensembl_release", None) is not None):
++        if variants is not None:
++            genomes.extend(variant.genome for variant in variants)
++        if getattr(args, "protein_change", None):
++            genomes.append(genome_from_args(args))
++        elif direct_input is None and not genomes and getattr(args, "genome", None):
++            genomes.append(genome_from_args(args))
++    validate_source_options(args, genomes)
++    reference_options = exclusion_options(args, genomes)
++
+     if cached_predictor_in_use(args):
+         models = cached_predictor_from_args(args)
+     else:
+@@ -701,32 +751,38 @@ def _require_variant_input(args):
+         raise CommandLineError(INPUT_SOURCE_ERROR)
+ 
+ 
+-def _apply_exclusion(df, args):
++def _apply_exclusion(df, args, reference_options=None):
+     """Apply all exclusion sources to the predictions."""
++    options = reference_options or exclusion_options(args)
+     if not isinstance(df, pd.DataFrame) or df.empty:
+         return df
+ 
+-    release = getattr(args, "ensembl_release", None)
+     mode = getattr(args, "exclude_mode", "substring")
+ 
+     # Collect all reference sequences into one dict
+     ref_sequences = {}
+ 
++    def add_reference(sequences):
++        # Header identities are local to a source. Two FASTAs (e.g. human and
++        # mouse backgrounds) may reuse a header without losing either protein.
++        source_index = len(ref_sequences)
++        ref_sequences.update({(source_index, name): seq for name, seq in sequences.items()})
++
+     exclude_paths = getattr(args, "exclude_fasta", None)
+     if exclude_paths:
+         for path in exclude_paths:
+-            ref_sequences.update(read_fasta(path))
++            add_reference(read_fasta(path))
+ 
+     if getattr(args, "exclude_ensembl", False):
+-        ref_sequences.update(ensembl_proteome(release=release))
++        add_reference(ensembl_proteome(**options))
+ 
+     if getattr(args, "exclude_non_cta", False):
+-        ref_sequences.update(non_cta_sequences(release=release))
++        add_reference(non_cta_sequences(release=options["release"]))
+ 
+     exclude_tissues = getattr(args, "exclude_tissues", None)
+     if exclude_tissues:
+-        ref_sequences.update(
+-            tissue_expressed_sequences(exclude_tissues, release=release)
++        add_reference(
++            tissue_expressed_sequences(exclude_tissues, release=options["release"])
+         )
+ 
+     if ref_sequences:
+diff --git a/topiary/cli/protein_changes.py b/topiary/cli/protein_changes.py
+index cd4319b..348e920 100644
+--- a/topiary/cli/protein_changes.py
++++ b/topiary/cli/protein_changes.py
+@@ -32,17 +32,18 @@ def add_protein_change_args(arg_parser):
+ 
+ 
+ def genome_from_args(args):
+-    if args.genome:
++    from .references import source_options, validate_source_options
++
++    if getattr(args, "genome", None):
+         from varcode.reference import infer_genome
+ 
+         genome, _ = infer_genome(args.genome)
++        validate_source_options(args, [genome])
+         return genome
+     else:
+-        from pyensembl import ensembl_grch38
++        from ..sources import ensembl_genome
+ 
+-        # no genome specified, assume it can be inferred from the file(s)
+-        # we're loading
+-        return ensembl_grch38
++        return ensembl_genome(**source_options(args))
+ 
+ 
+ def transcript_sort_key(transcript):
+diff --git a/topiary/cli/references.py b/topiary/cli/references.py
+new file mode 100644
+index 0000000..cbb293b
+--- /dev/null
++++ b/topiary/cli/references.py
+@@ -0,0 +1,132 @@
++"""Resolve CLI source/reference options independently of presenting MHC.
++
++HLA-transgenic mice are a real use case (Pascolo et al., PMID 9182675).
++Species selects sequence annotations, never the predictor's allele vocabulary.
++"""
++
++from numbers import Integral
++
++import pyensembl
++
++
++def source_options(args):
++    """Normalize the direct-input defaults without opening annotation data."""
++    species = getattr(args, "species", None)
++    return {
++        "species": pyensembl.normalize_species_name(
++            "human" if species is None else species
++        ),
++        "release": getattr(args, "ensembl_release", None),
++    }
++
++
++def _genome_species(genome):
++    species = getattr(genome, "species", None)
++    name = getattr(species, "latin_name", species)
++    if not name:
++        raise ValueError(
++            "Cannot establish the input annotation species; select an explicit "
++            "--exclude-species / --exclude-ensembl-release background, or use "
++            "--exclude-fasta."
++        )
++    return pyensembl.normalize_species_name(name)
++
++
++def validate_source_options(args, genomes):
++    """Check explicit source assertions against annotations actually loaded."""
++    options = source_options(args)
++    for genome in genomes:
++        if getattr(args, "species", None) is not None:
++            actual = _genome_species(genome)
++            if actual != options["species"]:
++                raise ValueError(
++                    "--species %s conflicts with input annotation species %s; "
++                    "use --exclude-species for a different background."
++                    % (options["species"], actual)
++                )
++        if options["release"] is not None:
++            actual = getattr(genome, "release", None)
++            if actual != options["release"]:
++                raise ValueError(
++                    "--ensembl-release %s conflicts with input annotation release %r; "
++                    "use --exclude-ensembl-release for a different background."
++                    % (options["release"], actual)
++                )
++
++
++def require_human(options, flag):
++    """Reject a human-only data source in the context it would read."""
++    if options["species"] != "homo_sapiens":
++        raise ValueError(
++            "%s uses human-only membership data; requested species is %s. "
++            "Use species-appropriate sequences instead." % (flag, options["species"])
++        )
++
++
++def require_release(options, flag):
++    """Only human has a documented default numbered Ensembl release."""
++    if options["release"] is None and options["species"] != "homo_sapiens":
++        raise ValueError(
++            "Species %s requires an explicit %s." % (options["species"], flag)
++        )
++
++
++def has_builtin_exclusions(args):
++    return any(
++        getattr(args, name, None)
++        for name in ("exclude_ensembl", "exclude_non_cta", "exclude_tissues")
++    )
++
++
++def exclusion_options(args, genomes=()):
++    """Resolve one built-in background; explicit species starts its own context.
++
++    With no override, use the actual single input annotation when available.
++    File-based sequences have no annotation metadata and use the source flags
++    (human by default). An explicit exclusion species does not borrow the source
++    release, even if both happen to name the same species.
++    """
++    species = getattr(args, "exclude_species", None)
++    release = getattr(args, "exclude_ensembl_release", None)
++    if not has_builtin_exclusions(args):
++        if species is not None or release is not None:
++            raise ValueError(
++                "--exclude-species / --exclude-ensembl-release require a built-in "
++                "exclusion (--exclude-ensembl, --exclude-non-cta or --exclude-tissues)."
++            )
++        return None
++
++    if species is not None:
++        options = {
++            "species": pyensembl.normalize_species_name(species),
++            "release": release,
++        }
++    elif genomes:
++        species_names = {_genome_species(genome) for genome in genomes}
++        if len(species_names) != 1:
++            raise ValueError(
++                "Input annotations span multiple species; select --exclude-species "
++                "and its release explicitly, or use --exclude-fasta."
++            )
++        if release is None:
++            releases = {getattr(genome, "release", None) for genome in genomes}
++            if len(releases) != 1 or any(
++                not isinstance(value, Integral) or isinstance(value, bool)
++                for value in releases
++            ):
++                raise ValueError(
++                    "Input annotations do not identify one numbered Ensembl release; "
++                    "select --exclude-ensembl-release explicitly, or use --exclude-fasta."
++                )
++            release = releases.pop()
++        options = {"species": species_names.pop(), "release": release}
++    else:
++        options = source_options(args)
++        if release is not None:
++            options["release"] = release
++
++    require_release(options, "--exclude-ensembl-release")
++    for flag in ("exclude_non_cta", "exclude_tissues"):
++        if getattr(args, flag, None):
++            require_human(options, "--" + flag.replace("_", "-"))
++    return options

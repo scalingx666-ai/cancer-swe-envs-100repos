@@ -1,0 +1,99 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 758feafde3..7b9e3def0b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -59,6 +59,7 @@ Special thanks to the following for their contributions to the release:
+ - [PR #1995](https://github.com/nf-core/rnaseq/pull/1995) - Bump version to 3.28.0 ahead of release, and move the vendored `ea-utils/gtf2bed` module to its renamed upstream `eautils/gtf2bed` to pick up the updated container base
+ - [PR #1997](https://github.com/nf-core/rnaseq/pull/1997) - Update `bowtie2/align` and `bowtie2/build` to pick up the bowtie2 2.5.5 CPU-dispatch version parsing fix and rebuilt containers, including the arm64 overrides in `conf/arm.config`
+ - [PR #1998](https://github.com/nf-core/rnaseq/pull/1998) - Address review nits from the 3.28.0 release PR: remove a stale `nf_core_version` comment, make `anySampleAutoStrandedness` independent of the samplesheet column count, and complete the software dependencies table
++- [PR #1999](https://github.com/nf-core/rnaseq/pull/1999) - Declare the `force_completion_email` parameter in `nextflow.config` and `nextflow_schema.json`, and add tests for `--fail_on_low_trimmed_reads` and `--fail_on_low_mapped_reads`
+ 
+ ### Software dependencies
+ 
+diff --git a/nextflow.config b/nextflow.config
+index 2805b465c5..de06c9fb63 100644
+--- a/nextflow.config
++++ b/nextflow.config
+@@ -141,6 +141,7 @@ params {
+     email                        = null
+     email_on_fail                = null
+     plaintext_email              = false
++    force_completion_email       = false
+     monochrome_logs              = false
+     help                         = false
+     help_full                    = false
+diff --git a/nextflow_schema.json b/nextflow_schema.json
+index c86c284187..30ceb18d72 100644
+--- a/nextflow_schema.json
++++ b/nextflow_schema.json
+@@ -964,6 +964,12 @@
+                     "fa_icon": "fas fa-remove-format",
+                     "hidden": true
+                 },
++                "force_completion_email": {
++                    "type": "boolean",
++                    "description": "Send the completion email on Seqera Platform launches, where it is skipped by default.",
++                    "fa_icon": "fas fa-envelope",
++                    "hidden": true
++                },
+                 "max_multiqc_email_size": {
+                     "type": "string",
+                     "description": "File size limit when attaching MultiQC reports to summary emails.",
+diff --git a/subworkflows/local/multiqc_rnaseq/tests/main.function.nf.test b/subworkflows/local/multiqc_rnaseq/tests/main.function.nf.test
+index 3b47efd137..3b5993ff3c 100644
+--- a/subworkflows/local/multiqc_rnaseq/tests/main.function.nf.test
++++ b/subworkflows/local/multiqc_rnaseq/tests/main.function.nf.test
+@@ -527,7 +527,7 @@ headers:
+         then {
+             assertAll(
+                 { assert !function.success },
+-                { assert function.stdout.any { it.contains('strand_check_summary.yaml headers do not declare columns') } || function.errors.any { it.toString().contains('strand_check_summary.yaml headers do not declare columns') } },
++                { assert function.stdout.any { it.contains('strand_check_summary.yaml headers do not declare columns') } || function.stderr.any { it.contains('strand_check_summary.yaml headers do not declare columns') } },
+             )
+         }
+     }
+diff --git a/tests/fail_on_sample_checks.nf.test b/tests/fail_on_sample_checks.nf.test
+index 4034b577d6..a2ca4fc7f1 100644
+--- a/tests/fail_on_sample_checks.nf.test
++++ b/tests/fail_on_sample_checks.nf.test
+@@ -45,4 +45,40 @@ nextflow_pipeline {
+             )
+         }
+     }
++
++    test("Params: fail_on_low_trimmed_reads stops the run") {
++
++        when {
++            params {
++                outdir                    = "$outputDir"
++                fail_on_low_trimmed_reads = true
++                min_trimmed_reads         = 1000000000
++            }
++        }
++
++        then {
++            assertAll(
++                { assert workflow.failed },
++                { assert workflow.stdout.any { line -> line.contains("failed the trimmed reads check") } || workflow.stderr.any { line -> line.contains("failed the trimmed reads check") } }
++            )
++        }
++    }
++
++    test("Params: fail_on_low_mapped_reads stops the run") {
++
++        when {
++            params {
++                outdir                   = "$outputDir"
++                fail_on_low_mapped_reads = true
++                min_mapped_reads         = 100
++            }
++        }
++
++        then {
++            assertAll(
++                { assert workflow.failed },
++                { assert workflow.stdout.any { line -> line.contains("failed the mapped reads check") } || workflow.stderr.any { line -> line.contains("failed the mapped reads check") } }
++            )
++        }
++    }
+ }

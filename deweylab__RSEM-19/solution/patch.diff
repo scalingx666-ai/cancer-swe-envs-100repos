@@ -1,0 +1,785 @@
+diff --git a/BamConverter.h b/BamConverter.h
+index 84c0a30..fdf93a7 100644
+--- a/BamConverter.h
++++ b/BamConverter.h
+@@ -8,8 +8,7 @@
+ #include<map>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -25,7 +24,8 @@ class BamConverter {
+ 
+ 	void process();
+ private:
+-	samfile_t *in, *out;
++	samFile *in, *out;
++	bam_hdr_t *in_header, *out_header;
+ 	Transcripts& transcripts;
+ 
+ 	std::map<std::string, int> refmap;
+@@ -46,25 +46,28 @@ BamConverter::BamConverter(const char* inpF, const char* outF, const char* chr_l
+ {
+ 	general_assert(transcripts.getType() == 0, "Genome information is not provided! RSEM cannot convert the transcript bam file!");
+ 
+-	in = samopen(inpF, "r", NULL);
++	in = sam_open(inpF, "r");
+ 	assert(in != 0);
++	bam_hdr_t *in_header = sam_hdr_read(in);
++	assert(in_header != 0);
+ 
+-	transcripts.buildMappings(in->header->n_targets, in->header->target_name);
++	transcripts.buildMappings(in_header->n_targets, in_header->target_name);
+ 
+-	bam_hdr_t *out_header = sam_header_read2(chr_list);
++	std::string text = fai_headers(chr_list);
++	bam_hdr_t *out_header = sam_hdr_parse(text.length(), text.c_str());
+ 
+ 	refmap.clear();
+ 	for (int i = 0; i < out_header->n_targets; ++i) {
+ 		refmap[out_header->target_name[i]] = i;
+ 	}
+ 
+-	if (in->header->l_text > 0) {
++	if (in_header->l_text > 0) {
+ 		char comment[] = "@CO\tThis BAM file is processed by rsem-tbam2gam to convert from transcript coordinates into genomic coordinates.\n";
+ 		int comment_len = strlen(comment);
+ 
+ 		//Filter @SQ fields if the BAM file is user provided
+-		char *text = in->header->text;
+-		int l_text = in->header->l_text;
++		char *text = in_header->text;
++		int l_text = in_header->l_text;
+ 		char *new_text = new char[l_text + comment_len];
+ 		int pos = 0, s = 0;
+ 		while (pos < l_text) {
+@@ -82,17 +85,18 @@ BamConverter::BamConverter(const char* inpF, const char* outF, const char* chr_l
+ 		delete[] new_text;
+ 	}
+ 
+-	out = samopen(outF, "wb", out_header);
++	out = sam_open(outF, "wb");
+ 	assert(out != 0);
++	sam_hdr_write(out, out_header);
+ 
+-	bam_hdr_destroy(out_header);
+-
+-        if (nThreads > 1) general_assert(samthreads(out, nThreads, 256) == 0, "Fail to create threads for writing the BAM file!");
++	if (nThreads > 1) general_assert(hts_set_threads(out, nThreads) == 0, "Fail to create threads for writing the BAM file!");
+ }
+ 
+ BamConverter::~BamConverter() {
+-	samclose(in);
+-	samclose(out);
++	bam_hdr_destroy(in_header);
++	sam_close(in);
++	bam_hdr_destroy(out_header);
++	sam_close(out);
+ }
+ 
+ void BamConverter::process() {
+@@ -105,11 +109,11 @@ void BamConverter::process() {
+ 	cqname = "";
+ 	b = bam_init1(); b2 = bam_init1();
+ 
+-	while (samread(in, b) >= 0) {
++	while (sam_read1(in, in_header, b) >= 0) {
+ 		++cnt;
+ 		isPaired = bam_is_paired(b);
+ 		if (isPaired) {
+-		  assert(samread(in, b2) >= 0 && bam_is_paired(b2));
++		  assert(sam_read1(in, in_header, b2) >= 0 && bam_is_paired(b2));
+ 		  if (!bam_is_read1(b)) { bam1_t *tmp = b; b = b2; b2 = tmp; }
+ 		  assert(bam_is_read1(b) && bam_is_read2(b2));
+ 		  general_assert((bam_is_mapped(b) && bam_is_mapped(b2)) || (bam_is_unmapped(b) && bam_is_unmapped(b2)), \
+@@ -150,8 +154,8 @@ void BamConverter::process() {
+ 		  cqname = qname;
+ 		  collapseMap.init(isPaired);
+ 		  
+-		  samwrite(out, b);
+-		  if (isPaired) samwrite(out, b2);
++		  sam_write1(out, out_header, b);
++		  if (isPaired) sam_write1(out, out_header, b2);
+ 		}
+ 	}
+ 
+@@ -192,8 +196,8 @@ void BamConverter::convert(bam1_t* b, const Transcript& transcript) {
+ 	tr2chr(transcript, pos + 1, pos + readlen, core_pos, core_n_cigar, data);
+ 	assert(core_pos >= 0);
+ 
+-	int rest_len = b->data_len - b->core.l_qname - b->core.n_cigar * 4;
+-	b->data_len = b->core.l_qname + core_n_cigar * 4 + rest_len;
++	int rest_len = b->l_data - b->core.l_qname - b->core.n_cigar * 4;
++	b->l_data = b->core.l_qname + core_n_cigar * 4 + rest_len;
+ 	expand_data_size(b);
+ 	uint8_t* pt = b->data + b->core.l_qname;
+ 	memmove(pt + core_n_cigar * 4, pt + b->core.n_cigar * 4, rest_len);
+@@ -201,7 +205,7 @@ void BamConverter::convert(bam1_t* b, const Transcript& transcript) {
+ 
+ 	b->core.pos = core_pos;
+ 	b->core.n_cigar = core_n_cigar;
+-	b->core.bin = bam_reg2bin(b->core.pos, bam_calend(&(b->core), bam1_cigar(b)));
++	b->core.bin = hts_reg2bin(b->core.pos, bam_endpos(b), 14, 5);
+ 
+ 	modifyTags(b, transcript); // check if need to add XS tag, if need, add it
+ }
+@@ -221,11 +225,11 @@ inline void BamConverter::writeCollapsedLines() {
+ 			}
+ 			// otherwise, just use the MAPQ score of the orignal alignment
+ 
+-			samwrite(out, tmp_b);
++			sam_write1(out, out_header, tmp_b);
+ 			if (isPaired) {
+ 				if (p != NULL) memcpy(bam_aux_get(tmp_b2, "ZW") + 1, (uint8_t*)&(prb), bam_aux_type2size('f'));
+ 				tmp_b2->core.qual = tmp_b->core.qual;
+-				samwrite(out, tmp_b2);
++				sam_write1(out, out_header, tmp_b2);
+ 			}
+ 			bam_destroy1(tmp_b);
+ 			if (isPaired) bam_destroy1(tmp_b2);
+@@ -312,7 +316,7 @@ inline void BamConverter::modifyTags(bam1_t* b, const Transcript& transcript) {
+ 	s = bam_aux_get(b, "XS");
+ 	if (s != NULL) bam_aux_del(b, s);
+ 	bool hasN = false;
+-	uint32_t* p = bam1_cigar(b);
++	uint32_t* p = bam_get_cigar(b);
+ 	for (int i = 0; i < (int)b->core.n_cigar; i++)
+ 		if ((*(p + i) & BAM_CIGAR_MASK) == BAM_CREF_SKIP) { hasN = true; break; }
+ 	if (hasN) bam_aux_append(b, "XS", 'A', 1, (uint8_t*)&strand);
+diff --git a/BamWriter.h b/BamWriter.h
+index 4fd5aa6..5b7bc5f 100644
+--- a/BamWriter.h
++++ b/BamWriter.h
+@@ -10,8 +10,7 @@
+ #include<iostream>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -32,7 +31,8 @@ class BamWriter {
+ 	void work(HitWrapper<SingleHit> wrapper);
+ 	void work(HitWrapper<PairedEndHit> wrapper);
+ private:
+-	samfile_t *in, *out;
++	samFile *in, *out;
++	bam_hdr_t *in_header, *out_header;
+ 	Transcripts& transcripts;
+ 	
+ 	void set_alignment_weight(bam1_t *b, double prb) {
+@@ -49,31 +49,34 @@ class BamWriter {
+ 
+ //aux can be NULL
+ BamWriter::BamWriter(const char* inpF, const char* aux, const char* outF, Transcripts& transcripts, int nThreads) : transcripts(transcripts) {
+-  in = samopen(inpF, "r", aux);
++  in = sam_open(inpF, "r");
+   assert(in != 0);
++  in_header = sam_hdr_read(in);
++  assert(in_header != 0);
+ 
+   //build mappings from external sid to internal sid
+-  transcripts.buildMappings(in->header->n_targets, in->header->target_name);
++  transcripts.buildMappings(in_header->n_targets, in_header->target_name);
+   
+   //generate output's header
+-  bam_hdr_t *out_header = bam_header_dwt(in->header);
++  bam_hdr_t *out_header = bam_header_dwt(in_header);
+   
+   std::ostringstream strout;
+   strout<<"@HD\tVN:1.4\tSO:unknown\n@PG\tID:RSEM\n";
+   std::string content = strout.str();
+   append_header_text(out_header, content.c_str(), content.length());
+   
+-  out = samopen(outF, "wb", out_header); // If CRAM format is desired, use "wc"
++  out = sam_open(outF, "wb"); // If CRAM format is desired, use "wc"
+   assert(out != 0);
++  sam_hdr_write(out, out_header);
+     
+-  bam_hdr_destroy(out_header);
+-
+-  if (nThreads > 1) general_assert(samthreads(out, nThreads, 256) == 0, "Fail to create threads for writing the BAM file!");
++  if (nThreads > 1) general_assert(hts_set_threads(out, nThreads) == 0, "Fail to create threads for writing the BAM file!");
+ }
+ 
+ BamWriter::~BamWriter() {
+-	samclose(in);
+-	samclose(out);
++	bam_hdr_destroy(in_header);
++	sam_close(in);
++	bam_hdr_destroy(out_header);
++	sam_close(out);
+ }
+ 
+ void BamWriter::work(HitWrapper<SingleHit> wrapper) {
+@@ -84,7 +87,7 @@ void BamWriter::work(HitWrapper<SingleHit> wrapper) {
+ 
+ 	b = bam_init1();
+ 
+-	while (samread(in, b) >= 0) {
++	while (sam_read1(in, in_header, b) >= 0) {
+ 		++cnt;
+ 		if (verbose && cnt % 1000000 == 0) { std::cout<< cnt<< " alignment lines are loaded!"<< std::endl; }
+ 
+@@ -95,7 +98,7 @@ void BamWriter::work(HitWrapper<SingleHit> wrapper) {
+ 		  assert(transcripts.getInternalSid(b->core.tid + 1) == hit->getSid());
+ 		  set_alignment_weight(b, hit->getConPrb());
+ 		}
+-		samwrite(out, b);
++		sam_write1(out, out_header, b);
+ 	}
+ 
+ 	assert(wrapper.getNextHit() == NULL);
+@@ -113,7 +116,7 @@ void BamWriter::work(HitWrapper<PairedEndHit> wrapper) {
+ 	b = bam_init1();
+ 	b2 = bam_init1();
+ 
+-	while (samread(in, b) >= 0 && samread(in, b2) >= 0) {
++	while (sam_read1(in, in_header, b) >= 0 && sam_read1(in, in_header, b2) >= 0) {
+ 		cnt += 2;
+ 		if (verbose && cnt % 1000000 == 0) { std::cout<< cnt<< " alignment lines are loaded!"<< std::endl; }
+ 
+@@ -130,8 +133,8 @@ void BamWriter::work(HitWrapper<PairedEndHit> wrapper) {
+ 			set_alignment_weight(b2, hit->getConPrb());
+ 		}
+ 
+-		samwrite(out, b);
+-		samwrite(out, b2);
++		sam_write1(out, out_header, b);
++		sam_write1(out, out_header, b2);
+ 	}
+ 
+ 	assert(wrapper.getNextHit() == NULL);
+diff --git a/Makefile b/Makefile
+index 795f342..543e5c0 100644
+--- a/Makefile
++++ b/Makefile
+@@ -5,8 +5,8 @@ LFLAGS = -Wall -O3 -I.
+ 
+ SAMTOOLS = samtools-1.3
+ HTSLIB = htslib-1.3
+-SAMFLAGS = -I$(SAMTOOLS) -I$(SAMTOOLS)/$(HTSLIB)
+-SAMLIBS = $(SAMTOOLS)/libbam.a $(SAMTOOLS)/$(HTSLIB)/libhts.a
++SAMFLAGS = -I$(SAMTOOLS)/$(HTSLIB)
++SAMLIBS = $(SAMTOOLS)/$(HTSLIB)/libhts.a
+ PROGRAMS = rsem-extract-reference-transcripts rsem-synthesis-reference-transcripts rsem-preref rsem-parse-alignments rsem-build-read-index rsem-run-em rsem-tbam2gbam rsem-run-gibbs rsem-calculate-credibility-intervals rsem-simulate-reads rsem-bam2wig rsem-get-unique rsem-bam2readdepth rsem-sam-validator rsem-scan-for-paired-end-reads
+ 
+ 
+@@ -14,8 +14,6 @@ PROGRAMS = rsem-extract-reference-transcripts rsem-synthesis-reference-transcrip
+ 
+ all : $(PROGRAMS)
+ 
+-$(SAMTOOLS)/libbam.a : $(SAMTOOLS)/$(HTSLIB)/libhts.a
+-
+ $(SAMTOOLS)/$(HTSLIB)/libhts.a : 
+ 	cd $(SAMTOOLS) ; ${MAKE} all
+ 
+@@ -56,15 +54,15 @@ PairedEndHit.h : SingleHit.h
+ 
+ HitContainer.h : GroupInfo.h
+ 
+-sam_utils.h : $(SAMTOOLS)/bam.h Transcript.h Transcripts.h
++sam_utils.h : Transcript.h Transcripts.h
+ 
+-SamParser.h : $(SAMTOOLS)/sam.h $(SAMTOOLS)/bam.h sam_utils.h utils.h my_assert.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h Transcripts.h
++SamParser.h : sam_utils.h utils.h my_assert.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h Transcripts.h
+ 
+ 
+ rsem-parse-alignments : parseIt.o $(SAMLIBS)
+ 	$(CC) -o rsem-parse-alignments parseIt.o $(SAMLIBS) -lz -lpthread 
+ 
+-parseIt.o : $(SAMTOOLS)/sam.h $(SAMTOOLS)/bam.h sam_utils.h utils.h my_assert.h GroupInfo.h Transcripts.h Read.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h HitContainer.h SamParser.h parseIt.cpp
++parseIt.o : sam_utils.h utils.h my_assert.h GroupInfo.h Transcripts.h Read.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h HitContainer.h SamParser.h parseIt.cpp
+ 	$(CC) -Wall -O2 -c -I. $(SAMFLAGS) parseIt.cpp
+ 
+ 
+@@ -88,7 +86,7 @@ HitWrapper.h : HitContainer.h
+ 
+ 
+ 
+-BamWriter.h : $(SAMTOOLS)/sam.h $(SAMTOOLS)/bam.h sam_utils.h utils.h my_assert.h SingleHit.h PairedEndHit.h HitWrapper.h Transcript.h Transcripts.h
++BamWriter.h : sam_utils.h utils.h my_assert.h SingleHit.h PairedEndHit.h HitWrapper.h Transcript.h Transcripts.h
+ 
+ sampling.h : boost/random.hpp
+ 
+@@ -97,17 +95,15 @@ WriteResults.h : utils.h my_assert.h GroupInfo.h Transcript.h Transcripts.h RefS
+ rsem-run-em : EM.o $(SAMLIBS)
+ 	$(CC) -o rsem-run-em EM.o $(SAMLIBS) -lz -lpthread
+ 
+-EM.o : utils.h my_assert.h Read.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h Model.h SingleModel.h SingleQModel.h PairedEndModel.h PairedEndQModel.h Refs.h GroupInfo.h HitContainer.h ReadIndex.h ReadReader.h Orientation.h LenDist.h RSPD.h QualDist.h QProfile.h NoiseQProfile.h ModelParams.h RefSeq.h RefSeqPolicy.h PolyARules.h Profile.h NoiseProfile.h Transcript.h Transcripts.h HitWrapper.h BamWriter.h $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h simul.h sam_utils.h sampling.h boost/random.hpp WriteResults.h EM.cpp
++EM.o : utils.h my_assert.h Read.h SingleRead.h SingleReadQ.h PairedEndRead.h PairedEndReadQ.h SingleHit.h PairedEndHit.h Model.h SingleModel.h SingleQModel.h PairedEndModel.h PairedEndQModel.h Refs.h GroupInfo.h HitContainer.h ReadIndex.h ReadReader.h Orientation.h LenDist.h RSPD.h QualDist.h QProfile.h NoiseQProfile.h ModelParams.h RefSeq.h RefSeqPolicy.h PolyARules.h Profile.h NoiseProfile.h Transcript.h Transcripts.h HitWrapper.h BamWriter.h simul.h sam_utils.h sampling.h boost/random.hpp WriteResults.h EM.cpp
+ 	$(CC) $(COFLAGS) $(SAMFLAGS) EM.cpp
+ 
+-bc_aux.h : $(SAMTOOLS)/bam.h
+-
+-BamConverter.h : $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h sam_utils.h utils.h my_assert.h bc_aux.h Transcript.h Transcripts.h
++BamConverter.h : sam_utils.h utils.h my_assert.h bc_aux.h Transcript.h Transcripts.h
+ 
+-rsem-tbam2gbam : utils.h Transcripts.h Transcript.h BamConverter.h $(SAMTOOLS)/sam.h $(SAMTOOLS)/bam.h sam_utils.h my_assert.h bc_aux.h tbam2gbam.cpp $(SAMLIBS)
++rsem-tbam2gbam : utils.h Transcripts.h Transcript.h BamConverter.h sam_utils.h my_assert.h bc_aux.h tbam2gbam.cpp $(SAMLIBS)
+ 	$(CC) $(LFLAGS) $(SAMFLAGS) tbam2gbam.cpp $(SAMLIBS) -lz -lpthread -o $@
+ 
+-wiggle.o: $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h sam_utils.h utils.h my_assert.h wiggle.h wiggle.cpp
++wiggle.o: sam_utils.h utils.h my_assert.h wiggle.h wiggle.cpp
+ 	$(CC) $(COFLAGS) $(SAMFLAGS) wiggle.cpp
+ 
+ rsem-bam2wig : utils.h my_assert.h wiggle.h wiggle.o $(SAMLIBS) bam2wig.cpp
+@@ -139,13 +135,13 @@ rsem-calculate-credibility-intervals : calcCI.o
+ calcCI.o : utils.h my_assert.h boost/random.hpp sampling.h Model.h SingleModel.h SingleQModel.h PairedEndModel.h PairedEndQModel.h RefSeq.h RefSeqPolicy.h PolyARules.h Refs.h GroupInfo.h WriteResults.h Buffer.h calcCI.cpp
+ 	$(CC) $(COFLAGS) calcCI.cpp
+ 
+-rsem-get-unique : $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h sam_utils.h utils.h getUnique.cpp $(SAMLIBS)
++rsem-get-unique : sam_utils.h utils.h getUnique.cpp $(SAMLIBS)
+ 	$(CC) $(LFLAGS) $(SAMFLAGS) getUnique.cpp $(SAMLIBS) -lz -lpthread -o $@
+ 
+-rsem-sam-validator : $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h sam_utils.h utils.h my_assert.h samValidator.cpp $(SAMLIBS)
++rsem-sam-validator : sam_utils.h utils.h my_assert.h samValidator.cpp $(SAMLIBS)
+ 	$(CC) $(LFLAGS) $(SAMFLAGS) samValidator.cpp $(SAMLIBS) -lz -lpthread -o $@
+ 
+-rsem-scan-for-paired-end-reads : $(SAMTOOLS)/bam.h $(SAMTOOLS)/sam.h sam_utils.h utils.h my_assert.h scanForPairedEndReads.cpp $(SAMLIBS)
++rsem-scan-for-paired-end-reads : sam_utils.h utils.h my_assert.h scanForPairedEndReads.cpp $(SAMLIBS)
+ 	$(CC) $(LFLAGS) $(SAMFLAGS) scanForPairedEndReads.cpp $(SAMLIBS) -lz -lpthread -o $@
+ 
+ ebseq :
+diff --git a/SamParser.h b/SamParser.h
+index bfa1146..6b8353f 100644
+--- a/SamParser.h
++++ b/SamParser.h
+@@ -9,8 +9,7 @@
+ #include<string>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -49,8 +48,8 @@ class SamParser {
+ 	}
+ 
+ private:
+-	samfile_t *sam_in;
+-	bam_header_t *header;
++	samFile *sam_in;
++	bam_hdr_t *header;
+ 	bam1_t *b, *b2;
+ 
+ 	Transcripts& transcripts;
+@@ -87,10 +86,10 @@ char SamParser::rtTag[STRLEN] = ""; // default : no tag, thus no Type 2 reads
+ SamParser::SamParser(const char* inpF, const char* aux, Transcripts& transcripts, const char* imdName)
+ 	: transcripts(transcripts)
+ {
+-	sam_in = samopen(inpF, "r", aux);
++	sam_in = sam_open(inpF, "r");
+ 
+ 	general_assert(sam_in != 0, "Cannot open " + cstrtos(inpF) + "! It may not exist.");
+-	header = sam_in->header;
++	header = sam_hdr_read(sam_in);
+ 	general_assert(header != 0, "Fail to parse sam header!");
+ 
+ 	transcripts.buildMappings(header->n_targets, header->target_name, imdName);
+@@ -100,7 +99,8 @@ SamParser::SamParser(const char* inpF, const char* aux, Transcripts& transcripts
+ }
+ 
+ SamParser::~SamParser() {
+-	samclose(sam_in);
++	bam_hdr_destroy(header);
++	sam_close(sam_in);
+ 	bam_destroy1(b);
+ 	bam_destroy1(b2);
+ }
+@@ -110,7 +110,7 @@ SamParser::~SamParser() {
+ int SamParser::parseNext(SingleRead& read, SingleHit& hit) {
+ 	int val; // return value
+ 
+-	if (samread(sam_in, b) < 0) return -1;
++	if (sam_read1(sam_in, header, b) < 0) return -1;
+ 
+ 	std::string name = bam_get_canonical_name(b);
+ 	
+@@ -139,7 +139,7 @@ int SamParser::parseNext(SingleRead& read, SingleHit& hit) {
+ int SamParser::parseNext(SingleReadQ& read, SingleHit& hit) {
+ 	int val;
+ 
+-	if (samread(sam_in, b) < 0) return -1;
++	if (sam_read1(sam_in, header, b) < 0) return -1;
+ 
+ 	std::string name = bam_get_canonical_name(b);
+ 	
+@@ -169,7 +169,7 @@ int SamParser::parseNext(SingleReadQ& read, SingleHit& hit) {
+ int SamParser::parseNext(PairedEndRead& read, PairedEndHit& hit) {
+ 	int val;
+ 
+-	if ((samread(sam_in, b) < 0) || (samread(sam_in, b2) < 0)) return -1;
++	if ((sam_read1(sam_in, header, b) < 0) || (sam_read1(sam_in, header, b2) < 0)) return -1;
+ 
+ 	if (!bam_is_read1(b)) { bam1_t * tmp = b; b = b2; b2 = tmp; }
+ 	std::string name = bam_get_canonical_name(b);
+@@ -208,7 +208,7 @@ int SamParser::parseNext(PairedEndRead& read, PairedEndHit& hit) {
+ int SamParser::parseNext(PairedEndReadQ& read, PairedEndHit& hit) {
+ 	int val;
+ 	
+-	if ((samread(sam_in, b) < 0) || (samread(sam_in, b2) < 0)) return -1;
++	if ((sam_read1(sam_in, header, b) < 0) || (sam_read1(sam_in, header, b2) < 0)) return -1;
+ 
+ 	if (!bam_is_read1(b)) { bam1_t *tmp = b; b = b2; b2 = tmp; } // swap if the first read is not read 1
+ 	std::string name = bam_get_canonical_name(b);
+diff --git a/bc_aux.h b/bc_aux.h
+index 1abd0a7..54f4d67 100644
+--- a/bc_aux.h
++++ b/bc_aux.h
+@@ -4,7 +4,7 @@
+ #include<map>
+ 
+ #include <stdint.h>
+-#include "bam.h"
++#include "htslib/sam.h"
+ 
+ struct SingleEndT {
+ 	bam1_t *b;
+diff --git a/getUnique.cpp b/getUnique.cpp
+index d137eb6..3d61589 100644
+--- a/getUnique.cpp
++++ b/getUnique.cpp
+@@ -6,8 +6,7 @@
+ #include<vector>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -17,7 +16,8 @@ using namespace std;
+ 
+ int nThreads;
+ string cqname;
+-samfile_t *in, *out;
++samFile *in, *out;
++bam_hdr_t *header;
+ bam1_t *b;
+ vector<bam1_t*> arr;
+ bool unaligned;
+@@ -26,7 +26,7 @@ void output() {
+ 	if (unaligned || arr.size() == 0) return;
+ 	bool isPaired = bam_is_paired(arr[0]);
+ 	if ((isPaired && arr.size() != 2) || (!isPaired && arr.size() != 1)) return;
+-	for (size_t i = 0; i < arr.size(); ++i) samwrite(out, arr[i]);
++	for (size_t i = 0; i < arr.size(); ++i) sam_write1(out, header, arr[i]);
+ }
+ 
+ int main(int argc, char* argv[]) {
+@@ -36,11 +36,14 @@ int main(int argc, char* argv[]) {
+ 	}
+ 
+         nThreads = atoi(argv[1]);
+-	in = samopen(argv[2], "r", NULL);
++	in = sam_open(argv[2], "r");
+ 	assert(in != 0);
+-	out = samopen(argv[3], "wb", in->header);
++	header = sam_hdr_read(in);
++	assert(header != 0);
++	out = sam_open(argv[3], "wb");
+ 	assert(out != 0);
+-        if (nThreads > 1) general_assert(samthreads(out, nThreads, 256) == 0, "Fail to create threads for writing the BAM file!");
++	sam_hdr_write(out, header);
++	if (nThreads > 1) general_assert(hts_set_threads(out, nThreads) == 0, "Fail to create threads for writing the BAM file!");
+ 
+ 	HIT_INT_TYPE cnt = 0;
+ 
+@@ -49,7 +52,7 @@ int main(int argc, char* argv[]) {
+ 	b = bam_init1();
+ 	unaligned = false;
+ 
+-	while (samread(in, b) >= 0) {
++	while (sam_read1(in, header, b) >= 0) {
+ 		if (cqname != bam_get_qname(b)) {
+ 			output();
+ 			cqname = bam_get_qname(b);
+@@ -70,8 +73,9 @@ int main(int argc, char* argv[]) {
+ 	output();
+ 
+ 	bam_destroy1(b);
+-	samclose(in);
+-	samclose(out);
++	bam_hdr_destroy(header);
++	sam_close(in);
++	sam_close(out);
+ 
+ 	printf("done!\n");
+ 
+diff --git a/samValidator.cpp b/samValidator.cpp
+index 90dd6b4..e320c67 100644
+--- a/samValidator.cpp
++++ b/samValidator.cpp
+@@ -6,8 +6,7 @@
+ #include<set>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -15,7 +14,8 @@
+ 
+ using namespace std;
+ 
+-samfile_t *in;
++samFile *in;
++bam_hdr_t *header;
+ bam1_t *b, *b2;
+ 
+ set<string> used;
+@@ -28,8 +28,9 @@ int main(int argc, char* argv[]) {
+     exit(-1);
+   }
+   
+-  in = samopen(argv[1], "r", NULL);
++  in = sam_open(argv[1], "r");
+   general_assert(in != 0, "Cannot open input file!");
++  header = sam_hdr_read(in);
+   
+   used.clear();
+   b = bam_init1(); b2 = bam_init1();
+@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
+   
+   printf("."); fflush(stdout);
+   do {
+-    if (samread(in, b) < 0) break;
++    if (sam_read1(in, header, b) < 0) break;
+     assert(b->core.l_qseq > 0);
+     
+     qname = bam_get_canonical_name(b);
+@@ -52,7 +53,7 @@ int main(int argc, char* argv[]) {
+     ispaired = bam_is_paired(b);
+     if (ispaired) {
+       
+-      isValid = (samread(in, b2) >= 0) && (qname == bam_get_canonical_name(b2)) && bam_is_paired(b2);
++      isValid = (sam_read1(in, header, b2) >= 0) && (qname == bam_get_canonical_name(b2)) && bam_is_paired(b2);
+       if (!isValid) { printf("\nOnly find one mate for paired-end read %s!\n", qname.c_str()); continue; }
+       assert(b2->core.l_qseq > 0);
+       isValid = !(bam_is_read1(b) && bam_is_read2(b)) && !(bam_is_read1(b2) && bam_is_read2(b2));
+@@ -94,7 +95,8 @@ int main(int argc, char* argv[]) {
+   } while(isValid);
+   
+   bam_destroy1(b); bam_destroy1(b2);
+-  samclose(in);
++  bam_hdr_destroy(header);
++  sam_close(in);
+   
+   if (isValid) printf("\nThe input file is valid!\n");
+   else printf("The input file is not valid!\n");
+diff --git a/sam_utils.h b/sam_utils.h
+index b53ed2d..87d3a15 100644
+--- a/sam_utils.h
++++ b/sam_utils.h
+@@ -7,7 +7,7 @@
+ #include<string>
+ #include<stdint.h>
+ 
+-#include "bam.h"
++#include "htslib/sam.h"
+ 
+ #include "Transcript.h"
+ #include "Transcripts.h"
+@@ -55,13 +55,29 @@ void append_header_text(bam_hdr_t *header, const char* text, int len)
+ }
+ 
+ inline void expand_data_size(bam1_t *b) {
+-  if (b->m_data < b->data_len) {
++  if (b->m_data < b->l_data) {
+     b->m_data = b->l_data;
+     kroundup32(b->m_data);
+     b->data = (uint8_t*)realloc(b->data, b->m_data);
+   }
+ }
+ 
++inline std::string fai_headers(const char *fname) {
++  FILE *fi = fopen(fname, "r");
++  if (fi == NULL) return "";
++
++  std::string s;
++  char line[2048];
++  while (fgets(line, sizeof line, fi)) {
++    const char *name = strtok(line, "\t");
++    const char *len = strtok(NULL, "\t");
++    s.append("@SQ\tSN:").append(name).append("\tLN:").append(len).append("\n");
++  }
++
++  fclose(fi);
++  return s;
++}
++
+ /******************************************************/
+ 
+ // These functions are specially designed for RSEM
+diff --git a/scanForPairedEndReads.cpp b/scanForPairedEndReads.cpp
+index 402e1cd..a0d1bd8 100644
+--- a/scanForPairedEndReads.cpp
++++ b/scanForPairedEndReads.cpp
+@@ -7,8 +7,7 @@
+ #include<algorithm>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -17,7 +16,8 @@
+ using namespace std;
+ 
+ int nThreads;
+-samfile_t *in, *out;
++samFile *in, *out;
++bam_hdr_t *header;
+ bam1_t *b, *b2;
+ vector<bam1_t*> arr_both, arr_partial_1, arr_partial_2, arr_partial_unknown;
+ 
+@@ -57,16 +57,18 @@ int main(int argc, char* argv[]) {
+ 	}
+ 
+         nThreads = atoi(argv[1]);
+-	in = samopen(argv[2], "r", NULL);
++	in = sam_open(argv[2], "r");
+ 	general_assert(in != 0, "Cannot open " + cstrtos(argv[2]) + " !");
+-	out = samopen(argv[3], "wb", in->header);
++	header = sam_hdr_read(in);
++	out = sam_open(argv[3], "wb");
+ 	general_assert(out != 0, "Cannot open " + cstrtos(argv[3]) + " !");
+-        if (nThreads > 1) general_assert(samthreads(out, nThreads, 256) == 0, "Fail to create threads for writing the BAM file!");        
++	sam_hdr_write(out, header);
++	if (nThreads > 1) general_assert(hts_set_threads(out, nThreads) == 0, "Fail to create threads for writing the BAM file!");
+ 
+ 	b = bam_init1(); b2 = bam_init1();
+ 
+ 	string qname;
+-	bool go_on = (samread(in, b) >= 0);
++	bool go_on = (sam_read1(in, header, b) >= 0);
+ 	bool isPaired;
+ 	HIT_INT_TYPE cnt = 0;
+ 
+@@ -78,7 +80,7 @@ int main(int argc, char* argv[]) {
+ 
+ 	  if (isPaired) {
+ 	    add_to_appropriate_arr(b);
+-	    while ((go_on = (samread(in, b) >= 0)) && (qname == bam_get_canonical_name(b))) {
++	    while ((go_on = (sam_read1(in, header, b) >= 0)) && (qname == bam_get_canonical_name(b))) {
+ 	      general_assert_1(bam_is_paired(b), "Read " + qname + " is detected as both single-end and paired-end read!");
+ 	      add_to_appropriate_arr(b);
+ 	    }
+@@ -88,33 +90,33 @@ int main(int argc, char* argv[]) {
+ 
+ 	    if (!arr_both.empty()) {
+ 	      sort(arr_both.begin(), arr_both.end(), less_than);
+-	      for (size_t i = 0; i < arr_both.size(); i++) { samwrite(out, arr_both[i]); bam_destroy1(arr_both[i]); }
++	      for (size_t i = 0; i < arr_both.size(); i++) { sam_write1(out, header, arr_both[i]); bam_destroy1(arr_both[i]); }
+ 	      arr_both.clear();
+ 	    }
+ 	    
+ 	    while (!arr_partial_1.empty() || !arr_partial_2.empty()) {
+ 	      if (!arr_partial_1.empty() && !arr_partial_2.empty()) {
+-		samwrite(out, arr_partial_1.back()); bam_destroy1(arr_partial_1.back()); arr_partial_1.pop_back();
+-		samwrite(out, arr_partial_2.back()); bam_destroy1(arr_partial_2.back()); arr_partial_2.pop_back();
++		sam_write1(out, header, arr_partial_1.back()); bam_destroy1(arr_partial_1.back()); arr_partial_1.pop_back();
++		sam_write1(out, header, arr_partial_2.back()); bam_destroy1(arr_partial_2.back()); arr_partial_2.pop_back();
+ 	      }
+ 	      else if (!arr_partial_1.empty()) {
+-		samwrite(out, arr_partial_1.back()); bam_destroy1(arr_partial_1.back()); arr_partial_1.pop_back();
+-		samwrite(out, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
++		sam_write1(out, header, arr_partial_1.back()); bam_destroy1(arr_partial_1.back()); arr_partial_1.pop_back();
++		sam_write1(out, header, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
+ 	      }
+ 	      else {
+-		samwrite(out, arr_partial_2.back()); bam_destroy1(arr_partial_2.back()); arr_partial_2.pop_back();
+-		samwrite(out, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
++		sam_write1(out, header, arr_partial_2.back()); bam_destroy1(arr_partial_2.back()); arr_partial_2.pop_back();
++		sam_write1(out, header, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
+ 	      }
+ 	    }
+ 	    
+ 	    while (!arr_partial_unknown.empty()) {
+-	      samwrite(out, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
++	      sam_write1(out, header, arr_partial_unknown.back()); bam_destroy1(arr_partial_unknown.back()); arr_partial_unknown.pop_back();
+ 	    }
+ 	  }
+ 	  else {
+-	    samwrite(out, b);
+-	    while ((go_on = (samread(in, b) >= 0)) && (qname == bam1_qname(b))) {
+-	      samwrite(out, b);
++	    sam_write1(out, header, b);
++	    while ((go_on = (sam_read1(in, header, b) >= 0)) && (qname == bam_get_qname(b))) {
++	      sam_write1(out, header, b);
+ 	    }
+ 	  }
+ 	  
+@@ -125,9 +127,10 @@ int main(int argc, char* argv[]) {
+ 	printf("\nFinished!\n");
+ 	
+ 	bam_destroy1(b); bam_destroy1(b2);
++	bam_hdr_destroy(header);
+ 	
+-	samclose(in);
+-	samclose(out);
++	sam_close(in);
++	sam_close(out);
+ 	
+ 	return 0;
+ }
+diff --git a/wiggle.cpp b/wiggle.cpp
+index 2f841c4..aa55981 100644
+--- a/wiggle.cpp
++++ b/wiggle.cpp
+@@ -4,8 +4,7 @@
+ #include <iostream>
+ 
+ #include <stdint.h>
+-#include "bam.h"
+-#include "sam.h"
++#include "htslib/sam.h"
+ #include "sam_utils.h"
+ 
+ #include "utils.h"
+@@ -40,10 +39,10 @@ void add_bam_record_to_wiggle(const bam1_t *b, Wiggle& wiggle) {
+ void build_wiggles(const std::string& bam_filename,
+                    WiggleProcessor& processor) {
+   
+-    samfile_t *bam_in = samopen(bam_filename.c_str(), "r", NULL);
++    samFile *bam_in = sam_open(bam_filename.c_str(), "r");
+     general_assert(bam_in != NULL, "Cannot open " + bam_filename + "!");
+ 
+-    bam_hdr_t *header = bam_in->header;
++    bam_hdr_t *header = sam_hdr_read(bam_in);
+     bool *used = new bool[header->n_targets];
+     memset(used, 0, sizeof(bool) * header->n_targets);
+ 
+@@ -51,7 +50,7 @@ void build_wiggles(const std::string& bam_filename,
+     HIT_INT_TYPE cnt = 0;
+     bam1_t *b = bam_init1();
+     Wiggle wiggle;
+-    while (samread(bam_in, b) >= 0) {
++    while (sam_read1(bam_in, header, b) >= 0) {
+       if (bam_is_unmapped(b)) continue;
+       
+       if (b->core.tid != cur_tid) {
+@@ -76,7 +75,8 @@ void build_wiggles(const std::string& bam_filename,
+       }
+ 
+     bam_destroy1(b);
+-    samclose(bam_in);
++    bam_hdr_destroy(header);
++    sam_close(bam_in);
+ 
+     delete[] used;
+ }

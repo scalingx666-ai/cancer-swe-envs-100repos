@@ -1,0 +1,262 @@
+diff --git a/src/applications/FeatureExtraction/CMakeLists.txt b/src/applications/FeatureExtraction/CMakeLists.txt
+index b5dbdc3bf..83c2e11f8 100644
+--- a/src/applications/FeatureExtraction/CMakeLists.txt
++++ b/src/applications/FeatureExtraction/CMakeLists.txt
+@@ -88,7 +88,7 @@ IF( BUILD_REFERENCES )
+   
+ ENDIF()
+ 
+-# for collage
++# platform for downloads
+ SET( PLATFORM_STRING "" )
+ 
+ IF(WIN32)
+@@ -99,6 +99,7 @@ ELSE()
+   SET( PLATFORM_STRING "linux" )
+ ENDIF()
+ 
++# for collage
+ SET( DOWNLOAD_LINK "https://captk.projects.nitrc.org/collage_${PLATFORM_STRING}.zip" )
+ SET( FILENAME_TO_EXTRACT "collage_${PLATFORM_STRING}")
+ SET( FILE_TO_EXTRACT ${PROJECT_BINARY_DIR}/${FILENAME_TO_EXTRACT}.zip)
+@@ -154,3 +155,60 @@ ELSE()
+     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+   )
+ ENDIF()
++
++# this is for ibsi2
++SET( DOWNLOAD_LINK "https://captk.projects.nitrc.org/CaPTk_ExtraFeatures_${PLATFORM_STRING}.zip" )
++SET( FILENAME_TO_EXTRACT "CaPTk_ExtraFeatures_${PLATFORM_STRING}")
++SET( FILE_TO_EXTRACT ${PROJECT_BINARY_DIR}/${FILENAME_TO_EXTRACT}.zip)
++
++SET( DOWNLOADED_APPS_DIR ${PROJECT_BINARY_DIR}/CaPTk_ExtraFeatures )
++
++IF( NOT EXISTS "${DOWNLOADED_APPS_DIR}" )
++
++  IF( NOT EXISTS "${FILE_TO_EXTRACT}" )
++
++    # do not re-download if the LFS fetch worked
++    IF(NOT EXISTS ${FILE_TO_EXTRACT})
++      # download exe from url
++      MESSAGE( STATUS "Downloading pre-compiled CaPTk_ExtraFeatures" )
++      FILE(DOWNLOAD "${DOWNLOAD_LINK}" "${FILE_TO_EXTRACT}" TIMEOUT 1000000 STATUS STATUS_CODE SHOW_PROGRESS)
++      IF(NOT STATUS_CODE EQUAL 0)
++        SET( DOWNLOAD_LINK "https://github.com/CBICA/precompiledBinaries/raw/master/${PLATFORM_STRING}/CaPTk_ExtraFeatures_${PLATFORM_STRING}.zip" )
++        FILE(DOWNLOAD "${DOWNLOAD_LINK}" "${FILE_TO_EXTRACT}" TIMEOUT 1000000 STATUS STATUS_CODE SHOW_PROGRESS)
++        IF(NOT STATUS_CODE EQUAL 0)
++          MESSAGE(FATAL_ERROR "Failed to download Precompiled CaPTk_ExtraFeatures. Status=${STATUS_CODE}")
++        ENDIF()
++      ENDIF()
++    ENDIF()
++  ENDIF()
++
++  FILE(MAKE_DIRECTORY ${DOWNLOADED_APPS_DIR})
++
++  MESSAGE( STATUS "Extracting pre-compiled CaPTk_ExtraFeatures" )
++  IF( EXISTS "${FILE_TO_EXTRACT}" )
++
++    EXECUTE_PROCESS( COMMAND ${CMAKE_COMMAND} -E tar xfz ${FILE_TO_EXTRACT}
++      WORKING_DIRECTORY ${DOWNLOADED_APPS_DIR}
++      RESULT_VARIABLE RESULT_CODE
++    )
++
++    IF(NOT RESULT_CODE EQUAL 0)
++      MESSAGE( WARNING "Extracting the pre-compiled CaPTk_ExtraFeatures failed" )
++    ENDIF()
++
++  ENDIF()
++ENDIF()
++
++FILE(GLOB CaPTk_ExtraFeaturesEXE "${DOWNLOADED_APPS_DIR}/*")
++
++IF(APPLE)
++  INSTALL(FILES ${CaPTk_ExtraFeaturesEXE}
++    DESTINATION ${EXE_NAME}.app/Contents/Resources/bin
++    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
++  )
++ELSE()
++  INSTALL(FILES ${CaPTk_ExtraFeaturesEXE}
++    DESTINATION bin
++    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
++  )
++ENDIF()
+diff --git a/src/applications/FeatureExtraction/src/FeatureExtraction.h b/src/applications/FeatureExtraction/src/FeatureExtraction.h
+index 10b32b0b3..95c15085b 100644
+--- a/src/applications/FeatureExtraction/src/FeatureExtraction.h
++++ b/src/applications/FeatureExtraction/src/FeatureExtraction.h
+@@ -128,6 +128,7 @@ enum FeatureFamily
+   NGLDM,
+   LBP,
+   COLLAGE,
++  IBSI2,
+   Lattice,
+   FractalDimension,
+   Gabor,
+@@ -668,6 +669,15 @@ class FeatureExtraction
+   */
+   void CalculateCOLLAGE(const typename TImageType::Pointer itkImage, const typename TImageType::Pointer maskImage, std::map< std::string, double >& featurevec);
+ 
++  /**
++  \brief Calculate IBSI2 features
++
++  \param itkImage The input image
++  \param maskImage The mask specifying the roi
++  \param featurevec - map of Individual feature name and their value
++  */
++  void CalculateIBSI2(const typename TImageType::Pointer itkImage, const typename TImageType::Pointer maskImage, std::map< std::string, double >& featurevec);
++
+   /**
+   \brief Calculate NGTDM features
+ 
+diff --git a/src/applications/FeatureExtraction/src/FeatureExtraction.hxx b/src/applications/FeatureExtraction/src/FeatureExtraction.hxx
+index 228e98916..046cb8f9d 100644
+--- a/src/applications/FeatureExtraction/src/FeatureExtraction.hxx
++++ b/src/applications/FeatureExtraction/src/FeatureExtraction.hxx
+@@ -42,6 +42,7 @@
+ //#include "FractalBoxCount_template.h"
+ 
+ #include "cbicaProgressBar.h"
++#include "cbicaITKUtilities.h"
+ 
+ //TBD
+ #include <math.h> //for debugging
+@@ -380,7 +381,6 @@ void FeatureExtraction< TImage >::CalculateCOLLAGE(const typename TImage::Pointe
+     std::cerr << "Could not find the Collage CLI, so cannot extract collage features.\n";
+     return;
+   }
+-  //std::cout << "[DEBUG] FeatureExtraction.hxx::NGTDM" << std::endl;
+ 
+   auto tempDir = cbica::createTemporaryDirectory();
+   auto inputImage = cbica::normPath(tempDir + "/inputImage.nii.gz");
+@@ -423,6 +423,53 @@ void FeatureExtraction< TImage >::CalculateCOLLAGE(const typename TImage::Pointe
+ }
+ 
+ 
++template< class TImage >
++void FeatureExtraction< TImage >::CalculateIBSI2(const typename TImage::Pointer itkImage,
++  const typename TImage::Pointer maskImage, std::map<std::string, double>& featurevec)
++{
++  // this is a special case where the features are extracted via a python executable
++  auto ibsi2_cli = cbica::getExecutablePath() + "/CaPTk_ExtraFeatures"
++#ifdef _WIN32
++    + ".exe"
++#else
++
++#endif
++    ;
++  if (!cbica::isFile(ibsi2_cli))
++  {
++    std::cerr << "Could not find the CaPTk_ExtraFeatures CLI, so cannot extract IBSI2 features.\n";
++    return;
++  }
++
++  //// Check if input mask is not null
++  //auto minMaxCal = itk::MinimumMaximumImageCalculator< TImage >::New();
++  //minMaxCal->SetImage(maskImage);
++  //minMaxCal->ComputeMaximum();
++  //if (minMaxCal->GetMaximum() == 0)
++  //{
++  //  // mask is empty
++  //  maskImage = cbica::CreateImage< TImage >(inputImage, 1);
++  //}
++
++  auto tempDir = cbica::createTemporaryDirectory();
++  auto inputImage = cbica::normPath(tempDir + "/inputImage.nii.gz");
++  //auto inputMask = cbica::normPath(tempDir + "/inputMask.nii.gz");
++
++  // write input images to temp dir
++  cbica::WriteImage< TImage >(itkImage, inputImage);
++  //cbica::WriteImage< TImage >(maskImage, inputMask);
++
++  // construct the command and call it
++  auto commandToRun = ibsi2_cli + " -i " + inputImage + " -o " + m_outputPath;
++  if (std::system(commandToRun.c_str()) != 0)
++  {
++    std::cerr << "Something went wrong with IBSI2 Feature extraction.\n";
++  }
++
++  cbica::removeDirectoryRecursively(tempDir, true); // delete the directory
++}
++
++
+ template< class TImage >
+ void FeatureExtraction< TImage >::CalculateGLSZM(const typename TImage::Pointer itkImage, const typename TImage::Pointer maskImage, OffsetVectorPointer offset, std::map<std::string, double>& featurevec)
+ {
+@@ -2882,6 +2929,77 @@ void FeatureExtraction< TImage >::Update()
+                 break;
+               } // end lattice check
+             }
++            case IBSI2:
++            {
++              // this is a special case, where a pre-compiled python binary is called for every image/mask
++              auto temp = m_Features.find(FeatureFamilyString[f]);
++              if (temp != m_Features.end())
++              {
++                if (std::get<0>(temp->second))
++                {
++                  auto tempT1 = std::chrono::high_resolution_clock::now();
++
++                  std::get<2>(temp->second) = m_modality[i];
++                  std::get<3>(temp->second) = allROIs[j].label;
++
++                  for (size_t r = 0; r < m_Radius_range.size(); r++)
++                  {
++                    m_Radius = m_Radius_range[r];
++                    auto m_Radius_string = std::to_string(m_Radius);
++
++                    auto offsets = GetOffsetVector(m_Radius, /*m_Direction*/27);
++                    //auto offsets_2D = GetOffsetVector(m_Radius, /*m_Direction*/8);
++
++                    for (size_t b = 0; b < m_Bins_range.size(); b++)
++                    {
++                      m_Bins = m_Bins_range[b];
++                      auto m_Bins_string = std::to_string(m_Bins);
++                      std::string currentFeatureFamily = std::string(FeatureFamilyString[f]) + "_Bins-" + m_Bins_string + "_Radius-" + m_Radius_string;
++                      if (TImage::ImageDimension == 3)
++                      {
++                        std::string currentFeatureFamily = FeatureFamilyString[f];
++                        CalculateCOLLAGE(currentInputImage_patch, currentMask_patch, std::get<4>(temp->second));
++                        WriteFeatures(m_modality[i], allROIs[j].label, currentFeatureFamily, std::get<4>(temp->second),
++                          "Axis=3D;Dimension=3D;Bins=" + m_Bins_string + ";Directions=" + std::to_string(m_Direction) +
++                          ";Radius=" + m_Radius_string, m_currentLatticeCenter, writeFeatureMapsAndLattice, allROIs[j].weight);
++
++                        if (!writeFeatureMapsAndLattice && m_SliceComputation)
++                        {
++                          CalculateCOLLAGE(currentInputImage_patch, currentMask_patch_axisImages[0], std::get<4>(temp->second));
++                          WriteFeatures(m_modality[i], allROIs[j].label, currentFeatureFamily + "_X", std::get<4>(temp->second),
++                            "Axis=X;Dimension=2D;Bins=" + m_Bins_string + ";Directions=" + std::to_string(m_Direction) +
++                            ";Radius=" + m_Radius_string, m_currentLatticeCenter, writeFeatureMapsAndLattice, allROIs[j].weight);
++
++                          CalculateCOLLAGE(currentInputImage_patch, currentMask_patch_axisImages[1], std::get<4>(temp->second));
++                          WriteFeatures(m_modality[i], allROIs[j].label, currentFeatureFamily + "_Y", std::get<4>(temp->second),
++                            "Axis=Y;Dimension=2D;Bins=" + m_Bins_string + ";Directions=" + std::to_string(m_Direction) +
++                            ";Radius=" + m_Radius_string, m_currentLatticeCenter, writeFeatureMapsAndLattice, allROIs[j].weight);
++
++                          CalculateCOLLAGE(currentInputImage_patch, currentMask_patch_axisImages[2], std::get<4>(temp->second));
++                          WriteFeatures(m_modality[i], allROIs[j].label, currentFeatureFamily + "_Z", std::get<4>(temp->second),
++                            "Axis=2;Dimension=2D;Bins=" + m_Bins_string + ";Directions=" + std::to_string(m_Direction) +
++                            ";Radius=" + m_Radius_string, m_currentLatticeCenter, writeFeatureMapsAndLattice, allROIs[j].weight);
++                        }
++                      }
++                      else
++                      {
++                        CalculateCOLLAGE(currentInputImage_patch, currentMask_patch, std::get<4>(temp->second));
++                        WriteFeatures(m_modality[i], allROIs[j].label, currentFeatureFamily, std::get<4>(temp->second),
++                          "Axis=" + m_Axis + ";Dimension=" + std::to_string(m_Dimension) + ";Bins=" + m_Bins_string + ";Directions=" + std::to_string(m_Direction) +
++                          ";Radius=" + m_Radius_string, m_currentLatticeCenter, writeFeatureMapsAndLattice);
++                      }
++                    } // end bin-loop
++                  } // end radius-loop
++
++                  if (m_debug)
++                  {
++                    auto tempT2 = std::chrono::high_resolution_clock::now();
++                    m_logger.Write("Collage Features for modality '" + m_modality[i] + "' and ROI '" + allROIs[j].label + "' calculated in " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(tempT2 - tempT1).count()) + " milliseconds");
++                  }
++                }
++              }
++              break;
++            }
+             default: // undefined Feature
+               break;
+             }

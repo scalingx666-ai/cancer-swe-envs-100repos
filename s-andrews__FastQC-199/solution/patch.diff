@@ -1,0 +1,303 @@
+diff --git a/uk/ac/babraham/FastQC/Modules/BasicStats.java b/uk/ac/babraham/FastQC/Modules/BasicStats.java
+index bb06b9ca..9e37a1a1 100644
+--- a/uk/ac/babraham/FastQC/Modules/BasicStats.java
++++ b/uk/ac/babraham/FastQC/Modules/BasicStats.java
+@@ -123,9 +123,10 @@ public void processSequence(Sequence sequence) {
+ 			if (sequence.getSequence().length() > maxLength) maxLength = sequence.getSequence().length();
+ 		}
+ 
+-		char [] chars = sequence.getSequence().toCharArray();
+-		for (int c=0;c<chars.length;c++) {			
+-			switch (chars[c]) {
++		String seq = sequence.getSequence();
++		int seqLen = seq.length();
++		for (int c=0;c<seqLen;c++) {
++			switch (seq.charAt(c)) {
+ 				case 'G': ++gCount;break;
+ 				case 'A': ++aCount;break;
+ 				case 'T': ++tCount;break;
+@@ -134,10 +135,12 @@ public void processSequence(Sequence sequence) {
+ 			}
+ 		}
+ 		
+-		chars = sequence.getQualityString().toCharArray();
+-		for (int c=0;c<chars.length;c++) {
+-			if (chars[c] < lowestChar) {
+-				lowestChar = chars[c];
++		String qual = sequence.getQualityString();
++		int qualLen = qual.length();
++		for (int c=0;c<qualLen;c++) {
++			char ch = qual.charAt(c);
++			if (ch < lowestChar) {
++				lowestChar = ch;
+ 			}
+ 		}
+ 	}
+diff --git a/uk/ac/babraham/FastQC/Modules/NContent.java b/uk/ac/babraham/FastQC/Modules/NContent.java
+index ad6bd805..12e4c636 100644
+--- a/uk/ac/babraham/FastQC/Modules/NContent.java
++++ b/uk/ac/babraham/FastQC/Modules/NContent.java
+@@ -87,12 +87,13 @@ private synchronized void getPercentages () {
+ 		
+ 	public void processSequence(Sequence sequence) {
+ 		calculated = false;
+-		char [] seq = sequence.getSequence().toCharArray();
+-		if (nCounts.length < seq.length) {
++		String seq = sequence.getSequence();
++		int seqLen = seq.length();
++		if (nCounts.length < seqLen) {
+ 			// We need to expand the size of the data structures
+ 			
+-			long [] nCountsNew = new long [seq.length];
+-			long [] notNCountsNew = new long [seq.length];
++			long [] nCountsNew = new long [seqLen];
++			long [] notNCountsNew = new long [seqLen];
+ 
+ 			for (int i=0;i<nCounts.length;i++) {
+ 				nCountsNew[i] = nCounts[i];
+@@ -103,8 +104,8 @@ public void processSequence(Sequence sequence) {
+ 			notNCounts = notNCountsNew;
+ 		}
+ 		
+-		for (int i=0;i<seq.length;i++) {
+-			if (seq[i] == 'N') {
++		for (int i=0;i<seqLen;i++) {
++			if (seq.charAt(i) == 'N') {
+ 				++nCounts[i];
+ 			}
+ 			else {
+diff --git a/uk/ac/babraham/FastQC/Modules/PerBaseQualityScores.java b/uk/ac/babraham/FastQC/Modules/PerBaseQualityScores.java
+index c9cf781e..c523f2a5 100644
+--- a/uk/ac/babraham/FastQC/Modules/PerBaseQualityScores.java
++++ b/uk/ac/babraham/FastQC/Modules/PerBaseQualityScores.java
+@@ -129,10 +129,11 @@ private synchronized void getPercentages () {
+ 	public void processSequence(Sequence sequence) {
+ 		
+ 		calculated = false;
+-		char [] qual = sequence.getQualityString().toCharArray();
+-		if (qualityCounts.length < qual.length) {
+-			
+-			QualityCount [] qualityCountsNew = new QualityCount[qual.length];
++		String qual = sequence.getQualityString();
++		int qualLen = qual.length();
++		if (qualityCounts.length < qualLen) {
++
++			QualityCount [] qualityCountsNew = new QualityCount[qualLen];
+ 			
+ 			for (int i=0;i<qualityCounts.length;i++) {
+ 				qualityCountsNew[i] = qualityCounts[i];
+@@ -144,8 +145,8 @@ public void processSequence(Sequence sequence) {
+ 			
+ 		}
+ 		
+-		for (int i=0;i<qual.length;i++) {
+-			qualityCounts[i].addValue(qual[i]);
++		for (int i=0;i<qualLen;i++) {
++			qualityCounts[i].addValue(qual.charAt(i));
+ 		}
+ 		
+ 	}
+diff --git a/uk/ac/babraham/FastQC/Modules/PerBaseSequenceContent.java b/uk/ac/babraham/FastQC/Modules/PerBaseSequenceContent.java
+index 4e79c2f7..b9841864 100644
+--- a/uk/ac/babraham/FastQC/Modules/PerBaseSequenceContent.java
++++ b/uk/ac/babraham/FastQC/Modules/PerBaseSequenceContent.java
+@@ -113,13 +113,14 @@ private synchronized void getPercentages () {
+ 	
+ 	public void processSequence(Sequence sequence) {
+ 		calculated = false;
+-		char [] seq = sequence.getSequence().toCharArray();
+-		if (gCounts.length < seq.length) {
+-			
+-			long [] gCountsNew = new long [seq.length];
+-			long [] aCountsNew = new long [seq.length];
+-			long [] cCountsNew = new long [seq.length];
+-			long [] tCountsNew = new long [seq.length];
++		String seq = sequence.getSequence();
++		int seqLen = seq.length();
++		if (gCounts.length < seqLen) {
++
++			long [] gCountsNew = new long [seqLen];
++			long [] aCountsNew = new long [seqLen];
++			long [] cCountsNew = new long [seqLen];
++			long [] tCountsNew = new long [seqLen];
+ 
+ 			for (int i=0;i<gCounts.length;i++) {
+ 				gCountsNew[i] = gCounts[i];
+@@ -134,17 +135,18 @@ public void processSequence(Sequence sequence) {
+ 			cCounts = cCountsNew;
+ 		}
+ 		
+-		for (int i=0;i<seq.length;i++) {
+-			if (seq[i] == 'G') {
++		for (int i=0;i<seqLen;i++) {
++			char b = seq.charAt(i);
++			if (b == 'G') {
+ 				++gCounts[i];
+ 			}
+-			else if (seq[i] == 'A') {
++			else if (b == 'A') {
+ 				++aCounts[i];
+ 			}
+-			else if (seq[i] == 'T') {
++			else if (b == 'T') {
+ 				++tCounts[i];
+ 			}
+-			else if (seq[i] == 'C') {
++			else if (b == 'C') {
+ 				++cCounts[i];
+ 			}
+ 		}
+diff --git a/uk/ac/babraham/FastQC/Modules/PerSequenceGCContent.java b/uk/ac/babraham/FastQC/Modules/PerSequenceGCContent.java
+index 4b6f69d2..6e970b74 100644
+--- a/uk/ac/babraham/FastQC/Modules/PerSequenceGCContent.java
++++ b/uk/ac/babraham/FastQC/Modules/PerSequenceGCContent.java
+@@ -171,22 +171,24 @@ public void processSequence(Sequence sequence) {
+ 		// encounter we need to reduce the number of models.  We can do this by
+ 		// rounding off the sequence once we get above a certain size
+ 		
+-		char [] seq = truncateSequence(sequence);
+-		
+-		if (seq.length == 0) return; // Ignore empty sequences
++		String seq = truncateSequence(sequence);
++		int seqLen = seq.length();
++
++		if (seqLen == 0) return; // Ignore empty sequences
+ 		
+ 		
+ 		int thisSeqGCCount = 0;
+-		for (int i=0;i<seq.length;i++) {
+-			if (seq[i] == 'G' || seq[i] == 'C') {
++		for (int i=0;i<seqLen;i++) {
++			char b = seq.charAt(i);
++			if (b == 'G' || b == 'C') {
+ 				++thisSeqGCCount;
+ 			}
+ 		}
+ 
+-		if (seq.length >= cachedModels.length) {
++		if (seqLen >= cachedModels.length) {
+ 			// We need to extend the length of cached models
+ 			
+-			GCModel [] longerModels = new GCModel[seq.length+1];
++			GCModel [] longerModels = new GCModel[seqLen+1];
+ 			for (int i=0;i<cachedModels.length;i++) {
+ 				longerModels[i] = cachedModels[i];
+ 			}
+@@ -194,11 +196,11 @@ public void processSequence(Sequence sequence) {
+ 			cachedModels = longerModels;
+ 		}
+ 		
+-		if (cachedModels[seq.length] == null) {
+-			cachedModels[seq.length] = new GCModel(seq.length);
++		if (cachedModels[seqLen] == null) {
++			cachedModels[seqLen] = new GCModel(seqLen);
+ 		}
+ 
+-		GCModelValue [] values = cachedModels[seq.length].getModelValues(thisSeqGCCount);
++		GCModelValue [] values = cachedModels[seqLen].getModelValues(thisSeqGCCount);
+ 
+ 		for (int i=0;i<values.length;i++) {
+ 			gcDistribution[values[i].percentage()] += values[i].increment();
+@@ -206,7 +208,7 @@ public void processSequence(Sequence sequence) {
+ 		
+ 	}
+ 	
+-	private char [] truncateSequence (Sequence sequence) {
++	private String truncateSequence (Sequence sequence) {
+ 		
+ 		String seq = sequence.getSequence();
+ 		
+@@ -215,14 +217,14 @@ public void processSequence(Sequence sequence) {
+ 		
+ 		if (seq.length() > 1000) {
+ 			int length = (seq.length()/1000)*1000;
+-			return seq.substring(0, length).toCharArray();
++			return seq.substring(0, length);
+ 		}
+ 		if (seq.length() > 100) {
+ 			int length = (seq.length()/100)*100;
+-			return seq.substring(0, length).toCharArray();
++			return seq.substring(0, length);
+ 		}
+ 
+-		return seq.toCharArray();		
++		return seq;
+ 		
+ 	}
+ 	
+diff --git a/uk/ac/babraham/FastQC/Modules/PerSequenceQualityScores.java b/uk/ac/babraham/FastQC/Modules/PerSequenceQualityScores.java
+index 61661e57..276ac6b2 100644
+--- a/uk/ac/babraham/FastQC/Modules/PerSequenceQualityScores.java
++++ b/uk/ac/babraham/FastQC/Modules/PerSequenceQualityScores.java
+@@ -88,18 +88,20 @@ private synchronized void calculateDistribution () {
+ 
+ 	public void processSequence(Sequence sequence) {
+ 				
+-		char [] seq = sequence.getQualityString().toCharArray();
++		String qual = sequence.getQualityString();
++		int qualLen = qual.length();
+ 		int averageQuality = 0;
+ 		
+-		for (int i=0;i<seq.length;i++) {
+-			if (seq[i] < lowestChar) {
+-				lowestChar = seq[i];
++		for (int i=0;i<qualLen;i++) {
++			char ch = qual.charAt(i);
++			if (ch < lowestChar) {
++				lowestChar = ch;
+ 			}
+-			averageQuality += seq[i];
++			averageQuality += ch;
+ 		}
+ 
+-		if (seq.length > 0) {
+-			averageQuality /= seq.length;
++		if (qualLen > 0) {
++			averageQuality /= qualLen;
+ 					
+ 			if (averageScoreCounts.containsKey(averageQuality)) {
+ 				long currentCount = averageScoreCounts.get(averageQuality);
+diff --git a/uk/ac/babraham/FastQC/Modules/PerTileQualityScores.java b/uk/ac/babraham/FastQC/Modules/PerTileQualityScores.java
+index 41afd714..6f344f67 100644
+--- a/uk/ac/babraham/FastQC/Modules/PerTileQualityScores.java
++++ b/uk/ac/babraham/FastQC/Modules/PerTileQualityScores.java
+@@ -256,15 +256,16 @@ else if (splitID.length >=5) {
+ 			return;
+ 		}
+ 
+-		char [] qual = sequence.getQualityString().toCharArray();
+-		if (currentLength < qual.length) {
++		String qual = sequence.getQualityString();
++		int qualLen = qual.length();
++		if (currentLength < qualLen) {
+ 
+ 			Iterator<Integer> tiles = perTileQualityCounts.keySet().iterator();
+ 			while (tiles.hasNext()) {
+ 				int thisTile = tiles.next();
+ 
+ 				QualityCount [] qualityCounts = perTileQualityCounts.get(thisTile);
+-				QualityCount [] qualityCountsNew = new QualityCount[qual.length];
++				QualityCount [] qualityCountsNew = new QualityCount[qualLen];
+ 
+ 				for (int i=0;i<qualityCounts.length;i++) {
+ 					qualityCountsNew[i] = qualityCounts[i];
+@@ -275,7 +276,7 @@ else if (splitID.length >=5) {
+ 				perTileQualityCounts.put(thisTile, qualityCountsNew);
+ 			}
+ 
+-			currentLength = qual.length;
++			currentLength = qualLen;
+ 
+ 		}
+ 
+@@ -300,8 +301,8 @@ else if (splitID.length >=5) {
+ 
+ 		QualityCount [] qualityCounts = perTileQualityCounts.get(tile);
+ 
+-		for (int i=0;i<qual.length;i++) {
+-			qualityCounts[i].addValue(qual[i]);
++		for (int i=0;i<qualLen;i++) {
++			qualityCounts[i].addValue(qual.charAt(i));
+ 		}
+ 
+ 	}

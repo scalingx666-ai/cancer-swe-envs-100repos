@@ -1,0 +1,237 @@
+diff --git a/RELEASE_NOTES.md b/RELEASE_NOTES.md
+index acd2d76..413ad10 100644
+--- a/RELEASE_NOTES.md
++++ b/RELEASE_NOTES.md
+@@ -3,6 +3,30 @@
+ Changes in each published version, newest first. These notes start at 2.27.2;
+ earlier versions are available as [Git tags](https://github.com/openvax/pyensembl/tags).
+ 
++## 2.33.2
++
++Lookups by a feature type or attribute that an annotation lacks no longer
++raise SQLite errors. The index has a table only for the features a GTF
++contains and a column only for the attributes it uses, so a GTF without
++`start_codon`, `stop_codon` or `CDS` rows made `Transcript.complete` and
++`contains_start_codon` fail with `no such table` (#499), and one without
++`transcript_name` made `transcripts_by_name` fail with `no such column` (#502).
++Such a lookup now matches nothing: `complete`, `contains_start_codon` and
++`start_codon_complete` are `False`, and `transcripts_by_name` raises the same
++`ValueError` as for any name not in the annotation. Accessors that require a
++feature, such as `start_codon_positions` or `coding_sequence_position_ranges`,
++raise `ValueError` instead of `sqlite3.OperationalError`. Existing indexes are
++used as they are.
++
++## 2.33.1
++
++`pyensembl available` with `--species`, `--assembly` or another selector
++printed a `TypeError` traceback instead of its table whenever the selection
++included a numbered release, as in `pyensembl available --species human`
++(#507). `pyensembl verify --release 75` failed the same way. Command-line
++tables now print numbered releases like any other value. `--json` output
++and caches are unchanged.
++
+ ## 2.33.0
+ 
+ Tab completion for the `pyensembl` command (#514), and a fast import (#510).
+diff --git a/pyensembl/database.py b/pyensembl/database.py
+index 8825276..72a0cf5 100644
+--- a/pyensembl/database.py
++++ b/pyensembl/database.py
+@@ -698,6 +698,12 @@ def query(
+         """
+         Construct a SQL query and run against the sqlite3 database,
+         filtered both by the feature type and a user-provided column/value.
++
++        The database has a table only for the features its GTF contains and
++        a column only for the attributes it uses. Without one (e.g. no
++        ``start_codon`` rows, or no ``transcript_name`` attribute), no row
++        matches the filter: the result is empty, or ``ValueError`` if
++        ``required``.
+         """
+         sql = """
+             SELECT %s%s
+@@ -709,13 +715,16 @@ def query(
+             feature,
+             filter_column,
+         )
+-        results = self.run_sql_query(sql, query_params=[filter_value])
+-        if not results and filter_column in self.ID_VERSION_COLUMNS:
+-            # Retry with the form this annotation stores, e.g. a bare ID for a
+-            # versioned one; resolving only on a miss keeps hits to one query
+-            stored_id = self.stored_id(filter_column, filter_value)
+-            if stored_id != filter_value:
+-                results = self.run_sql_query(sql, query_params=[stored_id])
++        if not self.column_exists(feature, filter_column):
++            results = []
++        else:
++            results = self.run_sql_query(sql, query_params=[filter_value])
++            if not results and filter_column in self.ID_VERSION_COLUMNS:
++                # Retry with the form this annotation stores, e.g. a bare ID for a
++                # versioned one; resolving only on a miss keeps hits to one query
++                stored_id = self.stored_id(filter_column, filter_value)
++                if stored_id != filter_value:
++                    results = self.run_sql_query(sql, query_params=[stored_id])
+         if required and not results:
+             raise ValueError(
+                 "No results found for query:\n%s\nwith parameters: %s"
+diff --git a/pyensembl/shell.py b/pyensembl/shell.py
+index 36d1279..1c6f69e 100755
+--- a/pyensembl/shell.py
++++ b/pyensembl/shell.py
+@@ -504,8 +504,11 @@ def _display_path(path):
+ 
+ 
+ def _format_table(header, rows, use_color=None):
++    """Align rows under a header; cells are printed with ``str``, so a
++    numbered release can be the ``int`` it is everywhere else."""
+     if use_color is None:
+         use_color = sys.stdout.isatty()
++    rows = [[str(cell) for cell in row] for row in rows]
+     widths = [max(len(cell) for cell in column) for column in zip(header, *rows)]
+ 
+     def line(cells):
+diff --git a/pyensembl/version.py b/pyensembl/version.py
+index 06a7d6a..552eefa 100644
+--- a/pyensembl/version.py
++++ b/pyensembl/version.py
+@@ -1,4 +1,4 @@
+-__version__ = "2.33.0"
++__version__ = "2.33.2"
+ 
+ def print_version():
+     print(f"v{__version__}")
+diff --git a/tests/test_absent_features_and_attributes.py b/tests/test_absent_features_and_attributes.py
+new file mode 100644
+index 0000000..553838e
+--- /dev/null
++++ b/tests/test_absent_features_and_attributes.py
+@@ -0,0 +1,73 @@
++"""Lookups in annotations that omit a feature type or an attribute.
++
++The database has a table only for the features a GTF contains and a column
++only for the attributes it uses, so a lookup on either finds nothing instead
++of raising an SQLite error (#499, #502).
++"""
++
++import pytest
++
++from pyensembl import Genome
++
++GENE = 'gene_id "g"; gene_name "G"; gene_biotype "protein_coding"; '
++TRANSCRIPT = 'transcript_id "t"; transcript_biotype "protein_coding"; '
++EXON = 'exon_id "e"; exon_number "1";'
++
++
++def indexed_genome(directory, attributes):
++    """Index a one-gene GTF with gene, transcript and exon rows only."""
++    gtf = directory / "partial.gtf"
++    gtf.write_text("".join(
++        "1\ttest\t%s\t100\t200\t.\t+\t.\t%s\n" % (feature, attributes)
++        for feature in ("gene", "transcript", "exon")
++    ))
++    genome = Genome(reference_name="test", annotation_name="partial",
++                    gtf_path_or_url=str(gtf), cache_directory_path=str(directory))
++    genome.index()
++    return genome
++
++
++def test_transcript_without_codon_or_cds_tables_is_incomplete(tmp_path):
++    with indexed_genome(tmp_path, GENE + TRANSCRIPT + EXON) as genome:
++        assert not any(genome.db.columns(feature)
++                       for feature in ("start_codon", "stop_codon", "CDS"))
++        transcript = genome.transcript_by_id("t")
++        assert not transcript.contains_start_codon
++        assert not transcript.contains_stop_codon
++        assert not transcript.start_codon_complete
++        assert not transcript.stop_codon_complete
++        assert not transcript.complete
++
++
++@pytest.mark.parametrize("accessor, feature", [
++    ("start_codon_positions", "start_codon"),
++    ("stop_codon_positions", "stop_codon"),
++    ("coding_sequence_position_ranges", "CDS"),
++])
++def test_required_transcript_feature_still_raises(tmp_path, accessor, feature):
++    with indexed_genome(tmp_path, GENE + TRANSCRIPT + EXON) as genome:
++        transcript = genome.transcript_by_id("t")
++        with pytest.raises(ValueError, match="does not contain feature %s" % feature):
++            getattr(transcript, accessor)
++
++
++def test_transcript_name_lookup_without_transcript_names(tmp_path):
++    with indexed_genome(tmp_path, GENE + TRANSCRIPT + EXON) as genome:
++        assert not genome.db.column_exists("transcript", "transcript_name")
++        # The same error as for a name absent from an annotation with names;
++        # the gene name "G" is not used as a transcript name.
++        for name in ("CFTR", "G"):
++            with pytest.raises(ValueError, match="No results found"):
++                genome.transcripts_by_name(name)
++            with pytest.raises(ValueError, match="No results found"):
++                genome.exon_ids_of_transcript_name(name)
++        assert genome.transcript_ids_of_gene_name("G") == ["t"]
++        assert genome.transcript_by_id("t").transcript_name is None
++
++
++def test_transcript_name_lookup_with_transcript_names(tmp_path):
++    attributes = GENE + TRANSCRIPT + 'transcript_name "G-201"; ' + EXON
++    with indexed_genome(tmp_path, attributes) as genome:
++        assert [t.id for t in genome.transcripts_by_name("G-201")] == ["t"]
++        with pytest.raises(ValueError, match="No results found"):
++            genome.transcripts_by_name("CFTR")
+diff --git a/tests/test_cli_actions.py b/tests/test_cli_actions.py
+index ac4b44b..0222ccb 100644
+--- a/tests/test_cli_actions.py
++++ b/tests/test_cli_actions.py
+@@ -1,5 +1,6 @@
+ """Tests for the per-action functions behind ``pyensembl.shell.run``."""
+ 
++import json
+ from types import SimpleNamespace
+ 
+ import pytest
+@@ -70,6 +71,25 @@ def test_run_available_chooses_listing(monkeypatch):
+     assert shell.run_available(make_available_args(refresh=True)) == "species 0"
+ 
+ 
++@pytest.mark.parametrize("selector", [
++    ["--species", "human"], ["--assembly", "GRCh37"], ["--species", "dog"],
++])
++def test_available_catalogue_text_lists_the_json_releases(
++        tmp_path, monkeypatch, capsys, selector):
++    """The text table shows every release --json does, including numbered
++    releases, which are ints (#507)."""
++    monkeypatch.setenv("PYENSEMBL_CACHE_DIR", str(tmp_path))
++    monkeypatch.setattr(shell, "configure_logging", lambda **kw: None)
++    shell.run(["available", "--json"] + selector)
++    expected = [(str(row["release"]), row["latest"])
++                for row in json.loads(capsys.readouterr().out)]
++    assert any(release.isdigit() for release, _ in expected)
++    shell.run(["available"] + selector)
++    header, *rows = capsys.readouterr().out.splitlines()
++    assert header.split()[:2] == ["Release", "Assembly"]
++    assert [(row.split()[0], row.endswith(" yes")) for row in rows] == expected
++
++
+ def test_run_available_conflicting_selectors():
+     args = make_available_args(reference_name="GRCh37", assembly="GRCh38")
+     with pytest.raises(ValueError, match="one assembly selector"):
+@@ -78,7 +98,7 @@ def test_run_available_conflicting_selectors():
+ 
+ class FakeRelease(EnsemblRelease):
+     def __init__(self, statuses):
+-        self.release = "75"
++        self.release = 75  # numbered releases are ints, as in EnsemblRelease
+         self.statuses = statuses
+ 
+     def verify_sources(self, check_remote):
+@@ -87,7 +107,8 @@ def verify_sources(self, check_remote):
+ 
+ def test_run_verify_reports_status():
+     text, ok = shell.run_verify([FakeRelease(["verified"])])
+-    assert ok and "verified" in text
++    assert ok
++    assert text.splitlines()[1].split() == ["75", "gtf", "verified", "not", "checked"]
+     text, ok = shell.run_verify([FakeRelease(["mismatch"])], json_output=True)
+     assert not ok and '"mismatch"' in text
+ 

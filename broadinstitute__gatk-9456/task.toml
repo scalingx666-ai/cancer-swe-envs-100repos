@@ -1,0 +1,79 @@
+version = "1.0"
+
+[task]
+name = "default/broadinstitute__gatk-9456"
+description = "Verify ref ranges parquet ingest by reading number  of parquet rows using bq [VS-2032]"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "gatk",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "broadinstitute/gatk"
+ref = "01b13c21f0f1076c9dee9d8a2d008499dc34485f"
+reference = "https://github.com/broadinstitute/gatk/pull/9456"
+source_access = "auto"
+built_at = "2026-11-12T04:16:58.457744+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:0eebac2b062c6e54f0553bcd3f1a958cb46b6016620c864f28633411d16ccdd1"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-10-30T22:52:28Z"
+diff_format = "unified"
+context_files = [
+    ".dockstore.yml",
+    "scripts/variantstore/parquet_loading/README.md",
+    "scripts/variantstore/scripts/test/test_verify_all_loaded.py",
+    "scripts/variantstore/scripts/test/test_verify_structural_checks.py",
+    "scripts/variantstore/scripts/verify_all_loaded.py",
+    "scripts/variantstore/scripts/verify_structural_checks.py",
+    "scripts/variantstore/wdl/GvsBulkIngestGenomes.wdl",
+    "scripts/variantstore/wdl/GvsImportGenomes.wdl",
+    "scripts/variantstore/wdl/GvsJointVariantCalling.wdl",
+    "scripts/variantstore/wdl/GvsUtils.wdl",
+    "scripts/variantstore/wdl/test/GvsQuickstartIntegration.wdl",
+    "scripts/variantstore/wdl/test/GvsQuickstartVcfIntegration.wdl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 2209
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.775925+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:e4fe4058d764bec9d33c8c3ffc85b7c5ea1416faadffff3c0e390f5ea1995551"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

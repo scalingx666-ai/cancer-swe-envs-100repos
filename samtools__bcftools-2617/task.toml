@@ -1,0 +1,70 @@
+version = "1.0"
+
+[task]
+name = "default/samtools__bcftools-2617"
+description = "Saturate --max-idepth instead of overflowing when scaled by sample count"
+
+[metadata]
+difficulty = "large"
+category = "bugfix"
+keywords = [
+    "bcftools",
+    "pr_diff",
+]
+
+[metadata.repo2env]
+pipeline = "pr_diff"
+pipeline_version = "0.3.0"
+repo = "samtools/bcftools"
+ref = "0b732b9682cb46582932a6872e8af64970b3c17b"
+reference = "https://github.com/samtools/bcftools/pull/2617"
+source_access = "auto"
+built_at = "2026-11-12T05:36:06.321233+00:00"
+reward_kinds = [
+    "diff_similarity",
+]
+spec_version = "0.2.0"
+content_hash = "sha256:7c2b0145466a8d8a05eb931d24472273e4fa34b80397f55fbbe2bb5404906c8b"
+
+[metadata.repo2env.pr_diff]
+pr_merged_at = "2026-11-11T10:54:50Z"
+diff_format = "unified"
+context_files = [
+    "mpileup.c",
+    "test/mpileup/mpileup.13.out",
+    "test/test.pl",
+]
+bootstrap_image = "python:3.12-slim"
+
+[metadata.repo2env.reward_calibration]
+baseline_reward = 0.0
+loc_changed = 530
+difficulty = "large"
+
+[metadata.repo2env.evaluation]
+schema_version = "1"
+status = "unverified"
+stage = "generation"
+reason_codes = [
+    "validation_not_run",
+]
+detail = "Generated task; validation has not been established."
+provenance = "unknown"
+evidence = []
+
+[metadata.repo2env.reproducibility]
+mode = "inline_dockerfile"
+image_ref = "python:3.12-slim"
+image_tag = "python:3.12-slim"
+image_visibility = "public"
+pushed_at = "2026-11-12T06:12:58.827132+00:00"
+pushed_by = "scalingX"
+inline_recipe_sha256 = "sha256:622ae025b2c72595dbe31e7664f5a766d78d5b1f085cc19aa6e1c5fe51604b1b"
+inline_recipe_lines = 37
+inline_recipe_source = "user_dockerfile"
+
+[agent]
+timeout_sec = 1800.0
+
+[verifier]
+timeout_sec = 300.0

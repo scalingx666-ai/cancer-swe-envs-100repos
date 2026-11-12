@@ -1,0 +1,293 @@
+diff --git a/README.md b/README.md
+index ee81f8e..5105a88 100644
+--- a/README.md
++++ b/README.md
+@@ -82,7 +82,7 @@ the area is exponentially proportional to the count indicated. Examples:
+ #### Alternative input sources:
+ 
+ ```
+-  -uniprot                use UniprotKB as an alternative to Pfam for
++  -pfam                   use Pfam legacy as an alternative to uniprot for
+                           fetching domain/motif information
+   -l=filename.json        use local file instead of Pfam API for graphic data
+                             see: http://pfam-legacy.xfam.org/help#tabview=tab9
+diff --git a/data/http.go b/data/http.go
+index 7621e3c..d85ad13 100644
+--- a/data/http.go
++++ b/data/http.go
+@@ -5,10 +5,15 @@ package data
+ import (
+ 	"net/http"
+ 	"net/url"
++    "crypto/tls"
+ )
+ 
+ func httpGet(url string) (*http.Response, error) {
+-	return http.Get(url)
++	tr := &http.Transport{
++        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
++    }
++    client := &http.Client{Transport: tr}
++    return client.Get(url)
+ }
+ 
+ func httpPostForm(url string, vals url.Values) (*http.Response, error) {
+diff --git a/data/pfam.go b/data/pfam.go
+index 76db025..628c611 100644
+--- a/data/pfam.go
++++ b/data/pfam.go
+@@ -56,13 +56,15 @@ func GetPfamGraphicData(accession string) (*GraphicResponse, error) {
+ 	r := data[0]
+ 	for i, x := range r.Motifs {
+ 		if x.Link != "" {
+-			x.Link = "https://pfam-legacy.xfam.org" + x.Link
++			//x.Link = "https://pfam-legacy.xfam.org" + x.Link
++			x.Link = "https://www.ebi.ac.uk/interpro/protein/UniProt/" + accession
+ 			r.Motifs[i] = x
+ 		}
+ 	}
+ 	for i, x := range r.Regions {
+ 		if x.Link != "" {
+-			x.Link = "https://pfam-legacy.xfam.org" + x.Link
++			//x.Link = "https://pfam-legacy.xfam.org" + x.Link
++			x.Link = "https://www.ebi.ac.uk/interpro/protein/UniProt/" + accession
+ 			r.Regions[i] = x
+ 		}
+ 	}
+diff --git a/data/uniprot.go b/data/uniprot.go
+index f9067c0..a6d8ccf 100644
+--- a/data/uniprot.go
++++ b/data/uniprot.go
+@@ -21,9 +21,11 @@ import (
+ 	"bytes"
+ 	"encoding/json"
+ 	"fmt"
++	"io"
+ 	"io/ioutil"
+ 	"log"
+ 	"net"
++	"net/http"
+ 	"net/url"
+ 	"os"
+ 	"regexp"
+@@ -60,7 +62,11 @@ func getValueForKey(line, key string) string {
+ 
+ func GetUniprotGraphicData(accession string) (*GraphicResponse, error) {
+ 	queryURL := fmt.Sprintf(UniprotDataURL, accession)
+-	resp, err := httpGet(queryURL)
++	client := &http.Client{}
++	req, err := http.NewRequest("GET", queryURL, nil)
++	req.Header.Add("Accept-Encoding", "UTF-8")
++	resp, err := client.Do(req)
++
+ 	if err != nil {
+ 		if err, ok := err.(net.Error); ok && err.Timeout() {
+ 			fmt.Fprintf(os.Stderr, "Unable to connect to Uniprot. Check your internet connection or try again later.")
+@@ -68,19 +74,60 @@ func GetUniprotGraphicData(accession string) (*GraphicResponse, error) {
+ 		}
+ 		return nil, err
+ 	}
+-	respBytes, err := ioutil.ReadAll(resp.Body)
++	defer resp.Body.Close()
++	respBytes, err := io.ReadAll(resp.Body)
+ 	if err != nil {
+ 		return nil, err
+ 	}
+ 	if resp.StatusCode != 200 {
+ 		return nil, fmt.Errorf("pfam error: %s", resp.Status)
+ 	}
+-
+-	nouncertain := regexp.MustCompile("[?<>]")
+ 	trimTags := regexp.MustCompile("[{][^}]*[}]")
+ 	minisplit := regexp.MustCompile("[;.]")
+ 
+ 	gd := &GraphicResponse{}
++	pat := regexp.MustCompile(`FT\s+([A-Z_]+)\s+(\d+)\.\.(\d+)\nFT\s+\/note="([\w\s\d]+)"`)
++	matches := pat.FindAllSubmatch(respBytes, -1)
++
++	for _, match := range matches {
++		featureType := string(match[1])
++		fromPos := string(match[2]) //	'From' endpoint
++		toPos := string(match[3])   //	'To' endpoint
++		desc := string(match[4])    //	Description
++		if fromPos == "" || toPos == "" || fromPos == toPos {
++			// skip any unknown positions or point features
++			continue
++		}
++		fdata, ok := defaultUniprotFeatures[featureType]
++		if !ok {
++			continue
++		}
++		desc = strings.TrimSpace(trimTags.ReplaceAllString(desc, ""))
++		shortDesc := desc
++		if p := minisplit.Split(desc, 2); len(p) == 2 {
++			shortDesc = strings.TrimSpace(p[0])
++		}
++
++		feat := GraphicFeature{
++			Color: fdata[2],
++			Text:  strings.Trim(shortDesc, ". "),
++			Type:  fdata[1],
++			Start: json.Number(fromPos),
++			End:   json.Number(toPos),
++			Metadata: GraphicMetadata{
++				Description: strings.Trim(shortDesc, ". "),
++			},
++		}
++		switch fdata[0] {
++		case "region":
++			gd.Regions = append(gd.Regions, feat)
++		case "motif":
++			gd.Motifs = append(gd.Motifs, feat)
++		default:
++			log.Println("unknown feature set", fdata[0])
++		}
++	}
++
+ 	for _, bline := range bytes.Split(respBytes, []byte("\n")) {
+ 		if len(bline) < 5 {
+ 			continue
+@@ -115,62 +162,24 @@ func GetUniprotGraphicData(accession string) (*GraphicResponse, error) {
+ 				break
+ 			}
+ 			////////////////////////////
+-		case "FT":
+-			/// https://web.expasy.org/docs/userman.html#FT_line
+-			if len(line) < 30 || strings.TrimSpace(line[:29]) == "" {
+-				// continuation of previous line's description (ignored)
+-				continue
+-			}
+-			featureType := strings.TrimSpace(line[:8])                                 //	Key name
+-			fromPos := strings.TrimSpace(nouncertain.ReplaceAllString(line[9:15], "")) //	'From' endpoint
+-			toPos := strings.TrimSpace(nouncertain.ReplaceAllString(line[16:22], ""))  //	'To' endpoint
+-			desc := strings.TrimSpace(line[29:])                                       //	Description
+-
+-			if fromPos == "" || toPos == "" || fromPos == toPos {
+-				// skip any unknown positions or point features
+-				continue
+-			}
+-			fdata, ok := defaultUniprotFeatures[featureType]
+-			if !ok {
+-				continue
+-			}
+-
+-			desc = strings.TrimSpace(trimTags.ReplaceAllString(desc, ""))
+-			shortDesc := desc
+-			if p := minisplit.Split(desc, 2); len(p) == 2 {
+-				shortDesc = strings.TrimSpace(p[0])
+-			}
+-
+-			feat := GraphicFeature{
+-				Color: fdata[2],
+-				Text:  strings.Trim(shortDesc, ". "),
+-				Type:  fdata[1],
+-				Start: json.Number(fromPos),
+-				End:   json.Number(toPos),
+-				Metadata: GraphicMetadata{
+-					Description: strings.Trim(shortDesc, ". "),
+-				},
+-			}
+-			switch fdata[0] {
+-			case "region":
+-				gd.Regions = append(gd.Regions, feat)
+-			case "motif":
+-				gd.Motifs = append(gd.Motifs, feat)
+-			default:
+-				log.Println("unknown feature set", fdata[0])
+-			}
+ 		}
+ 	}
+ 
+ 	return gd, nil
+ }
+ 
+-func GetProtID(symbol string) (string, error) {
+-	apiURL := `https://www.uniprot.org/uniprot/?query=` + url.QueryEscape(symbol)
+-	apiURL += `+AND+reviewed:yes+AND+organism:9606+AND+database:pfam`
+-	apiURL += `&sort=score&columns=id,entry+name,reviewed,genes,organism&format=tab`
++const UNIPROTRESTURL = "https://rest.uniprot.org/uniprotkb/search?query=%s+AND+reviewed:true+AND+organism_id:9606&columns=id,entry+name,reviewed,genes,organism&format=tsv"
+ 
+-	resp, err := httpGet(apiURL)
++func GetProtID(symbol string) (string, error) {
++	apiURL := fmt.Sprintf(UNIPROTRESTURL, symbol)
++	client := &http.Client{}
++	req, err := http.NewRequest("GET", apiURL, nil)
++	req.Header.Add("Accept-Encoding", "UTF-8")
++	resp, err := client.Do(req)
++	if err != nil {
++		log.Fatal(err)
++	}
++	defer resp.Body.Close()
+ 	if err != nil {
+ 		if err, ok := err.(net.Error); ok && err.Timeout() {
+ 			fmt.Fprintf(os.Stderr, "Unable to connect to Uniprot. Check your internet connection or try again later.")
+@@ -178,7 +187,8 @@ func GetProtID(symbol string) (string, error) {
+ 		}
+ 		return "", err
+ 	}
+-	respBytes, err := ioutil.ReadAll(resp.Body)
++
++	respBytes, err := io.ReadAll(resp.Body)
+ 	if err != nil {
+ 		return "", err
+ 	}
+@@ -189,18 +199,15 @@ func GetProtID(symbol string) (string, error) {
+ 	bestHit := 0
+ 	protID := ""
+ 	for _, line := range strings.Split(string(respBytes), "\n") {
++		p := strings.Split(string(line), "\t")
++		for _, g := range strings.Split(string(p[4]), " ") {
++			if g == symbol {
++				// exact match, return immediately
++				return p[0], nil
++			}
++		}
+ 		n := strings.Count(line, symbol)
+ 		if n >= bestHit {
+-			p := strings.SplitN(line, "\t", 4)
+-			if len(p) < 4 {
+-				continue
+-			}
+-			for _, g := range strings.Split(p[3], " ") {
+-				if g == symbol {
+-					// exact match, return immediately
+-					return p[0], nil
+-				}
+-			}
+ 			bestHit = n
+ 			protID = p[0]
+ 		}
+diff --git a/main.go b/main.go
+index 15f9418..c38e1a0 100644
+--- a/main.go
++++ b/main.go
+@@ -53,7 +53,7 @@ var (
+ 	fontPath = flag.String("f", "", "Path to truetype font to use for drawing (defaults to Arial.ttf)")
+ 
+ 	localPath     = flag.String("l", "", "Path to local json graphic data (Pfam response format)")
+-	alternateData = flag.Bool("uniprot", false, "fetch alternative domain/motif information from Uniprot instead of Pfam")
++	alternateData = flag.Bool("pfam", false, "fetch alternative domain/motif information from Uniprot instead of Pfam")
+ )
+ 
+ func main() {
+@@ -113,7 +113,7 @@ Output options:
+   -dpi=300                set DPI (PNG output only)
+ 
+ Alternative input sources:
+-  -uniprot                use UniprotKB as an alternative to Pfam for
++  -pfam                   use Pfam legacy as an alternative to UniprotKB for
+                           fetching domain/motif information
+   -l=filename.json        use local file instead of Pfam API for graphic data
+                             see: http://pfam-legacy.xfam.org/help#tabview=tab9
+@@ -198,9 +198,9 @@ Press Enter/Ctrl-C to quit.`)
+ 	if *localPath != "" {
+ 		d, err = data.GetLocalGraphicData(*localPath)
+ 	} else if *alternateData {
+-		d, err = data.GetUniprotGraphicData(acc)
+-	} else {
+ 		d, err = data.GetPfamGraphicData(acc)
++	} else {
++		d, err = data.GetUniprotGraphicData(acc)
+ 	}
+ 	if err != nil {
+ 		fmt.Fprintln(os.Stderr, err)
